@@ -1,28 +1,118 @@
+"use client";
+
+import { useEffect, useState, type FormEvent } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PitchPosition } from "@/components/pitch-position";
 import { PlayerAvatar } from "@/components/players/player-avatar";
-import { players } from "@/lib/sample-data";
-import { notFound } from "next/navigation";
+import {
+  fetchPlayer, updatePlayer, deletePlayer, POSITION_OPTIONS,
+  type DbPlayer, type Availability,
+} from "@/lib/players-db";
 import Link from "next/link";
-import { ArrowLeft, FileText, Film } from "lucide-react";
+import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
+const AVAILABILITY_OPTIONS: Availability[] = ["green", "amber", "red"];
 
-function formatDob(iso: string) {
+function formatDob(iso: string | null) {
+  if (!iso) return "Not set";
   const dob = new Date(iso);
   const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000));
   return `${dob.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} (age ${age})`;
 }
 
-export function generateStaticParams() {
-  return players.map((p) => ({ id: p.id }));
-}
+export default function PlayerProfilePage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
 
-export default function PlayerProfilePage({ params }: { params: { id: string } }) {
-  const player = players.find((p) => p.id === params.id);
-  if (!player) notFound();
+  const [player, setPlayer] = useState<DbPlayer | null | undefined>(undefined);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const [name, setName] = useState("");
+  const [squadNumber, setSquadNumber] = useState("");
+  const [positionLabel, setPositionLabel] = useState(POSITION_OPTIONS[0].label);
+  const [nationality, setNationality] = useState("");
+  const [dob, setDob] = useState("");
+  const [availability, setAvailability] = useState<Availability>("green");
+  const [availabilityNote, setAvailabilityNote] = useState("");
+
+  async function load() {
+    const p = await fetchPlayer(params.id);
+    setPlayer(p);
+    if (p) {
+      setName(p.name);
+      setSquadNumber(String(p.squad_number));
+      setPositionLabel(p.position);
+      setNationality(p.nationality);
+      setDob(p.dob ?? "");
+      setAvailability(p.availability);
+      setAvailabilityNote(p.availability_note);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  async function handleSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!player) return;
+    const option = POSITION_OPTIONS.find((o) => o.label === positionLabel) ?? POSITION_OPTIONS[0];
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updatePlayer(player.id, {
+        name: name.trim(),
+        squadNumber: Number(squadNumber),
+        position: option.label,
+        positionGroup: option.group,
+        nationality: nationality.trim(),
+        dob,
+        availability,
+        availabilityNote: availabilityNote.trim(),
+      });
+      setPlayer(updated);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save changes.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!player) return;
+    if (!window.confirm(`Remove ${player.name} from the squad? This can't be undone.`)) return;
+    await deletePlayer(player.id);
+    router.push("/players");
+  }
+
+  if (player === undefined) {
+    return (
+      <AppShell>
+        <p className="text-sm text-neutral-400">Loading…</p>
+      </AppShell>
+    );
+  }
+
+  if (player === null) {
+    return (
+      <AppShell>
+        <Link href="/players" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white">
+          <ArrowLeft size={14} /> Back to Players
+        </Link>
+        <Card>
+          <p className="text-sm text-neutral-400">This player couldn&apos;t be found — they may have been removed.</p>
+        </Card>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -30,20 +120,86 @@ export default function PlayerProfilePage({ params }: { params: { id: string } }
         <ArrowLeft size={14} /> Back to Players
       </Link>
 
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <PlayerAvatar playerId={player.id} initials={player.initials} size="lg" editable />
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-semibold">{player.name}</h1>
-          <p className="text-sm text-neutral-500">#{player.squadNumber} · {player.position} · {player.nationality}</p>
-          <p className="text-xs text-neutral-400 mt-0.5">Click the photo to add or change a headshot</p>
+      {!editing ? (
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <PlayerAvatar playerId={player.id} initials={player.initials} size="lg" editable />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-semibold">{player.name}</h1>
+            <p className="text-sm text-neutral-500">#{player.squad_number} · {player.position} · {player.nationality || "—"}</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Click the photo to add or change a headshot</p>
+          </div>
+          <Badge variant={statusVariant[player.availability]}>{player.availability_note}</Badge>
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+          >
+            <Pencil size={14} /> Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
         </div>
-        <Badge variant={statusVariant[player.availability]}>{player.availabilityNote}</Badge>
-      </div>
+      ) : (
+        <Card className="mb-6">
+          <form onSubmit={handleSave} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Full name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Squad number</label>
+                <input type="number" value={squadNumber} onChange={(e) => setSquadNumber(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Position</label>
+                <select value={positionLabel} onChange={(e) => setPositionLabel(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
+                  {POSITION_OPTIONS.map((o) => <option key={o.label} value={o.label}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Nationality</label>
+                <input value={nationality} onChange={(e) => setNationality(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Date of birth</label>
+                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Availability</label>
+                <select value={availability} onChange={(e) => setAvailability(e.target.value as Availability)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
+                  {AVAILABILITY_OPTIONS.map((a) => (
+                    <option key={a} value={a}>{a === "green" ? "Available" : a === "amber" ? "Doubtful" : "Unavailable"}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Availability note</label>
+                <input value={availabilityNote} onChange={(e) => setAvailabilityNote(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+            </div>
+
+            {error && <p className="text-sm text-red-300">{error}</p>}
+
+            <div className="flex gap-2">
+              <button type="submit" disabled={saving} className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
+                <Check size={14} /> {saving ? "Saving…" : "Save"}
+              </button>
+              <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+                <X size={14} /> Cancel
+              </button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card>
           <CardHeader><CardTitle>Position</CardTitle></CardHeader>
-          <PitchPosition x={player.pitchX} y={player.pitchY} />
+          <PitchPosition x={player.pitch_x} y={player.pitch_y} />
         </Card>
 
         <div className="space-y-5 lg:col-span-2">
@@ -56,11 +212,11 @@ export default function PlayerProfilePage({ params }: { params: { id: string } }
               </div>
               <div>
                 <p className="text-xs text-neutral-400">Nationality</p>
-                <p className="font-medium">{player.nationality}</p>
+                <p className="font-medium">{player.nationality || "Not set"}</p>
               </div>
               <div>
                 <p className="text-xs text-neutral-400">Squad Number</p>
-                <p className="font-medium">#{player.squadNumber}</p>
+                <p className="font-medium">#{player.squad_number}</p>
               </div>
             </div>
           </Card>
@@ -108,11 +264,11 @@ export default function PlayerProfilePage({ params }: { params: { id: string } }
 
         <Card>
           <CardHeader><CardTitle>Injury History</CardTitle></CardHeader>
-          {player.injuryHistory.length === 0 ? (
+          {player.injury_history.length === 0 ? (
             <p className="text-sm text-neutral-400">No recorded injuries this season.</p>
           ) : (
             <ul className="space-y-2.5">
-              {player.injuryHistory.map((inj, i) => (
+              {player.injury_history.map((inj, i) => (
                 <li key={i} className="flex items-center justify-between text-sm">
                   <div>
                     <p className="font-medium">{inj.injury}</p>
