@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PitchPosition } from "@/components/pitch-position";
+import { PlayerAvatar } from "@/components/players/player-avatar";
 import { players } from "@/lib/sample-data";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -30,12 +31,11 @@ export default function PlayerProfilePage({ params }: { params: { id: string } }
       </Link>
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-lg font-semibold shrink-0">
-          {player.initials}
-        </div>
+        <PlayerAvatar playerId={player.id} initials={player.initials} size="lg" editable />
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-semibold">{player.name}</h1>
           <p className="text-sm text-neutral-500">#{player.squadNumber} · {player.position} · {player.nationality}</p>
+          <p className="text-xs text-neutral-400 mt-0.5">Click the photo to add or change a headshot</p>
         </div>
         <Badge variant={statusVariant[player.availability]}>{player.availabilityNote}</Badge>
       </div>

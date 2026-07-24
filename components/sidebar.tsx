@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
+import { loadClubSettings } from "@/lib/club-settings";
 import {
   LayoutDashboard,
   Swords,
@@ -33,18 +35,23 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [branding, setBranding] = useState(club);
+
+  useEffect(() => {
+    setBranding(loadClubSettings(club));
+  }, []);
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col border-r border-white/10 bg-navy-700 dark:bg-navy-950 shrink-0">
       <div className="flex items-center gap-3 px-6 py-6">
         <div
           className="flex h-9 w-9 items-center justify-center rounded-xl text-navy-950 text-xs font-bold"
-          style={{ backgroundColor: club.primaryColor }}
+          style={{ backgroundColor: branding.primaryColor }}
         >
-          {club.crestInitials}
+          {branding.crestInitials}
         </div>
         <div>
-          <p className="text-sm font-semibold leading-tight text-white">{club.name}</p>
+          <p className="text-sm font-semibold leading-tight text-white">{branding.name}</p>
           <p className="text-xs text-club-primary">ClubOS</p>
         </div>
       </div>

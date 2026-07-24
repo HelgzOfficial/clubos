@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PlayerAvatar } from "@/components/players/player-avatar";
 import { players } from "@/lib/sample-data";
 import Link from "next/link";
 
@@ -30,9 +31,7 @@ export default function PlayersPage() {
                   <Link key={p.id} href={`/players/${p.id}`}>
                     <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-sm font-semibold shrink-0">
-                          {p.initials}
-                        </div>
+                        <PlayerAvatar playerId={p.id} initials={p.initials} size="sm" />
                         <div className="min-w-0">
                           <p className="font-medium truncate">{p.name}</p>
                           <p className="text-xs text-neutral-400">#{p.squadNumber} · {p.position}</p>
