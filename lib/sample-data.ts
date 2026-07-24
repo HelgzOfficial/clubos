@@ -337,6 +337,32 @@ export const opposition: Opposition[] = [
   },
 ];
 
+export type ClubDocument = {
+  id: string;
+  name: string;
+  category: "Match Packs" | "Match Reports" | "Policies" | "Clips";
+  linkedTo?: string;
+  uploadedBy: string;
+  date: string;
+  fileType: "pdf" | "docx" | "xlsx" | "mp4";
+  sizeKb: number;
+};
+
+export const documents: ClubDocument[] = [
+  { id: "d1", name: "Millbrook Town — Match Pack.pdf", category: "Match Packs", linkedTo: "Millbrook Town", uploadedBy: "Analysis", date: "23 Jul 2026", fileType: "pdf", sizeKb: 2340 },
+  { id: "d2", name: "Elm Rovers — Match Pack.pdf", category: "Match Packs", linkedTo: "Elm Rovers", uploadedBy: "Analysis", date: "16 Jul 2026", fileType: "pdf", sizeKb: 1980 },
+  { id: "d3", name: "Club Code of Conduct 2026.docx", category: "Policies", uploadedBy: "Admin", date: "2 Jan 2026", fileType: "docx", sizeKb: 88 },
+  { id: "d4", name: "Safeguarding Policy.pdf", category: "Policies", uploadedBy: "Admin", date: "2 Jan 2026", fileType: "pdf", sizeKb: 320 },
+  { id: "d5", name: "Medical & Concussion Protocol.pdf", category: "Policies", uploadedBy: "Medical", date: "14 Feb 2026", fileType: "pdf", sizeKb: 275 },
+  { id: "d6", name: "Millbrook Town — Opposition Report.docx", category: "Match Reports", linkedTo: "Millbrook Town", uploadedBy: "Analysis", date: "23 Jul 2026", fileType: "docx", sizeKb: 640 },
+  { id: "d7", name: "vs Nettlefield Athletic — Match Report.pdf", category: "Match Reports", uploadedBy: "Analysis", date: "19 Jul 2026", fileType: "pdf", sizeKb: 512 },
+  { id: "d8", name: "vs Portside Wanderers — Match Report.pdf", category: "Match Reports", uploadedBy: "Analysis", date: "12 Jul 2026", fileType: "pdf", sizeKb: 498 },
+  { id: "d9", name: "Build-up play vs Elm Rovers.mp4", category: "Clips", uploadedBy: "Analysis", date: "6 Jul 2026", fileType: "mp4", sizeKb: 48200 },
+  { id: "d10", name: "Set-piece routine — corners.mp4", category: "Clips", uploadedBy: "Analysis", date: "8 Jul 2026", fileType: "mp4", sizeKb: 21400 },
+  { id: "d11", name: "Hat-trick vs Nettlefield Athletic.mp4", category: "Clips", linkedTo: "Danny Okafor", uploadedBy: "Analysis", date: "19 Jul 2026", fileType: "mp4", sizeKb: 63500 },
+  { id: "d12", name: "Defensive shape, second half.mp4", category: "Clips", uploadedBy: "Analysis", date: "13 Jul 2026", fileType: "mp4", sizeKb: 55700 },
+];
+
 export const calendarEvents: { date: string; title: string; type: "match" | "training" | "meeting" }[] = [
   { date: "2026-07-24", title: "Training — Full Squad", type: "training" },
   { date: "2026-07-26", title: "Recovery Session", type: "training" },
