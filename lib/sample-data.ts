@@ -223,16 +223,18 @@ export type BodyPart =
   | "hip-l" | "hip-r" | "thigh-l" | "thigh-r" | "knee-l" | "knee-r"
   | "calf-l" | "calf-r" | "ankle-l" | "ankle-r" | "foot-l" | "foot-r";
 
+// x/y are both plain percentages (0-100) positioned against the cropped
+// /public/body-front.png and /public/body-back.png images.
 export const bodyCoords: Record<BodyPart, { x: number; y: number }> = {
-  head: { x: 50, y: 11 },
-  "shoulder-l": { x: 32, y: 30 }, "shoulder-r": { x: 68, y: 30 },
-  chest: { x: 50, y: 45 }, abdomen: { x: 50, y: 65 },
-  "hip-l": { x: 38, y: 82 }, "hip-r": { x: 62, y: 82 },
-  "thigh-l": { x: 38, y: 106 }, "thigh-r": { x: 62, y: 106 },
-  "knee-l": { x: 37, y: 132 }, "knee-r": { x: 63, y: 132 },
-  "calf-l": { x: 36, y: 158 }, "calf-r": { x: 64, y: 158 },
-  "ankle-l": { x: 38, y: 186 }, "ankle-r": { x: 62, y: 186 },
-  "foot-l": { x: 37, y: 196 }, "foot-r": { x: 63, y: 196 },
+  head: { x: 50, y: 7 },
+  "shoulder-l": { x: 30, y: 17 }, "shoulder-r": { x: 70, y: 17 },
+  chest: { x: 50, y: 26 }, abdomen: { x: 50, y: 45 },
+  "hip-l": { x: 37, y: 56 }, "hip-r": { x: 63, y: 56 },
+  "thigh-l": { x: 35, y: 64 }, "thigh-r": { x: 63, y: 64 },
+  "knee-l": { x: 34, y: 75 }, "knee-r": { x: 66, y: 75 },
+  "calf-l": { x: 34, y: 83 }, "calf-r": { x: 66, y: 83 },
+  "ankle-l": { x: 36, y: 90 }, "ankle-r": { x: 64, y: 90 },
+  "foot-l": { x: 35, y: 97 }, "foot-r": { x: 67, y: 97 },
 };
 
 export const rehabStages = [
