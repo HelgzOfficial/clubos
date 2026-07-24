@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 250 250 249;
+  --foreground: 23 23 23;
+}
+
+.dark {
+  --background: 15 15 16;
+  --foreground: 245 245 245;
+}
+
+body {
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
