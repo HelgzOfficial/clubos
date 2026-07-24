@@ -270,6 +270,73 @@ export const activeInjuries: ActiveInjury[] = [
   },
 ];
 
+export type FormResult = "W" | "D" | "L";
+
+export type Opposition = {
+  id: string;
+  name: string;
+  matchId?: string;
+  leaguePosition: number;
+  form: FormResult[];
+  formation: string;
+  style: string;
+  strengths: string[];
+  weaknesses: string[];
+  keyPlayers: { name: string; position: string; note: string }[];
+  setPieces: string;
+  headToHead: { played: number; won: number; drawn: number; lost: number };
+  lastMeeting: { date: string; result: string };
+  reportStatus: "Not started" | "In progress" | "Ready";
+};
+
+export const opposition: Opposition[] = [
+  {
+    id: "o1", name: "Millbrook Town", matchId: "m1",
+    leaguePosition: 4, form: ["W", "W", "D", "L", "W"],
+    formation: "4-3-3", style: "High press, quick transitions through wide forwards.",
+    strengths: ["Pace in wide areas", "Set-piece delivery from corners", "Aggressive counter-press after losing the ball"],
+    weaknesses: ["Vulnerable to balls in behind the full-backs", "Concede from second-ball situations in midfield", "Goalkeeper weak with crosses"],
+    keyPlayers: [
+      { name: "Josh Barrett", position: "Right Wing", note: "12 goals this season, cuts inside onto left foot." },
+      { name: "Callum Reid", position: "CDM", note: "Controls tempo, dictates build-up from deep." },
+    ],
+    setPieces: "Near-post flick routine from corners; short corners on the left when trailing.",
+    headToHead: { played: 6, won: 3, drawn: 2, lost: 1 },
+    lastMeeting: { date: "12 Mar 2026", result: "Won 2-1 (H)" },
+    reportStatus: "In progress",
+  },
+  {
+    id: "o2", name: "Elm Rovers", matchId: "m2",
+    leaguePosition: 8, form: ["L", "D", "W", "W", "D"],
+    formation: "4-4-2", style: "Direct, physical, targets aerial duels with the strikers.",
+    strengths: ["Dominant in the air from set pieces", "Strong defensive shape, hard to break down centrally", "Experienced back four"],
+    weaknesses: ["Lacks pace at centre-back", "Struggle against high tempo passing", "Wide midfielders don't track back consistently"],
+    keyPlayers: [
+      { name: "Aaron Dunmore", position: "Striker", note: "Target man, wins the majority of aerial duels." },
+      { name: "Liam Foster", position: "Left Back", note: "Overlaps constantly — space in behind on transition." },
+    ],
+    setPieces: "Zonal marking at corners; direct long throws into the box from the left touchline.",
+    headToHead: { played: 5, won: 2, drawn: 1, lost: 2 },
+    lastMeeting: { date: "5 Jul 2026", result: "Won 3-0 (H)" },
+    reportStatus: "Ready",
+  },
+  {
+    id: "o3", name: "Castlebridge United", matchId: "m3",
+    leaguePosition: 2, form: ["W", "W", "W", "D", "W"],
+    formation: "3-5-2", style: "Possession-based, patient build-up through a back three.",
+    strengths: ["Retain the ball well under pressure", "Strong central midfield trio", "Two mobile strikers who interchange"],
+    weaknesses: ["Wing-backs leave space behind them", "Can be rushed into errors under an aggressive press", "Third-choice keeper is error-prone with feet"],
+    keyPlayers: [
+      { name: "Marco Ellison", position: "CAM", note: "Top scorer and creator — 14 goals, 9 assists." },
+      { name: "Sam Whitcombe", position: "Centre Back", note: "Brings the ball out from the back, can be pressed." },
+    ],
+    setPieces: "Short corner routines to overload the near side; low driven free kicks around the box.",
+    headToHead: { played: 4, won: 1, drawn: 1, lost: 2 },
+    lastMeeting: { date: "20 Feb 2026", result: "Lost 0-1 (A)" },
+    reportStatus: "Not started",
+  },
+];
+
 export const calendarEvents: { date: string; title: string; type: "match" | "training" | "meeting" }[] = [
   { date: "2026-07-24", title: "Training — Full Squad", type: "training" },
   { date: "2026-07-26", title: "Recovery Session", type: "training" },
