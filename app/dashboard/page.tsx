@@ -59,7 +59,7 @@ export default function DashboardPage() {
               <p className="text-sm text-neutral-500">{formatDateTime(nextMatch.date)} — {nextMatch.ground}</p>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-bold tabular-nums" style={{ color: "#0A5C36" }}>
+              <p className="text-3xl font-bold tabular-nums text-club-primary">
                 {countdown(nextMatch.date)}
               </p>
               <p className="text-xs text-neutral-400">until kickoff</p>
@@ -108,7 +108,7 @@ export default function DashboardPage() {
             <p className="text-3xl font-bold">{playerAvailability.available}</p>
             <p className="text-sm text-neutral-400">/ {playerAvailability.total} available</p>
           </div>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800 flex">
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-navy-600 dark:bg-navy-800 flex">
             <div className="bg-emerald-500 h-full" style={{ width: `${(playerAvailability.available / playerAvailability.total) * 100}%` }} />
             <div className="bg-amber-400 h-full" style={{ width: `${(playerAvailability.doubtful / playerAvailability.total) * 100}%` }} />
             <div className="bg-red-500 h-full" style={{ width: `${(playerAvailability.unavailable / playerAvailability.total) * 100}%` }} />
@@ -126,7 +126,7 @@ export default function DashboardPage() {
             <CardTitle>Injury List</CardTitle>
             <ShieldAlert size={18} className="text-neutral-400" />
           </CardHeader>
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-white/10">
             {injuryList.map((p) => (
               <li key={p.name} className="flex items-center justify-between py-2.5 text-sm">
                 <div>

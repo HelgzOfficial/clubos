@@ -45,7 +45,7 @@ export function SessionTimer() {
 
   return (
     <div>
-      <div className={`mb-4 rounded-2xl py-6 text-center transition-colors ${atZero ? "bg-red-500 text-white" : "bg-neutral-100 dark:bg-neutral-800"}`}>
+      <div className={`mb-4 rounded-2xl py-6 text-center transition-colors ${atZero ? "bg-red-500 text-white" : "bg-navy-600 dark:bg-navy-800"}`}>
         <p className="text-4xl font-bold tabular-nums">{mins}:{secs}</p>
         <p className={`text-xs mt-1 ${atZero ? "text-white/80" : "text-neutral-400"}`}>{atZero ? "Time's up" : running ? "Running" : "Paused"}</p>
       </div>
@@ -60,7 +60,7 @@ export function SessionTimer() {
         </button>
         <button
           onClick={reset}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 dark:border-white/10 text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-neutral-500 hover:text-white"
         >
           <RotateCcw size={16} />
         </button>
@@ -73,8 +73,8 @@ export function SessionTimer() {
             onClick={() => setPreset(m)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               totalSeconds === m * 60
-                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                ? "bg-club-primary text-navy-950"
+                : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
             }`}
           >
             {m}m

@@ -60,7 +60,7 @@ export default function MedicalPage() {
                 onClick={() => setOpenId(isOpen ? null : p.id)}
                 className="flex w-full items-center gap-3 px-5 py-4 text-left"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs font-semibold shrink-0">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-xs font-semibold shrink-0">
                   {p.initials}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -74,7 +74,7 @@ export default function MedicalPage() {
               </button>
 
               {isOpen && injury && (
-                <div className="border-t border-black/5 dark:border-white/10 px-5 py-5">
+                <div className="border-t border-white/10 px-5 py-5">
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Injury Location</p>

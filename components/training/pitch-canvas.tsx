@@ -173,7 +173,7 @@ export function PitchCanvas({
           <button
             key={p.type}
             onClick={() => addItem(p.type)}
-            className="flex items-center gap-2 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-navy-700 dark:bg-navy-900 px-3 py-2 text-xs font-medium hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
           >
             <span className={`flex items-center justify-center ${glyphSize[p.type]}`}>
               <ItemGlyph type={p.type} />
@@ -187,7 +187,7 @@ export function PitchCanvas({
         <button
           onClick={() => toggleLineMode("solid")}
           className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
-            lineMode === "solid" ? "bg-club-primary text-white" : "border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            lineMode === "solid" ? "bg-club-primary text-white" : "border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
           }`}
         >
           {lineMode === "solid" ? (lineStart ? "Click end point…" : "Click start point…") : "Add Pass (solid)"}
@@ -195,14 +195,14 @@ export function PitchCanvas({
         <button
           onClick={() => toggleLineMode("dashed")}
           className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
-            lineMode === "dashed" ? "bg-club-primary text-white" : "border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            lineMode === "dashed" ? "bg-club-primary text-white" : "border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
           }`}
         >
           {lineMode === "dashed" ? (lineStart ? "Click end point…" : "Click start point…") : "Add Run (dotted)"}
         </button>
         <button
           onClick={clearAll}
-          className="ml-auto flex items-center gap-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+          className="ml-auto flex items-center gap-1.5 rounded-xl border border-white/10 bg-navy-700 dark:bg-navy-900 px-3 py-2 text-xs font-medium hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
         >
           <Undo2 size={13} /> Clear Pitch
         </button>
@@ -271,7 +271,7 @@ export function PitchCanvas({
             <button
               key={l.id}
               onClick={() => removeLine(l.id)}
-              className="flex items-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+              className="flex items-center gap-1 rounded-full bg-navy-600 dark:bg-navy-800 px-2.5 py-1 text-xs text-neutral-500 hover:text-white"
             >
               {l.style === "dashed" ? "Run" : "Pass"} {i + 1} <X size={11} />
             </button>

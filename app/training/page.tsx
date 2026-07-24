@@ -111,7 +111,7 @@ export default function TrainingPage() {
           </div>
           <button
             onClick={createSession}
-            className="flex items-center gap-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <Plus size={15} /> New Session
           </button>
@@ -168,7 +168,7 @@ export default function TrainingPage() {
       <AppShell>
         <button
           onClick={() => setView({ kind: "session", sessionId: activeSession.id })}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white"
         >
           <ArrowLeft size={14} /> Back to {activeSession.name}
         </button>
@@ -177,7 +177,7 @@ export default function TrainingPage() {
           <input
             value={drill.name}
             onChange={(e) => updateDrill(drill.id, { name: e.target.value })}
-            className="text-2xl font-semibold bg-transparent outline-none border-b border-transparent focus:border-black/10 dark:focus:border-white/20"
+            className="text-2xl font-semibold bg-transparent outline-none border-b border-transparent focus:border-white/20"
           />
           <div className="ml-auto flex items-center gap-2 text-sm text-neutral-500">
             <label htmlFor="dur">Duration</label>
@@ -187,7 +187,7 @@ export default function TrainingPage() {
               min={1}
               value={drill.durationMin}
               onChange={(e) => updateDrill(drill.id, { durationMin: Number(e.target.value) || 0 })}
-              className="w-16 rounded-lg border border-black/5 dark:border-white/10 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-sm outline-none"
+              className="w-16 rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1 text-sm outline-none"
             />
             <span>min</span>
           </div>
@@ -216,7 +216,7 @@ export default function TrainingPage() {
                 onChange={(e) => updateDrill(drill.id, { notes: e.target.value })}
                 rows={8}
                 placeholder="Coaching points for this drill..."
-                className="w-full resize-none rounded-xl border border-black/5 dark:border-white/10 bg-neutral-50 dark:bg-neutral-900 p-3 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                className="w-full resize-none rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 p-3 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
               />
             </Card>
           </div>
@@ -230,7 +230,7 @@ export default function TrainingPage() {
     <AppShell>
       <button
         onClick={() => setView({ kind: "archive" })}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white"
       >
         <ArrowLeft size={14} /> Back to Archive
       </button>
@@ -240,13 +240,13 @@ export default function TrainingPage() {
           <input
             value={activeSession.name}
             onChange={(e) => updateSessionName(activeSession.id, e.target.value)}
-            className="text-2xl font-semibold bg-transparent outline-none border-b border-transparent focus:border-black/10 dark:focus:border-white/20 w-full"
+            className="text-2xl font-semibold bg-transparent outline-none border-b border-transparent focus:border-white/20 w-full"
           />
           <p className="text-sm text-neutral-500 mt-1">{new Date(activeSession.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
         </div>
         <button
           onClick={() => deleteSession(activeSession.id)}
-          className="flex items-center gap-1.5 rounded-xl border border-black/5 dark:border-white/10 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
         >
           <Trash2 size={14} /> Delete Session
         </button>
@@ -258,19 +258,19 @@ export default function TrainingPage() {
           if (!drill) return null;
           return (
             <Card key={drillId} className="flex items-center gap-4">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-sm font-semibold shrink-0">{i + 1}</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-sm font-semibold shrink-0">{i + 1}</span>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{drill.name}</p>
                 <p className="text-xs text-neutral-400">{drill.durationMin} min · {drill.items.length} item{drill.items.length === 1 ? "" : "s"} on pitch</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => moveDrill(activeSession.id, drillId, -1)} disabled={i === 0} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30">
+                <button onClick={() => moveDrill(activeSession.id, drillId, -1)} disabled={i === 0} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">
                   <ChevronUp size={15} />
                 </button>
-                <button onClick={() => moveDrill(activeSession.id, drillId, 1)} disabled={i === activeSession.drillIds.length - 1} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30">
+                <button onClick={() => moveDrill(activeSession.id, drillId, 1)} disabled={i === activeSession.drillIds.length - 1} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">
                   <ChevronDown size={15} />
                 </button>
-                <button onClick={() => setView({ kind: "drill", sessionId: activeSession.id, drillId })} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <button onClick={() => setView({ kind: "drill", sessionId: activeSession.id, drillId })} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800">
                   <Pencil size={14} />
                 </button>
                 <button onClick={() => removeDrillFromSession(activeSession.id, drillId)} className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
@@ -283,7 +283,7 @@ export default function TrainingPage() {
 
         <button
           onClick={() => addDrillToSession(activeSession.id)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-black/10 dark:border-white/10 py-6 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 py-6 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
         >
           <Plus size={16} /> Add Drill to Session
         </button>

@@ -25,12 +25,12 @@ export default function PlayerProfilePage({ params }: { params: { id: string } }
 
   return (
     <AppShell>
-      <Link href="/players" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-white">
+      <Link href="/players" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white">
         <ArrowLeft size={14} /> Back to Players
       </Link>
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-lg font-semibold shrink-0">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-lg font-semibold shrink-0">
           {player.initials}
         </div>
         <div className="flex-1 min-w-0">

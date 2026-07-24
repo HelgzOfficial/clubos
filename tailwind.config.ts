@@ -10,9 +10,22 @@ const config: Config = {
     extend: {
       colors: {
         club: {
-          primary: "#0A5C36",
-          primaryLight: "#12864F",
-          accent: "#D4A017",
+          primary: "#D4AF37",
+          primaryLight: "#E6C766",
+          accent: "#D4AF37",
+        },
+        navy: {
+          50: "#EEF1F8",
+          100: "#D7DEF0",
+          200: "#AEBEE0",
+          300: "#8299CB",
+          400: "#5975B0",
+          500: "#3C5590",
+          600: "#2A3F70",
+          700: "#1E2E56",
+          800: "#141F3D",
+          900: "#0B1428",
+          950: "#060B1A",
         },
       },
       borderRadius: {

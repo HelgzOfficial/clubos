@@ -30,7 +30,7 @@ export default function PlayersPage() {
                   <Link key={p.id} href={`/players/${p.id}`}>
                     <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-sm font-semibold shrink-0">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-sm font-semibold shrink-0">
                           {p.initials}
                         </div>
                         <div className="min-w-0">

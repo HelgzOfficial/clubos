@@ -35,17 +35,17 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col border-r border-black/5 dark:border-white/10 bg-white dark:bg-neutral-950 shrink-0">
+    <aside className="hidden md:flex md:w-64 md:flex-col border-r border-white/10 bg-navy-700 dark:bg-navy-950 shrink-0">
       <div className="flex items-center gap-3 px-6 py-6">
         <div
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-xs font-bold"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-navy-950 text-xs font-bold"
           style={{ backgroundColor: club.primaryColor }}
         >
           {club.crestInitials}
         </div>
         <div>
-          <p className="text-sm font-semibold leading-tight">{club.name}</p>
-          <p className="text-xs text-neutral-400">ClubOS</p>
+          <p className="text-sm font-semibold leading-tight text-white">{club.name}</p>
+          <p className="text-xs text-club-primary">ClubOS</p>
         </div>
       </div>
 
@@ -59,8 +59,8 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                 active
-                  ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
-                  : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900 hover:text-neutral-900 dark:hover:text-white"
+                  ? "bg-navy-600 dark:bg-navy-800 text-club-primary"
+                  : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
               )}
             >
               <Icon size={18} strokeWidth={1.75} />
@@ -76,8 +76,8 @@ export function Sidebar() {
           className={cn(
             "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
             pathname === "/settings"
-              ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
-              : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900 hover:text-neutral-900 dark:hover:text-white"
+              ? "bg-navy-600 dark:bg-navy-800 text-white"
+              : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
           )}
         >
           <Settings size={18} strokeWidth={1.75} />

@@ -101,12 +101,12 @@ export default function DocumentsPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search documents..."
-              className="w-full rounded-xl border border-black/5 dark:border-white/10 bg-neutral-50 dark:bg-neutral-900 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+              className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
             />
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2 text-sm font-medium shrink-0 hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium shrink-0 hover:opacity-90 transition-opacity"
           >
             <Upload size={15} /> Upload
           </button>
@@ -127,8 +127,8 @@ export default function DocumentsPage() {
             onClick={() => setCategory(c)}
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
               category === c
-                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                ? "bg-club-primary text-navy-950"
+                : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
             }`}
           >
             {c}
@@ -140,12 +140,12 @@ export default function DocumentsPage() {
         {filtered.length === 0 ? (
           <p className="p-8 text-center text-sm text-neutral-400">No documents match your search.</p>
         ) : (
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-white/10">
             {filtered.map((d) => {
               const Icon = fileIcon[d.fileType];
               const isUploaded = "url" in d;
               return (
-                <li key={d.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
+                <li key={d.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-navy-600/50 dark:hover:bg-navy-800/50 transition-colors">
                   <Icon size={18} className="text-neutral-400 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{d.name}</p>
@@ -158,7 +158,7 @@ export default function DocumentsPage() {
                   <a
                     href={isUploaded ? (d as UploadedDoc).url : samplePlaceholderUrl(d)}
                     download={d.name}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white transition-colors shrink-0"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white transition-colors shrink-0"
                     title="Download"
                   >
                     <Download size={16} />
@@ -179,7 +179,7 @@ export default function DocumentsPage() {
           <Card className="w-full max-w-sm">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-medium">Upload file</p>
-              <button onClick={() => setShowUpload(false)} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white">
+              <button onClick={() => setShowUpload(false)} className="text-neutral-400 hover:text-white">
                 <X size={18} />
               </button>
             </div>
@@ -188,7 +188,7 @@ export default function DocumentsPage() {
             <select
               value={pendingCategory}
               onChange={(e) => setPendingCategory(e.target.value as ClubDocument["category"])}
-              className="mb-5 w-full rounded-xl border border-black/5 dark:border-white/10 bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+              className="mb-5 w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
             >
               {categories.filter((c) => c !== "All").map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -196,7 +196,7 @@ export default function DocumentsPage() {
             </select>
             <button
               onClick={confirmUpload}
-              className="w-full rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
+              className="w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Add to Documents
             </button>

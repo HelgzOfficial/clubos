@@ -23,12 +23,12 @@ export default function OppositionDetailPage({ params }: { params: { id: string 
 
   return (
     <AppShell>
-      <Link href="/opposition" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-white">
+      <Link href="/opposition" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white">
         <ArrowLeft size={14} /> Back to Opposition
       </Link>
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-sm font-semibold shrink-0">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-navy-600 dark:bg-navy-800 text-sm font-semibold shrink-0">
           {team.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
         </div>
         <div className="flex-1 min-w-0">
@@ -110,8 +110,8 @@ export default function OppositionDetailPage({ params }: { params: { id: string 
           </CardHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {team.keyPlayers.map((p) => (
-              <div key={p.name} className="flex items-start gap-3 rounded-xl border border-black/5 dark:border-white/10 p-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs font-semibold shrink-0">
+              <div key={p.name} className="flex items-start gap-3 rounded-xl border border-white/10 p-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-xs font-semibold shrink-0">
                   {p.name.split(" ").map((w) => w[0]).join("")}
                 </div>
                 <div>

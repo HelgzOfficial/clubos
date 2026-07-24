@@ -15,13 +15,13 @@ export function BodyMap({
 
   return (
     <div>
-      <div className="mb-2 flex justify-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 p-1 text-xs font-medium w-fit mx-auto">
+      <div className="mb-2 flex justify-center gap-1 rounded-full bg-navy-600 dark:bg-navy-800 p-1 text-xs font-medium w-fit mx-auto">
         {(["front", "back"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={`rounded-full px-3 py-1 capitalize transition-colors ${
-              view === v ? "bg-white dark:bg-neutral-700 shadow-sm" : "text-neutral-500"
+              view === v ? "bg-club-primary text-navy-950 shadow-sm" : "text-neutral-400"
             }`}
           >
             {v}
@@ -29,7 +29,7 @@ export function BodyMap({
         ))}
       </div>
 
-      <div className="relative mx-auto w-full max-w-[170px] aspect-[103/266] rounded-xl bg-neutral-50 dark:bg-neutral-950/40">
+      <div className="relative mx-auto w-full max-w-[170px] aspect-[103/266] rounded-xl bg-navy-800 dark:bg-navy-950/40">
         <Image
           src={view === "front" ? "/body-front.png" : "/body-back.png"}
           alt={`Body diagram — ${view} view`}

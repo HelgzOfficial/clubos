@@ -53,7 +53,7 @@ export default function CalendarPage() {
             return (
               <div
                 key={i}
-                className="min-h-[92px] rounded-xl border border-black/5 dark:border-white/10 p-2 text-left"
+                className="min-h-[92px] rounded-xl border border-white/10 p-2 text-left"
               >
                 <p className="text-xs font-medium text-neutral-400">{day}</p>
                 <div className="mt-1 space-y-1">
