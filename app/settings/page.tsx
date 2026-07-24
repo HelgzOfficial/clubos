@@ -9,7 +9,7 @@ import {
   loadClubSettings, saveClubSettings, ClubSettings,
   loadStaff, saveStaff, StaffMember,
 } from "@/lib/club-settings";
-import { Trash2, Plus, Check } from "lucide-react";
+import { Trash2, Plus, Check, PlugZap } from "lucide-react";
 
 const ROLES: StaffMember["role"][] = [
   "Owner", "Admin", "Head Coach", "Assistant Coach", "Analyst", "Medical", "Recruitment", "Player",
@@ -201,6 +201,31 @@ export default function SettingsPage() {
               </li>
             ))}
           </ul>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Wyscout Integration</CardTitle>
+            <Badge variant="amber">Not Connected</Badge>
+          </CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-600 dark:bg-navy-800">
+              <PlugZap size={16} className="text-neutral-400" />
+            </div>
+            <div className="text-sm text-neutral-400 space-y-2">
+              <p>
+                The Analysis module currently works with clips you upload directly — that part is fully functional. A live Wyscout feed
+                (match data, tagged clips, physical stats pulled in automatically) is not connected yet.
+              </p>
+              <p>
+                A club login to the Wyscout platform isn't the same as API access. To turn this on for real, Wyscout would need to issue
+                you separate API credentials for your club, and those credentials would need to be stored securely on a server — not typed
+                into a page like this one, which only saves things in your browser. Once ClubOS is connected to a proper backend
+                (Supabase), we can build this the right way.
+              </p>
+              <p>If you're able to get API access from your Wyscout account manager, let us know and we'll wire it up.</p>
+            </div>
+          </div>
         </Card>
 
         <Card>
