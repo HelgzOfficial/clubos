@@ -224,15 +224,15 @@ export type BodyPart =
   | "calf-l" | "calf-r" | "ankle-l" | "ankle-r" | "foot-l" | "foot-r";
 
 export const bodyCoords: Record<BodyPart, { x: number; y: number }> = {
-  head: { x: 50, y: 14 },
-  "shoulder-l": { x: 33, y: 36 }, "shoulder-r": { x: 67, y: 36 },
-  chest: { x: 50, y: 45 }, abdomen: { x: 50, y: 60 },
-  "hip-l": { x: 41, y: 72 }, "hip-r": { x: 59, y: 72 },
-  "thigh-l": { x: 40, y: 96 }, "thigh-r": { x: 60, y: 96 },
-  "knee-l": { x: 39, y: 126 }, "knee-r": { x: 61, y: 126 },
-  "calf-l": { x: 38, y: 152 }, "calf-r": { x: 62, y: 152 },
-  "ankle-l": { x: 37, y: 176 }, "ankle-r": { x: 63, y: 176 },
-  "foot-l": { x: 36, y: 190 }, "foot-r": { x: 64, y: 190 },
+  head: { x: 50, y: 11 },
+  "shoulder-l": { x: 32, y: 30 }, "shoulder-r": { x: 68, y: 30 },
+  chest: { x: 50, y: 45 }, abdomen: { x: 50, y: 65 },
+  "hip-l": { x: 38, y: 82 }, "hip-r": { x: 62, y: 82 },
+  "thigh-l": { x: 38, y: 106 }, "thigh-r": { x: 62, y: 106 },
+  "knee-l": { x: 37, y: 132 }, "knee-r": { x: 63, y: 132 },
+  "calf-l": { x: 36, y: 158 }, "calf-r": { x: 64, y: 158 },
+  "ankle-l": { x: 38, y: 186 }, "ankle-r": { x: 62, y: 186 },
+  "foot-l": { x: 37, y: 196 }, "foot-r": { x: 63, y: 196 },
 };
 
 export const rehabStages = [
