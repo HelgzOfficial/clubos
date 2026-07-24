@@ -218,6 +218,56 @@ export const players: Player[] = [
   },
 ];
 
+export type BodyPart =
+  | "head" | "shoulder-l" | "shoulder-r" | "chest" | "abdomen"
+  | "hip-l" | "hip-r" | "thigh-l" | "thigh-r" | "knee-l" | "knee-r"
+  | "calf-l" | "calf-r" | "ankle-l" | "ankle-r" | "foot-l" | "foot-r";
+
+export const bodyCoords: Record<BodyPart, { x: number; y: number }> = {
+  head: { x: 50, y: 14 },
+  "shoulder-l": { x: 33, y: 36 }, "shoulder-r": { x: 67, y: 36 },
+  chest: { x: 50, y: 45 }, abdomen: { x: 50, y: 60 },
+  "hip-l": { x: 41, y: 72 }, "hip-r": { x: 59, y: 72 },
+  "thigh-l": { x: 40, y: 96 }, "thigh-r": { x: 60, y: 96 },
+  "knee-l": { x: 39, y: 126 }, "knee-r": { x: 61, y: 126 },
+  "calf-l": { x: 38, y: 152 }, "calf-r": { x: 62, y: 152 },
+  "ankle-l": { x: 37, y: 176 }, "ankle-r": { x: 63, y: 176 },
+  "foot-l": { x: 36, y: 190 }, "foot-r": { x: 64, y: 190 },
+};
+
+export const rehabStages = [
+  "Assessment", "Rest & Recovery", "Gym Rehab", "Pitch Rehab", "Return to Training", "Match Fit",
+];
+
+export type ActiveInjury = {
+  playerId: string;
+  bodyPart: BodyPart;
+  injury: string;
+  severity: "amber" | "red";
+  dateOccurred: string;
+  expectedReturn: string;
+  rehabStage: number;
+  notes: string;
+};
+
+export const activeInjuries: ActiveInjury[] = [
+  {
+    playerId: "p2", bodyPart: "thigh-l", injury: "Hamstring strain", severity: "amber",
+    dateOccurred: "14 Jul 2026", expectedReturn: "2 Aug 2026", rehabStage: 2,
+    notes: "Grade 1 strain, responding well to gym-based rehab. Reassess Friday before progressing to pitch work.",
+  },
+  {
+    playerId: "p3", bodyPart: "ankle-r", injury: "Ankle sprain", severity: "red",
+    dateOccurred: "20 Jul 2026", expectedReturn: "18 Aug 2026", rehabStage: 1,
+    notes: "Grade 2 lateral ligament sprain. In a protective boot, non-weight-bearing this week. Physio 3x/week.",
+  },
+  {
+    playerId: "p7", bodyPart: "head", injury: "Concussion protocol", severity: "amber",
+    dateOccurred: "18 Jul 2026", expectedReturn: "30 Jul 2026", rehabStage: 3,
+    notes: "Graduated return-to-play protocol, stage 3 of 6. No symptoms at rest or on light exertion.",
+  },
+];
+
 export const calendarEvents: { date: string; title: string; type: "match" | "training" | "meeting" }[] = [
   { date: "2026-07-24", title: "Training — Full Squad", type: "training" },
   { date: "2026-07-26", title: "Recovery Session", type: "training" },
