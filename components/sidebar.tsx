@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
@@ -44,11 +45,18 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col border-r border-white/10 bg-navy-700 dark:bg-navy-950 shrink-0">
       <div className="flex items-center gap-3 px-6 py-6">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-navy-950 text-xs font-bold"
-          style={{ backgroundColor: branding.primaryColor }}
-        >
-          {branding.crestInitials}
+        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-navy-800">
+          <Image
+            src="/club-badge.png"
+            alt={`${branding.name} crest`}
+            fill
+            sizes="36px"
+            className="object-cover"
+            onError={(e) => {
+              // Fall back to the initials chip if the crest image is ever missing.
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
         </div>
         <div>
           <p className="text-sm font-semibold leading-tight text-white">{branding.name}</p>

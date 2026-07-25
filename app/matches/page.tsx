@@ -16,6 +16,27 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+type CompetitionKind = "friendly" | "cup" | "league";
+
+function competitionKind(competition: string): CompetitionKind {
+  const c = competition.toLowerCase();
+  if (c.includes("friendly") || c.includes("pre-season") || c.includes("preseason")) return "friendly";
+  if (c.includes("cup") || c.includes("trophy") || c.includes("shield")) return "cup";
+  return "league";
+}
+
+const competitionVariant: Record<CompetitionKind, "neutral" | "purple" | "blue"> = {
+  friendly: "neutral",
+  cup: "purple",
+  league: "blue",
+};
+
+function CompetitionBadge({ competition }: { competition: string }) {
+  if (!competition) return null;
+  const kind = competitionKind(competition);
+  return <Badge variant={competitionVariant[kind]}>{competition}</Badge>;
+}
+
 export default function MatchesPage() {
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +213,7 @@ export default function MatchesPage() {
                 <Card key={m.id} className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                    <p className="text-xs text-neutral-400">{m.competition}</p>
+                    <div className="mt-1 mb-1"><CompetitionBadge competition={m.competition} /></div>
                     <p className="text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -225,7 +246,7 @@ export default function MatchesPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                        <p className="text-xs text-neutral-400">{m.competition}</p>
+                        <div className="mt-1 mb-1"><CompetitionBadge competition={m.competition} /></div>
                         <p className="text-xs text-neutral-400">{formatDate(m.kickoff)}</p>
                       </div>
                       {!editing && (

@@ -6,6 +6,8 @@ const variants = {
   amber: "bg-amber-500/15 text-amber-400",
   red: "bg-red-500/15 text-red-400",
   neutral: "bg-white/10 text-navy-100",
+  blue: "bg-blue-500/15 text-blue-400",
+  purple: "bg-purple-500/15 text-purple-400",
 };
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

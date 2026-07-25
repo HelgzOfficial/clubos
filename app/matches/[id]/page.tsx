@@ -12,11 +12,30 @@ import {
   addGoal, deleteGoal, addSubstitution, deleteSubstitution,
   type DbLineupEntry, type DbGoal, type DbSubstitution,
 } from "@/lib/match-details-db";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import {
+  fetchMatchReports, uploadMatchReport, deleteMatchReport, getReportDownloadUrl,
+  type DbMatchReport, type ReportSource,
+} from "@/lib/match-reports-db";
+import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
+
+type CompetitionKind = "friendly" | "cup" | "league";
+
+function competitionKind(competition: string): CompetitionKind {
+  const c = competition.toLowerCase();
+  if (c.includes("friendly") || c.includes("pre-season") || c.includes("preseason")) return "friendly";
+  if (c.includes("cup") || c.includes("trophy") || c.includes("shield")) return "cup";
+  return "league";
+}
+
+const competitionVariant: Record<CompetitionKind, "neutral" | "purple" | "blue"> = {
+  friendly: "neutral",
+  cup: "purple",
+  league: "blue",
+};
 
 export default function MatchDetailPage() {
   const params = useParams<{ id: string }>();
@@ -24,6 +43,7 @@ export default function MatchDetailPage() {
   const [lineup, setLineup] = useState<DbLineupEntry[]>([]);
   const [goals, setGoals] = useState<DbGoal[]>([]);
   const [subs, setSubs] = useState<DbSubstitution[]>([]);
+  const [reports, setReports] = useState<DbMatchReport[]>([]);
   const [error, setError] = useState("");
 
   async function load() {
@@ -31,10 +51,11 @@ export default function MatchDetailPage() {
     setMatch(m);
     if (m) {
       try {
-        const details = await fetchMatchDetails(m.id);
+        const [details, reportRows] = await Promise.all([fetchMatchDetails(m.id), fetchMatchReports(m.id)]);
         setLineup(details.lineup);
         setGoals(details.goals);
         setSubs(details.substitutions);
+        setReports(reportRows);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't load match details.");
       }
@@ -78,9 +99,12 @@ export default function MatchDetailPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{match.is_home ? "vs" : "@"} {match.opponent}</h1>
-          <p className="text-sm text-neutral-500">{match.competition} · {formatDate(match.kickoff)}{match.venue ? ` · ${match.venue}` : ""}</p>
+          <p className="text-sm text-neutral-500">{formatDate(match.kickoff)}{match.venue ? ` · ${match.venue}` : ""}</p>
         </div>
         <div className="flex items-center gap-2">
+          {match.competition && (
+            <Badge variant={competitionVariant[competitionKind(match.competition)]}>{match.competition}</Badge>
+          )}
           <Badge variant={match.is_home ? "green" : "neutral"}>{match.is_home ? "Home" : "Away"}</Badge>
           {hasScore && <span className="text-xl font-semibold">{match.home_score} – {match.away_score}</span>}
         </div>
@@ -92,6 +116,10 @@ export default function MatchDetailPage() {
         </Card>
       )}
 
+      <div className="mb-5">
+        <ReportsCard matchId={match.id} reports={reports} lineup={lineup} goals={goals} subs={subs} onChanged={load} />
+      </div>
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <LineupCard title="Starting XI" matchId={match.id} entries={starting} isStarting onAdded={load} />
         <LineupCard title="Substitutes" matchId={match.id} entries={bench} isStarting={false} onAdded={load} />
@@ -99,6 +127,159 @@ export default function MatchDetailPage() {
         <SubsCard matchId={match.id} subs={subs} onAdded={load} />
       </div>
     </AppShell>
+  );
+}
+
+function ReportsCard({
+  matchId, reports, lineup, goals, subs, onChanged,
+}: {
+  matchId: string; reports: DbMatchReport[];
+  lineup: DbLineupEntry[]; goals: DbGoal[]; subs: DbSubstitution[];
+  onChanged: () => void;
+}) {
+  const [source, setSource] = useState<ReportSource>("hudl");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [importingId, setImportingId] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setUploadError("");
+    try {
+      await uploadMatchReport(matchId, file, source);
+      onChanged();
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Couldn't upload that report.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(r: DbMatchReport) {
+    if (!window.confirm(`Remove "${r.file_name}"?`)) return;
+    await deleteMatchReport(r.id, r.file_path);
+    onChanged();
+  }
+
+  async function handleDownload(r: DbMatchReport) {
+    const url = await getReportDownloadUrl(r.file_path);
+    window.open(url, "_blank");
+  }
+
+  async function handleImport(r: DbMatchReport) {
+    if (!r.parsed_summary) return;
+    setImportingId(r.id);
+    try {
+      const existingScorers = new Set(goals.map((g) => `${g.minute}-${g.scorer}`));
+      for (const g of r.parsed_summary.goals) {
+        if (existingScorers.has(`${g.minute}-${g.scorer}`)) continue;
+        await addGoal(matchId, { minute: g.minute !== null ? String(g.minute) : "", team: "us", scorer: g.scorer, assist: g.assist });
+      }
+      const existingSubs = new Set(subs.map((s) => `${s.minute}-${s.player_off}-${s.player_on}`));
+      for (const s of r.parsed_summary.substitutions) {
+        if (existingSubs.has(`${s.minute}-${s.playerOff}-${s.playerOn}`)) continue;
+        await addSubstitution(matchId, { minute: s.minute !== null ? String(s.minute) : "", playerOff: s.playerOff, playerOn: s.playerOn });
+      }
+      const existingPlayers = new Set(lineup.map((l) => l.player_name));
+      let order = lineup.length;
+      for (const l of r.parsed_summary.lineup) {
+        if (existingPlayers.has(l.playerName)) continue;
+        await addLineupEntry(matchId, { isStarting: l.isStarting, shirtNumber: l.shirtNumber, playerName: l.playerName, position: "", sortOrder: order++ });
+      }
+      onChanged();
+    } finally {
+      setImportingId(null);
+    }
+  }
+
+  const extractedCount = (r: DbMatchReport) =>
+    r.parsed_summary ? r.parsed_summary.goals.length + r.parsed_summary.lineup.length + r.parsed_summary.substitutions.length : 0;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Match Reports (Hudl / Wyscout)</CardTitle></CardHeader>
+      <p className="mb-3 text-xs text-neutral-400">
+        Upload a PDF, CSV, or TXT export from Hudl or Wyscout for this fixture. ClubOS will try to automatically pull out
+        goals, substitutions, and the lineup — but Hudl and Wyscout don&apos;t publish a fixed export format, so this is
+        best-effort. Always check the &quot;Import&quot; preview before pulling data into the fixture, and if it consistently
+        misses things for your exports, send a sample report and the parsing patterns can be tuned to match it.
+      </p>
+
+      {reports.length === 0 ? (
+        <p className="mb-3 text-sm text-neutral-400">No reports uploaded yet.</p>
+      ) : (
+        <ul className="mb-3 divide-y divide-white/10">
+          {reports.map((r) => (
+            <li key={r.id} className="py-2.5">
+              <div className="flex items-center gap-2.5 text-sm">
+                <FileText size={14} className="shrink-0 text-neutral-400" />
+                <span className="flex-1 truncate">{r.file_name}</span>
+                <Badge variant="neutral">{r.source}</Badge>
+                {r.parse_status === "parsed" ? (
+                  <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle2 size={13} /> {extractedCount(r)} found</span>
+                ) : r.parse_status === "failed" ? (
+                  <span className="flex items-center gap-1 text-xs text-amber-400"><AlertTriangle size={13} /> Couldn&apos;t auto-read</span>
+                ) : (
+                  <span className="text-xs text-neutral-400">Unparsed</span>
+                )}
+                <button onClick={() => handleDownload(r)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                  <Download size={13} />
+                </button>
+                <button onClick={() => handleDelete(r)} title="Remove" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              {r.parse_status === "parsed" && r.parsed_summary && (
+                <div className="mt-2 ml-6 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-neutral-400">
+                    {r.parsed_summary.goals.length} goal{r.parsed_summary.goals.length === 1 ? "" : "s"},{" "}
+                    {r.parsed_summary.substitutions.length} sub{r.parsed_summary.substitutions.length === 1 ? "" : "s"},{" "}
+                    {r.parsed_summary.lineup.length} lineup entries detected
+                  </span>
+                  <button
+                    onClick={() => handleImport(r)}
+                    disabled={importingId === r.id}
+                    className="flex items-center gap-1 rounded-lg bg-club-primary text-navy-950 px-2.5 py-1 text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                  >
+                    {importingId === r.id ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                    Import into fixture
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {uploadError && <p className="mb-2 text-sm text-red-300">{uploadError}</p>}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value as ReportSource)}
+          className="rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+        >
+          <option value="hudl">Hudl</option>
+          <option value="wyscout">Wyscout</option>
+          <option value="other">Other</option>
+        </select>
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          {uploading ? "Uploading…" : "Upload report"}
+          <input
+            type="file"
+            accept=".pdf,.csv,.txt"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      </div>
+    </Card>
   );
 }
 
