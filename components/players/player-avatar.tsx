@@ -5,8 +5,9 @@ import { Camera, X } from "lucide-react";
 import { loadPlayerPhotos, savePlayerPhoto, removePlayerPhoto } from "@/lib/player-photos";
 
 const sizeClasses = {
-  sm: "h-12 w-12 text-sm",
-  lg: "h-24 w-24 text-2xl",
+  sm: "h-12 w-12 text-sm rounded-full",
+  lg: "h-24 w-24 text-2xl rounded-full",
+  card: "w-full h-full text-3xl rounded-xl",
 };
 
 export function PlayerAvatar({
@@ -17,7 +18,7 @@ export function PlayerAvatar({
 }: {
   playerId: string;
   initials: string;
-  size?: "sm" | "lg";
+  size?: "sm" | "lg" | "card";
   editable?: boolean;
 }) {
   const [photo, setPhoto] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export function PlayerAvatar({
 
   return (
     <div
-      className={`relative shrink-0 rounded-full overflow-hidden bg-navy-600 dark:bg-navy-800 flex items-center justify-center font-semibold ${sizeClasses[size]} ${editable ? "cursor-pointer group" : ""}`}
+      className={`relative shrink-0 overflow-hidden bg-navy-600 dark:bg-navy-800 flex items-center justify-center font-semibold ${sizeClasses[size]} ${editable ? "cursor-pointer group" : ""}`}
       onClick={(e) => {
         if (!editable) return;
         e.preventDefault();
@@ -65,15 +66,15 @@ export function PlayerAvatar({
       {editable && (
         <>
           <div className="absolute inset-0 hidden items-center justify-center bg-black/50 group-hover:flex transition-colors">
-            <Camera size={size === "lg" ? 20 : 14} className="text-white" />
+            <Camera size={size === "sm" ? 14 : 20} className="text-white" />
           </div>
           {photo && (
             <button
               onClick={handleRemove}
-              className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white ring-2 ring-navy-800"
+              className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white ring-2 ring-navy-800"
               title="Remove photo"
             >
-              <X size={11} />
+              <X size={12} />
             </button>
           )}
           <input

@@ -127,19 +127,22 @@ export default function PlayersPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {groupPlayers.map((p) => (
                     <Link key={p.id} href={`/players/${p.id}`}>
-                      <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                        <div className="flex items-center gap-3">
-                          <PlayerAvatar playerId={p.id} initials={p.initials} size="sm" />
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{p.name}</p>
-                            <p className="text-xs text-neutral-400">#{p.squad_number} · {p.position}</p>
-                          </div>
+                      <Card className="h-full overflow-hidden p-0 hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="relative aspect-[3/4] w-full">
+                          <PlayerAvatar playerId={p.id} initials={p.initials} size="card" />
+                          <span className="absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-lg bg-black/50 px-1.5 text-sm font-bold text-white backdrop-blur-sm">
+                            {p.squad_number}
+                          </span>
                         </div>
-                        <div className="mt-4 flex items-center justify-between">
-                          <Badge variant={statusVariant[p.availability]}>
-                            {p.availability === "green" ? "Available" : p.availability === "amber" ? "Doubtful" : "Unavailable"}
-                          </Badge>
-                          <span className="text-xs text-neutral-400">{p.appearances} apps</span>
+                        <div className="p-3.5">
+                          <p className="font-medium truncate">{p.name}</p>
+                          <p className="text-xs text-neutral-400">{p.position}</p>
+                          <div className="mt-3 flex items-center justify-between">
+                            <Badge variant={statusVariant[p.availability]}>
+                              {p.availability === "green" ? "Available" : p.availability === "amber" ? "Doubtful" : "Unavailable"}
+                            </Badge>
+                            <span className="text-xs text-neutral-400">{p.appearances} apps</span>
+                          </div>
                         </div>
                       </Card>
                     </Link>
