@@ -116,7 +116,7 @@ export default function MatchDetailPage() {
         </Card>
       )}
 
-      <div className="mb-5">
+      <div id="reports" className="mb-5 scroll-mt-6">
         <ReportsCard matchId={match.id} reports={reports} lineup={lineup} goals={goals} subs={subs} onChanged={load} />
       </div>
 

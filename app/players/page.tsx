@@ -129,7 +129,7 @@ export default function PlayersPage() {
                     <Link key={p.id} href={`/players/${p.id}`}>
                       <Card className="h-full overflow-hidden p-0 hover:shadow-lg transition-shadow cursor-pointer">
                         <div className="relative aspect-[3/4] w-full">
-                          <PlayerAvatar playerId={p.id} initials={p.initials} size="card" />
+                          <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="card" />
                           <span className="absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-lg bg-black/50 px-1.5 text-sm font-bold text-white backdrop-blur-sm">
                             {p.squad_number}
                           </span>

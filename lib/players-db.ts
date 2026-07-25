@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { resizeImageFile } from "./image-resize";
 
 export type PositionGroup = "GK" | "DEF" | "MID" | "FWD";
 export type Availability = "green" | "amber" | "red";
@@ -16,6 +17,7 @@ export type DbPlayer = {
   pitch_y: number;
   availability: Availability;
   availability_note: string;
+  photo_url: string | null;
   appearances: number;
   minutes: number;
   goals: number;
@@ -117,5 +119,35 @@ export async function updatePlayer(id: string, input: Partial<PlayerInput>) {
 export async function deletePlayer(id: string) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { error } = await supabase.from("players").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Photos live in the 'player-photos' storage bucket, one file per player
+// (path is always `${playerId}.jpg`, so re-uploading overwrites the old
+// photo automatically). The player row just stores the resulting public URL.
+export async function uploadPlayerPhoto(playerId: string, file: File): Promise<string> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const resized = await resizeImageFile(file);
+  const path = `${playerId}.jpg`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("player-photos")
+    .upload(path, resized, { upsert: true, contentType: "image/jpeg" });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from("player-photos").getPublicUrl(path);
+  // Cache-bust so the browser doesn't keep showing a stale cached image at the same URL.
+  const photoUrl = `${data.publicUrl}?v=${Date.now()}`;
+
+  const { error } = await supabase.from("players").update({ photo_url: photoUrl }).eq("id", playerId);
+  if (error) throw error;
+
+  return photoUrl;
+}
+
+export async function removePlayerPhoto(playerId: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  await supabase.storage.from("player-photos").remove([`${playerId}.jpg`]);
+  const { error } = await supabase.from("players").update({ photo_url: null }).eq("id", playerId);
   if (error) throw error;
 }

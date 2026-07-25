@@ -1,10 +1,14 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { opposition, matches } from "@/lib/sample-data";
-import { notFound } from "next/navigation";
+import { opposition, type Opposition } from "@/lib/sample-data";
+import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, ShieldAlert, Target, Users } from "lucide-react";
+import { ArrowLeft, ShieldCheck, ShieldAlert, Target, Users, FileText } from "lucide-react";
 
 const formColor: Record<string, string> = {
   W: "bg-emerald-500", D: "bg-amber-400", L: "bg-red-500",
@@ -12,14 +16,53 @@ const formColor: Record<string, string> = {
 
 const statusVariant = { "Not started": "neutral", "In progress": "amber", Ready: "green" } as const;
 
-export function generateStaticParams() {
-  return opposition.map((o) => ({ id: o.id }));
-}
+export default function OppositionDetailPage() {
+  const params = useParams<{ id: string }>();
+  const [team, setTeam] = useState<Opposition | null | undefined>(undefined);
+  const [match, setMatch] = useState<DbMatch | null>(null);
 
-export default function OppositionDetailPage({ params }: { params: { id: string } }) {
-  const team = opposition.find((o) => o.id === params.id);
-  if (!team) notFound();
-  const match = matches.find((m) => m.id === team.matchId);
+  useEffect(() => {
+    const found = opposition.find((o) => o.id === params.id) ?? null;
+    setTeam(found);
+    if (!found) return;
+
+    // Find the next real fixture against this opponent from the Match Centre
+    // (falls back to their most recent meeting if nothing's upcoming).
+    fetchMatches().then((matches) => {
+      const norm = (s: string) => s.trim().toLowerCase();
+      const vsThem = matches.filter((m) => norm(m.opponent) === norm(found.name));
+      const now = Date.now();
+      const upcoming = vsThem
+        .filter((m) => new Date(m.kickoff).getTime() >= now)
+        .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime())[0];
+      const mostRecent = vsThem
+        .filter((m) => new Date(m.kickoff).getTime() < now)
+        .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime())[0];
+      setMatch(upcoming ?? mostRecent ?? null);
+    });
+  }, [params.id]);
+
+  if (team === undefined) {
+    return (
+      <AppShell>
+        <p className="text-sm text-neutral-400">Loading…</p>
+      </AppShell>
+    );
+  }
+
+  if (team === null) {
+    return (
+      <AppShell>
+        <Link href="/opposition" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white">
+          <ArrowLeft size={14} /> Back to Opposition
+        </Link>
+        <Card><p className="text-sm text-neutral-400">This scouting report couldn&apos;t be found.</p></Card>
+      </AppShell>
+    );
+  }
+
+  const now = Date.now();
+  const isUpcoming = match ? new Date(match.kickoff).getTime() >= now : false;
 
   return (
     <AppShell>
@@ -36,10 +79,23 @@ export default function OppositionDetailPage({ params }: { params: { id: string 
           <p className="text-sm text-neutral-500">
             {team.formation} · {team.leaguePosition}
             {team.leaguePosition === 1 ? "st" : team.leaguePosition === 2 ? "nd" : team.leaguePosition === 3 ? "rd" : "th"} in league
-            {match && <> · {match.status === "upcoming" ? "Next meeting" : "Last meeting"} {new Date(match.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ({match.venue})</>}
+            {match && (
+              <>
+                {" "}· {isUpcoming ? "Next meeting" : "Last meeting"} {new Date(match.kickoff).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                {match.venue ? ` (${match.venue})` : ""}
+              </>
+            )}
           </p>
         </div>
         <Badge variant={statusVariant[team.reportStatus]}>{team.reportStatus}</Badge>
+        {match && (
+          <Link
+            href={`/matches/${match.id}`}
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+          >
+            <FileText size={14} /> Match reports (Hudl/Wyscout)
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

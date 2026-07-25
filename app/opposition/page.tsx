@@ -1,8 +1,14 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { opposition, matches } from "@/lib/sample-data";
+import { opposition } from "@/lib/sample-data";
+import { fetchMatches, type DbMatch } from "@/lib/matches-db";
+import { supabaseConfigured } from "@/lib/supabase";
 import Link from "next/link";
+import { AlertCircle } from "lucide-react";
 
 const formColor: Record<string, string> = {
   W: "bg-emerald-500", D: "bg-amber-400", L: "bg-red-500",
@@ -10,47 +16,139 @@ const formColor: Record<string, string> = {
 
 const statusVariant = { "Not started": "neutral", "In progress": "amber", Ready: "green" } as const;
 
+function ordinal(n: number) {
+  return n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th";
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 export default function OppositionPage() {
+  const [matches, setMatches] = useState<DbMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMatches()
+      .then(setMatches)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const now = Date.now();
+  const upcoming = matches
+    .filter((m) => new Date(m.kickoff).getTime() >= now && m.status !== "cancelled")
+    .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
+
+  // Match each upcoming fixture's opponent to any scouting report we already have on file.
+  const norm = (s: string) => s.trim().toLowerCase();
+  const matchedReportIds = new Set<string>();
+  const upcomingWithReports = upcoming.map((m) => {
+    const report = opposition.find((o) => norm(o.name) === norm(m.opponent));
+    if (report) matchedReportIds.add(report.id);
+    return { match: m, report };
+  });
+  const otherReports = opposition.filter((o) => !matchedReportIds.has(o.id));
+
   return (
     <AppShell>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Opposition</h1>
-        <p className="text-sm text-neutral-500">Scouting reports for upcoming and recent opponents.</p>
+        <p className="text-sm text-neutral-500">Scouting reports for upcoming and recent opponents, synced with the Match Centre.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {opposition.map((o) => {
-          const match = matches.find((m) => m.id === o.matchId);
-          return (
-            <Link key={o.id} href={`/opposition/${o.id}`}>
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium">{o.name}</p>
-                    <p className="text-xs text-neutral-400">{o.formation} · {o.leaguePosition}{o.leaguePosition === 1 ? "st" : o.leaguePosition === 2 ? "nd" : o.leaguePosition === 3 ? "rd" : "th"} in league</p>
+      {!supabaseConfigured && (
+        <Card className="mb-6 flex items-start gap-3 border-amber-500/30 bg-amber-500/10">
+          <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-300" />
+          <p className="text-sm text-amber-200">Supabase isn&apos;t connected on this deployment yet, so upcoming opponents can&apos;t be loaded here.</p>
+        </Card>
+      )}
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+        Upcoming Opponents ({upcoming.length})
+      </h2>
+
+      {loading ? (
+        <p className="text-sm text-neutral-400">Loading fixtures…</p>
+      ) : upcomingWithReports.length === 0 ? (
+        <Card className="mb-8 flex flex-col items-center justify-center py-12 text-center">
+          <p className="font-medium">No upcoming fixtures yet</p>
+          <p className="mt-1 max-w-sm text-sm text-neutral-400">
+            Add fixtures or sync them in the Match Centre and opponents will show up here automatically.
+          </p>
+        </Card>
+      ) : (
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {upcomingWithReports.map(({ match, report }) => {
+            const card = (
+              <Card className={`h-full ${report ? "hover:shadow-lg transition-shadow cursor-pointer" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{match.opponent}</p>
+                    <p className="text-xs text-neutral-400 truncate">
+                      {match.competition}{report ? ` · ${report.formation} · ${report.leaguePosition}${ordinal(report.leaguePosition)} in league` : ""}
+                    </p>
                   </div>
-                  <Badge variant={statusVariant[o.reportStatus]}>{o.reportStatus}</Badge>
+                  <Badge variant={report ? statusVariant[report.reportStatus] : "neutral"}>
+                    {report ? report.reportStatus : "No report yet"}
+                  </Badge>
                 </div>
 
-                {match && (
-                  <p className="mt-3 text-xs text-neutral-500">
-                    {match.status === "upcoming" ? "Next meeting" : "Last meeting"}: {new Date(match.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · {match.venue}
-                  </p>
+                <p className="mt-3 text-xs text-neutral-500">
+                  {match.is_home ? "Home" : "Away"} · {formatDate(match.kickoff)}{match.venue ? ` · ${match.venue}` : ""}
+                </p>
+
+                {report && (
+                  <div className="mt-4 flex items-center gap-1.5">
+                    <span className="text-xs text-neutral-400 mr-1">Form:</span>
+                    {report.form.map((r, i) => (
+                      <span key={i} className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white ${formColor[r]}`}>
+                        {r}
+                      </span>
+                    ))}
+                  </div>
                 )}
-
-                <div className="mt-4 flex items-center gap-1.5">
-                  <span className="text-xs text-neutral-400 mr-1">Form:</span>
-                  {o.form.map((r, i) => (
-                    <span key={i} className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white ${formColor[r]}`}>
-                      {r}
-                    </span>
-                  ))}
-                </div>
               </Card>
-            </Link>
-          );
-        })}
-      </div>
+            );
+            return report ? (
+              <Link key={match.id} href={`/opposition/${report.id}`}>{card}</Link>
+            ) : (
+              <div key={match.id}>{card}</div>
+            );
+          })}
+        </div>
+      )}
+
+      {otherReports.length > 0 && (
+        <>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+            Other Scouting Reports ({otherReports.length})
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {otherReports.map((o) => (
+              <Link key={o.id} href={`/opposition/${o.id}`}>
+                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{o.name}</p>
+                      <p className="text-xs text-neutral-400">{o.formation} · {o.leaguePosition}{ordinal(o.leaguePosition)} in league</p>
+                    </div>
+                    <Badge variant={statusVariant[o.reportStatus]}>{o.reportStatus}</Badge>
+                  </div>
+                  <p className="mt-3 text-xs text-neutral-500">Last meeting: {o.lastMeeting.date} — {o.lastMeeting.result}</p>
+                  <div className="mt-4 flex items-center gap-1.5">
+                    <span className="text-xs text-neutral-400 mr-1">Form:</span>
+                    {o.form.map((r, i) => (
+                      <span key={i} className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white ${formColor[r]}`}>
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }

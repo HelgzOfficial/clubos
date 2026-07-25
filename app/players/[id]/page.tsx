@@ -122,7 +122,14 @@ export default function PlayerProfilePage() {
 
       {!editing ? (
         <div className="mb-6 flex flex-wrap items-center gap-4">
-          <PlayerAvatar playerId={player.id} initials={player.initials} size="lg" editable />
+          <PlayerAvatar
+            playerId={player.id}
+            initials={player.initials}
+            photoUrl={player.photo_url}
+            size="lg"
+            editable
+            onPhotoChanged={(url) => setPlayer((prev) => (prev ? { ...prev, photo_url: url } : prev))}
+          />
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-semibold">{player.name}</h1>
             <p className="text-sm text-neutral-500">#{player.squad_number} · {player.position} · {player.nationality || "—"}</p>

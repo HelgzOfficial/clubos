@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
-import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil } from "lucide-react";
+import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -221,6 +221,13 @@ export default function MatchesPage() {
                     <Link href={`/matches/${m.id}`} className="text-xs text-neutral-400 hover:text-club-primary underline underline-offset-2">
                       Details
                     </Link>
+                    <Link
+                      href={`/matches/${m.id}#reports`}
+                      title="Upload Hudl/Wyscout report"
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                    >
+                      <Upload size={13} />
+                    </Link>
                     <button onClick={() => handleDelete(m.id)} className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
                       <Trash2 size={13} />
                     </button>
@@ -272,9 +279,14 @@ export default function MatchesPage() {
                       )}
                     </div>
                     {!editing && (
-                      <Link href={`/matches/${m.id}`} className="mt-2 inline-block text-xs text-neutral-400 hover:text-club-primary underline underline-offset-2">
-                        Match details (lineup, goals, subs)
-                      </Link>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <Link href={`/matches/${m.id}`} className="text-xs text-neutral-400 hover:text-club-primary underline underline-offset-2">
+                          Match details (lineup, goals, subs)
+                        </Link>
+                        <Link href={`/matches/${m.id}#reports`} className="flex items-center gap-1 text-xs text-neutral-400 hover:text-club-primary underline underline-offset-2">
+                          <Upload size={11} /> Upload Hudl/Wyscout report
+                        </Link>
+                      </div>
                     )}
 
                     {editing && (
