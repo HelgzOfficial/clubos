@@ -29,12 +29,12 @@ export function BodyMap({
         ))}
       </div>
 
-      <div className="relative mx-auto w-full max-w-[170px] aspect-[103/266] rounded-xl bg-navy-800 dark:bg-navy-950/40">
+      <div className="relative mx-auto w-full max-w-[170px] aspect-[103/266]">
         <Image
           src={view === "front" ? "/body-front.png" : "/body-back.png"}
           alt={`Body diagram — ${view} view`}
           fill
-          className="object-contain dark:invert-[0.15] dark:brightness-125"
+          className="object-contain drop-shadow-sm dark:invert-[0.15] dark:brightness-125"
           priority
         />
         {markers.map((m, i) => {
