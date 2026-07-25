@@ -205,7 +205,7 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Wyscout Integration</CardTitle>
+            <CardTitle>Video & Data Integrations</CardTitle>
             <Badge variant="amber">Not Connected</Badge>
           </CardHeader>
           <div className="flex items-start gap-3">
@@ -214,16 +214,21 @@ export default function SettingsPage() {
             </div>
             <div className="text-sm text-neutral-400 space-y-2">
               <p>
-                The Analysis module currently works with clips you upload directly — that part is fully functional. A live Wyscout feed
-                (match data, tagged clips, physical stats pulled in automatically) is not connected yet.
+                The Analysis module works with clips you upload directly, and Match Centre now has manual lineup, goals, and substitution
+                tracking — both of those are fully functional today. Live feeds from Wyscout or Hudl (match data, tagged clips, physical
+                stats, lineups pulled in automatically) are not connected.
               </p>
               <p>
-                A club login to the Wyscout platform isn't the same as API access. To turn this on for real, Wyscout would need to issue
-                you separate API credentials for your club, and those credentials would need to be stored securely on a server — not typed
-                into a page like this one, which only saves things in your browser. Once ClubOS is connected to a proper backend
-                (Supabase), we can build this the right way.
+                A login to either platform&apos;s dashboard isn&apos;t the same as API access. Wyscout and Hudl both require them to
+                issue your club separate API credentials, and those credentials would need to be stored securely on a server — never
+                typed into a page like this one, which only saves things in your browser. This is the same reasoning that kept ClubOS
+                from accepting real Wyscout keys earlier, and it applies equally to Hudl.
               </p>
-              <p>If you're able to get API access from your Wyscout account manager, let us know and we'll wire it up.</p>
+              <p>
+                If you&apos;re able to get API access from either provider&apos;s account manager, let us know and we&apos;ll build a
+                proper server-side connection for it — likely alongside further Supabase work, since credentials like that need to live
+                on a server, not in the browser.
+              </p>
             </div>
           </div>
         </Card>

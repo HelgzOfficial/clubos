@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -196,6 +197,9 @@ export default function MatchesPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge variant={m.is_home ? "green" : "neutral"}>{m.is_home ? "Home" : "Away"}</Badge>
+                    <Link href={`/matches/${m.id}`} className="text-xs text-neutral-400 hover:text-club-primary underline underline-offset-2">
+                      Details
+                    </Link>
                     <button onClick={() => handleDelete(m.id)} className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
                       <Trash2 size={13} />
                     </button>
@@ -246,6 +250,11 @@ export default function MatchesPage() {
                         </div>
                       )}
                     </div>
+                    {!editing && (
+                      <Link href={`/matches/${m.id}`} className="mt-2 inline-block text-xs text-neutral-400 hover:text-club-primary underline underline-offset-2">
+                        Match details (lineup, goals, subs)
+                      </Link>
+                    )}
 
                     {editing && (
                       <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">

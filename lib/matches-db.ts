@@ -38,6 +38,13 @@ export async function fetchMatches(): Promise<DbMatch[]> {
   return data ?? [];
 }
 
+export async function fetchMatch(id: string): Promise<DbMatch | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.from("matches").select("*").eq("id", id).single();
+  if (error) return null;
+  return data;
+}
+
 export async function createMatch(input: Omit<MatchInput, "status" | "homeScore" | "awayScore" | "notes">) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { data, error } = await supabase
