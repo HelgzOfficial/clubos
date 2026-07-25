@@ -4,9 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fetchMatches, createMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
+import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
-import { RefreshCw, Plus, X, AlertCircle, Trash2 } from "lucide-react";
+import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -31,6 +31,11 @@ export default function MatchesPage() {
   const [kickoffTime, setKickoffTime] = useState("15:00");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+
+  const [resultEditId, setResultEditId] = useState<string | null>(null);
+  const [resultHome, setResultHome] = useState("");
+  const [resultAway, setResultAway] = useState("");
+  const [resultSaving, setResultSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -96,6 +101,28 @@ export default function MatchesPage() {
     if (!window.confirm("Remove this match?")) return;
     await deleteMatch(id);
     await load();
+  }
+
+  function startResultEdit(m: DbMatch) {
+    setResultEditId(m.id);
+    setResultHome(m.home_score !== null ? String(m.home_score) : "");
+    setResultAway(m.away_score !== null ? String(m.away_score) : "");
+  }
+
+  async function handleSaveResult(id: string) {
+    if (resultHome === "" || resultAway === "") return;
+    setResultSaving(true);
+    try {
+      await updateMatch(id, {
+        homeScore: Number(resultHome),
+        awayScore: Number(resultAway),
+        status: "completed",
+      });
+      setResultEditId(null);
+      await load();
+    } finally {
+      setResultSaving(false);
+    }
   }
 
   const now = Date.now();
@@ -188,23 +215,72 @@ export default function MatchesPage() {
                 const hasScore = m.home_score !== null && m.away_score !== null;
                 const won = hasScore && (m.is_home ? m.home_score! > m.away_score! : m.away_score! > m.home_score!);
                 const drawn = hasScore && m.home_score === m.away_score;
+                const editing = resultEditId === m.id;
                 return (
-                  <Card key={m.id} className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                      <p className="text-xs text-neutral-400">{m.competition}</p>
-                      <p className="text-xs text-neutral-400">{formatDate(m.kickoff)}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {hasScore ? (
-                        <>
-                          <p className="text-lg font-semibold">{m.home_score} – {m.away_score}</p>
-                          <Badge variant={won ? "green" : drawn ? "amber" : "red"}>{won ? "WIN" : drawn ? "DRAW" : "LOSS"}</Badge>
-                        </>
-                      ) : (
-                        <Badge variant="neutral">No result yet</Badge>
+                  <Card key={m.id} className="gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
+                        <p className="text-xs text-neutral-400">{m.competition}</p>
+                        <p className="text-xs text-neutral-400">{formatDate(m.kickoff)}</p>
+                      </div>
+                      {!editing && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            {hasScore ? (
+                              <>
+                                <p className="text-lg font-semibold">{m.home_score} – {m.away_score}</p>
+                                <Badge variant={won ? "green" : drawn ? "amber" : "red"}>{won ? "WIN" : drawn ? "DRAW" : "LOSS"}</Badge>
+                              </>
+                            ) : (
+                              <Badge variant="neutral">No result yet</Badge>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => startResultEdit(m)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                            title={hasScore ? "Edit result" : "Add result"}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
                       )}
                     </div>
+
+                    {editing && (
+                      <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+                        <span className="text-xs text-neutral-400 truncate">{m.is_home ? "Us" : m.opponent}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={resultHome}
+                          onChange={(e) => setResultHome(e.target.value)}
+                          className="w-14 rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1 text-center text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                        />
+                        <span className="text-neutral-500">–</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={resultAway}
+                          onChange={(e) => setResultAway(e.target.value)}
+                          className="w-14 rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1 text-center text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                        />
+                        <span className="text-xs text-neutral-400 truncate flex-1">{m.is_home ? m.opponent : "Us"}</span>
+                        <button
+                          onClick={() => handleSaveResult(m.id)}
+                          disabled={resultSaving}
+                          className="flex h-8 w-8 items-center justify-center rounded-full bg-club-primary text-navy-950 disabled:opacity-60"
+                        >
+                          <Check size={13} />
+                        </button>
+                        <button
+                          onClick={() => setResultEditId(null)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    )}
                   </Card>
                 );
               })}
