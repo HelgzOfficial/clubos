@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { PitchPosition } from "@/components/pitch-position";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import {
-  fetchPlayer, updatePlayer, deletePlayer, POSITION_OPTIONS,
+  fetchPlayer, updatePlayer, deletePlayer, updatePlayerStats, POSITION_OPTIONS,
   type DbPlayer, type Availability,
 } from "@/lib/players-db";
+import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import Link from "next/link";
-import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X } from "lucide-react";
+import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
 const AVAILABILITY_OPTIONS: Availability[] = ["green", "amber", "red"];
@@ -228,27 +229,7 @@ export default function PlayerProfilePage() {
             </div>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Season Statistics</CardTitle></CardHeader>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-center">
-              <div>
-                <p className="text-xl font-semibold">{player.appearances}</p>
-                <p className="text-xs text-neutral-400">Appearances</p>
-              </div>
-              <div>
-                <p className="text-xl font-semibold">{player.minutes.toLocaleString()}</p>
-                <p className="text-xs text-neutral-400">Minutes</p>
-              </div>
-              <div>
-                <p className="text-xl font-semibold">{player.goals}</p>
-                <p className="text-xs text-neutral-400">Goals</p>
-              </div>
-              <div>
-                <p className="text-xl font-semibold">{player.assists}</p>
-                <p className="text-xs text-neutral-400">Assists</p>
-              </div>
-            </div>
-          </Card>
+          <SeasonStatsCard player={player} onChanged={(p) => setPlayer(p)} />
 
           <Card>
             <CardHeader><CardTitle>GPS Metrics (season avg. per match)</CardTitle></CardHeader>
@@ -323,5 +304,164 @@ export default function PlayerProfilePage() {
         </Card>
       </div>
     </AppShell>
+  );
+}
+
+function SeasonStatsCard({ player, onChanged }: { player: DbPlayer; onChanged: (p: DbPlayer) => void }) {
+  const showCleanSheets = player.position_group === "GK" || player.position_group === "DEF";
+
+  const [editing, setEditing] = useState(false);
+  const [appearances, setAppearances] = useState(String(player.appearances));
+  const [goals, setGoals] = useState(String(player.goals));
+  const [assists, setAssists] = useState(String(player.assists));
+  const [cleanSheets, setCleanSheets] = useState(String(player.clean_sheets));
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+
+  function startEdit() {
+    setAppearances(String(player.appearances));
+    setGoals(String(player.goals));
+    setAssists(String(player.assists));
+    setCleanSheets(String(player.clean_sheets));
+    setError("");
+    setNote("");
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      await updatePlayerStats(player.id, {
+        appearances: Number(appearances) || 0,
+        goals: Number(goals) || 0,
+        assists: Number(assists) || 0,
+        cleanSheets: Number(cleanSheets) || 0,
+      });
+      onChanged({
+        ...player,
+        appearances: Number(appearances) || 0,
+        goals: Number(goals) || 0,
+        assists: Number(assists) || 0,
+        clean_sheets: Number(cleanSheets) || 0,
+      });
+      setEditing(false);
+      setNote("Saved. Note: the next automatic sync (after a report import or result entry) recomputes these from match data and will overwrite a manual edit.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save stats.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResync() {
+    setSyncing(true);
+    setError("");
+    setNote("");
+    try {
+      await syncPlayerStatsFromMatches();
+      const fresh = await fetchPlayer(player.id);
+      if (fresh) onChanged(fresh);
+      setNote("Resynced from completed league/cup fixtures.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't resync stats.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <CardTitle>Season Statistics</CardTitle>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleResync}
+            disabled={syncing}
+            title="Recompute from completed league/cup fixtures"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white disabled:opacity-60"
+          >
+            <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+          </button>
+          {!editing && (
+            <button
+              onClick={startEdit}
+              title="Edit manually"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p className="mb-3 text-xs text-neutral-400">
+        Appearances, goals and assists update automatically from league and cup match reports and results (friendlies never
+        count). Clean sheets are tracked for goalkeepers and defenders. You can also enter figures manually below.
+      </p>
+
+      {!editing ? (
+        <div className={`grid grid-cols-2 gap-4 text-center ${showCleanSheets ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
+          <div>
+            <p className="text-xl font-semibold">{player.appearances}</p>
+            <p className="text-xs text-neutral-400">Appearances</p>
+          </div>
+          <div>
+            <p className="text-xl font-semibold">{player.minutes.toLocaleString()}</p>
+            <p className="text-xs text-neutral-400">Minutes</p>
+          </div>
+          <div>
+            <p className="text-xl font-semibold">{player.goals}</p>
+            <p className="text-xs text-neutral-400">Goals</p>
+          </div>
+          <div>
+            <p className="text-xl font-semibold">{player.assists}</p>
+            <p className="text-xs text-neutral-400">Assists</p>
+          </div>
+          {showCleanSheets && (
+            <div>
+              <p className="text-xl font-semibold">{player.clean_sheets}</p>
+              <p className="text-xs text-neutral-400">Clean Sheets</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className={`grid grid-cols-2 gap-3 ${showCleanSheets ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">Appearances</label>
+              <input type="number" min={0} value={appearances} onChange={(e) => setAppearances(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">Goals</label>
+              <input type="number" min={0} value={goals} onChange={(e) => setGoals(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">Assists</label>
+              <input type="number" min={0} value={assists} onChange={(e) => setAssists(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+            </div>
+            {showCleanSheets && (
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Clean Sheets</label>
+                <input type="number" min={0} value={cleanSheets} onChange={(e) => setCleanSheets(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
+              <Check size={13} /> {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+              <X size={13} /> Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+      {note && !error && <p className="mt-2 text-xs text-neutral-400">{note}</p>}
+    </Card>
   );
 }

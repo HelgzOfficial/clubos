@@ -20,26 +20,13 @@ import { fetchMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
 import { StatDashboard } from "@/components/matches/stat-dashboard";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings } from "@/lib/club-settings";
+import { competitionKind, competitionVariant } from "@/lib/competition-kind";
+import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
-
-type CompetitionKind = "friendly" | "cup" | "league";
-
-function competitionKind(competition: string): CompetitionKind {
-  const c = competition.toLowerCase();
-  if (c.includes("friendly") || c.includes("pre-season") || c.includes("preseason")) return "friendly";
-  if (c.includes("cup") || c.includes("trophy") || c.includes("shield")) return "cup";
-  return "league";
-}
-
-const competitionVariant: Record<CompetitionKind, "neutral" | "purple" | "blue"> = {
-  friendly: "neutral",
-  cup: "purple",
-  league: "blue",
-};
 
 export default function MatchDetailPage() {
   const params = useParams<{ id: string }>();
@@ -64,6 +51,12 @@ export default function MatchDetailPage() {
         setStats(statsRow);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't load match details.");
+      }
+      // Keep player season stats (appearances, goals, assists, clean sheets) in
+      // step with whatever's just been imported or edited for this fixture.
+      // Best-effort and silent — a sync hiccup shouldn't block viewing the match.
+      if (m.status === "completed" && competitionKind(m.competition) !== "friendly") {
+        syncPlayerStatsFromMatches().catch(() => {});
       }
     }
   }
@@ -220,7 +213,10 @@ function ReportsCard({
         comparing the report&apos;s scoreline to this fixture&apos;s opponent. It&apos;s still best-effort against real report
         layouts, so always check the &quot;Import&quot; preview before pulling lineup/goals into the fixture (stats populate the
         dashboard automatically). Other Hudl/Wyscout export types — like a multi-match squad &quot;Team Report&quot; — don&apos;t
-        contain per-match team stats and won&apos;t fill this dashboard.
+        contain per-match team stats and won&apos;t fill this dashboard. You can also upload a screenshot/photo (PNG/JPG) of a
+        stats or lineup screen — that goes through an AI reader instead, so double-check its results before importing too.
+        Once goals and lineup are imported (for league/cup fixtures), player season stats — appearances, goals, assists, and
+        clean sheets for goalkeepers/defenders — update automatically.
       </p>
 
       {reports.length === 0 ? (
@@ -287,7 +283,7 @@ function ReportsCard({
           {uploading ? "Uploading…" : "Upload report"}
           <input
             type="file"
-            accept=".pdf,.csv,.txt"
+            accept=".pdf,.csv,.txt,.png,.jpg,.jpeg,.webp"
             className="hidden"
             disabled={uploading}
             onChange={(e) => {

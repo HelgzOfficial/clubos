@@ -22,6 +22,7 @@ export type DbPlayer = {
   minutes: number;
   goals: number;
   assists: number;
+  clean_sheets: number;
   gps: { distanceKm: number; topSpeedKph: number; sprints: number };
   injury_history: { injury: string; date: string; daysOut: number }[];
   documents: { name: string; type: string }[];
@@ -119,6 +120,25 @@ export async function updatePlayer(id: string, input: Partial<PlayerInput>) {
 export async function deletePlayer(id: string) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { error } = await supabase.from("players").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export type PlayerSeasonStats = { appearances: number; goals: number; assists: number; cleanSheets: number };
+
+// Sets a player's season totals directly — used both by the automatic
+// match-stats sync (lib/player-stats-sync.ts) and by manually editing a
+// player's stats on their profile page.
+export async function updatePlayerStats(id: string, stats: PlayerSeasonStats) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase
+    .from("players")
+    .update({
+      appearances: stats.appearances,
+      goals: stats.goals,
+      assists: stats.assists,
+      clean_sheets: stats.cleanSheets,
+    })
+    .eq("id", id);
   if (error) throw error;
 }
 

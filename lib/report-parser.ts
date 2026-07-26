@@ -91,6 +91,33 @@ export async function extractReportText(file: File, fileType: string): Promise<s
   return readAsText(file);
 }
 
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Couldn't read the file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Screenshots/photos have no selectable text, so instead of the regex
+// pipeline below, this sends the image to the server-side AI route which
+// asks Claude's vision model to read off the same goals/lineup/stats shape.
+export async function parseReportImage(file: File, ctx?: ReportContext): Promise<ParsedReport> {
+  const dataUrl = await readAsDataUrl(file);
+  const base64 = dataUrl.split(",")[1] || "";
+  const mediaType = dataUrl.match(/^data:(.*?);base64/)?.[1] || file.type || "image/jpeg";
+
+  const res = await fetch("/api/parse-report-image", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ imageBase64: base64, mediaType, clubName: ctx?.clubName, opponentName: ctx?.opponentName }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't read that image.");
+  return data as ParsedReport;
+}
+
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

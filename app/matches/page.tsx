@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
+import { competitionKind, competitionVariant } from "@/lib/competition-kind";
+import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -15,21 +17,6 @@ function formatDate(iso: string) {
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
-
-type CompetitionKind = "friendly" | "cup" | "league";
-
-function competitionKind(competition: string): CompetitionKind {
-  const c = competition.toLowerCase();
-  if (c.includes("friendly") || c.includes("pre-season") || c.includes("preseason")) return "friendly";
-  if (c.includes("cup") || c.includes("trophy") || c.includes("shield")) return "cup";
-  return "league";
-}
-
-const competitionVariant: Record<CompetitionKind, "neutral" | "purple" | "blue"> = {
-  friendly: "neutral",
-  cup: "purple",
-  league: "blue",
-};
 
 function CompetitionBadge({ competition }: { competition: string }) {
   if (!competition) return null;
@@ -142,6 +129,9 @@ export default function MatchesPage() {
       });
       setResultEditId(null);
       await load();
+      // A result just landed — refresh player season stats (appearances, goals,
+      // assists, clean sheets) from completed league/cup fixtures. Best-effort.
+      syncPlayerStatsFromMatches().catch(() => {});
     } finally {
       setResultSaving(false);
     }

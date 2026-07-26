@@ -1,9 +1,11 @@
 import { supabase } from "./supabase";
-import { extractReportText, parseReportText, type ParsedReport, type ReportContext } from "./report-parser";
+import { extractReportText, parseReportText, parseReportImage, type ParsedReport, type ReportContext } from "./report-parser";
 import { upsertMatchStats } from "./match-stats-db";
 
 export type ReportSource = "hudl" | "wyscout" | "other";
 export type ParseStatus = "unparsed" | "parsed" | "failed";
+
+const IMAGE_TYPES = ["png", "jpg", "jpeg", "webp"];
 
 export type DbMatchReport = {
   id: string;
@@ -19,7 +21,7 @@ export type DbMatchReport = {
 
 function fileTypeOf(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  if (["pdf", "csv", "txt"].includes(ext)) return ext;
+  if (["pdf", "csv", "txt", ...IMAGE_TYPES].includes(ext)) return ext;
   return ext || "other";
 }
 
@@ -58,13 +60,20 @@ export async function uploadMatchReport(matchId: string, file: File, source: Rep
 
   const report = data as DbMatchReport;
 
-  // Best-effort auto-extraction — supported for pdf/csv/txt. Failures here
-  // shouldn't block the upload itself, so they're caught and stored as a
-  // "failed" parse status rather than thrown.
+  // Best-effort auto-extraction — supported for pdf/csv/txt (regex parser) and
+  // png/jpg/jpeg/webp screenshots (AI vision parser). Failures here shouldn't
+  // block the upload itself, so they're caught and stored as a "failed" parse
+  // status rather than thrown.
   try {
+    let parsed: ParsedReport | null = null;
     if (["pdf", "csv", "txt"].includes(fileType)) {
       const text = await extractReportText(file, fileType);
-      const parsed = parseReportText(text, context);
+      parsed = parseReportText(text, context);
+    } else if (IMAGE_TYPES.includes(fileType)) {
+      parsed = await parseReportImage(file, context);
+    }
+
+    if (parsed) {
       const hasAnything = parsed.goals.length > 0 || parsed.lineup.length > 0 || parsed.substitutions.length > 0 || parsed.statCategories.length > 0;
 
       // Auto-populate the stats dashboard whenever a report yields any recognised team stats.
