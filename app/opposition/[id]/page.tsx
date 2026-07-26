@@ -9,7 +9,7 @@ import { opposition, club, type Opposition } from "@/lib/sample-data";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import {
   fetchOppositionReports, uploadOppositionReport, deleteOppositionReport, getOppositionReportDownloadUrl,
-  type DbOppositionReport,
+  type DbOppositionReport, type StatBar,
 } from "@/lib/opposition-reports-db";
 import { fetchHeadToHead, refreshHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-head-db";
 import { loadClubSettings } from "@/lib/club-settings";
@@ -422,6 +422,7 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
                     {deletingId === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                   </button>
                 </div>
+                {expanded && r.ai_stats && r.ai_stats.length > 0 && <StatBars stats={r.ai_stats} />}
                 {expanded && r.ai_summary && (
                   <div className="mt-2.5 ml-6 max-h-80 overflow-y-auto rounded-xl border border-white/10 bg-navy-600/40 dark:bg-navy-800/40 p-3">
                     {r.ai_summary.split(/\n+/).filter(Boolean).map((line, i) => (
@@ -440,5 +441,53 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
         </ul>
       )}
     </Card>
+  );
+}
+
+// Colours a 0-100 value from red (weak/no threat) to green (strong/dangerous
+// for the opponent), through a neutral grey midpoint — plain linear RGB
+// interpolation, kept deliberately simple since it always ships with a
+// visible numeric label alongside the fill (colour is never the only cue).
+const STAT_RED: [number, number, number] = [208, 59, 59]; // #d03b3b
+const STAT_GREY: [number, number, number] = [138, 138, 134]; // neutral midpoint
+const STAT_GREEN: [number, number, number] = [12, 163, 12]; // #0ca30c
+
+function lerp(a: number, b: number, t: number) {
+  return Math.round(a + (b - a) * t);
+}
+
+function statColor(value: number): string {
+  const v = Math.max(0, Math.min(100, value));
+  const [from, to, t] =
+    v <= 50 ? [STAT_RED, STAT_GREY, v / 50] : [STAT_GREY, STAT_GREEN, (v - 50) / 50];
+  const r = lerp(from[0], to[0], t);
+  const g = lerp(from[1], to[1], t);
+  const b = lerp(from[2], to[2], t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function StatBars({ stats }: { stats: StatBar[] }) {
+  return (
+    <div className="mt-2.5 ml-6 rounded-xl border border-white/10 bg-navy-600/40 dark:bg-navy-800/40 p-3">
+      <p className="mb-2.5 text-xs text-neutral-400">
+        Green = stronger/more dangerous for this opponent, red = weaker — scored out of 100.
+      </p>
+      <div className="space-y-2.5">
+        {stats.map((s, i) => (
+          <div key={i}>
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="font-medium text-neutral-200">{s.label}</span>
+              <span className="tabular-nums text-neutral-300">{s.value}</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${Math.max(0, Math.min(100, s.value))}%`, backgroundColor: statColor(s.value) }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
