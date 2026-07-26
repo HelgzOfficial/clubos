@@ -82,7 +82,7 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{ role: "user", content }],
       }),
     });
@@ -112,7 +112,11 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ summary });
+    // If the model ran out of room before finishing, say so plainly rather
+    // than silently handing back a summary that trails off mid-sentence.
+    const truncated = data?.stop_reason === "max_tokens";
+
+    return NextResponse.json({ summary, truncated });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "AI request failed." }, { status: 502 });
   }

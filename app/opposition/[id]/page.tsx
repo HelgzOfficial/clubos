@@ -423,7 +423,7 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
                   </button>
                 </div>
                 {expanded && r.ai_summary && (
-                  <div className="mt-2.5 ml-6 rounded-xl border border-white/10 bg-navy-600/40 dark:bg-navy-800/40 p-3">
+                  <div className="mt-2.5 ml-6 max-h-80 overflow-y-auto rounded-xl border border-white/10 bg-navy-600/40 dark:bg-navy-800/40 p-3">
                     {r.ai_summary.split(/\n+/).filter(Boolean).map((line, i) => (
                       <p key={i} className="mb-1.5 last:mb-0 text-sm text-neutral-200 whitespace-pre-wrap">{line}</p>
                     ))}

@@ -44,7 +44,7 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-async function requestSummary(file: File, fileType: string, opponentName: string): Promise<string> {
+async function requestSummary(file: File, fileType: string, opponentName: string): Promise<{ summary: string; truncated: boolean }> {
   let body: Record<string, unknown>;
   if (TEXT_TYPES.includes(fileType)) {
     const text = await extractReportText(file, fileType);
@@ -67,7 +67,7 @@ async function requestSummary(file: File, fileType: string, opponentName: string
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Couldn't generate a summary for that file.");
-  return data.summary as string;
+  return { summary: data.summary as string, truncated: !!data.truncated };
 }
 
 export async function uploadOppositionReport(opponentName: string, file: File): Promise<DbOppositionReport> {
@@ -97,8 +97,11 @@ export async function uploadOppositionReport(opponentName: string, file: File): 
   // Best-effort AI summary — the real error is saved (not just logged) so
   // the UI can show it instead of a bare "Couldn't summarise" with no clue why.
   try {
-    const summary = await requestSummary(file, fileType, opponentName);
-    return await updateSummaryResult(report.id, "ready", summary, null);
+    const { summary, truncated } = await requestSummary(file, fileType, opponentName);
+    const finalSummary = truncated
+      ? `${summary}\n\n[Note: this summary ran out of room and was cut short. Try a shorter export, or split it into smaller files, for a complete summary.]`
+      : summary;
+    return await updateSummaryResult(report.id, "ready", finalSummary, null);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Couldn't generate a summary for that file.";
     console.error("Opposition report AI summary failed:", e);
