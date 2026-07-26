@@ -88,7 +88,10 @@ export async function uploadMatchReport(matchId: string, file: File, source: Rep
       return await updateReportParseResult(report.id, hasAnything ? "parsed" : "failed", parsed);
     }
     return await updateReportParseResult(report.id, "failed", null);
-  } catch {
+  } catch (e) {
+    // Logged (not shown in the UI) so a "Couldn't auto-read" can be diagnosed
+    // from the browser console instead of being a total black box.
+    console.error("Match report auto-extraction failed:", e);
     return await updateReportParseResult(report.id, "failed", null);
   }
 }

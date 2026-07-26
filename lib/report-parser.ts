@@ -67,7 +67,14 @@ function loadPdfJs(): Promise<any> {
 async function extractPdfText(file: File): Promise<string> {
   const pdfjsLib = await loadPdfJs();
   const buffer = await file.arrayBuffer();
-  const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+  // disableWorker runs pdf.js on the main thread instead of spinning up a
+  // separate worker script. That worker has to be fetched from the CDN as a
+  // second, independent request (on top of the main pdf.js script) — if that
+  // fetch is blocked, slow, or mismatched (ad blockers, some corporate
+  // networks, or CDN hiccups all do this), getDocument() hangs or throws and
+  // the whole upload silently comes back "Couldn't auto-read" with no clue
+  // why. Skipping the worker removes that entire failure mode.
+  const doc = await pdfjsLib.getDocument({ data: buffer, disableWorker: true }).promise;
   let text = "";
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
