@@ -11,6 +11,7 @@ export type DbOppositionReport = {
   file_type: string;
   ai_summary: string | null;
   summary_status: SummaryStatus;
+  summary_error: string | null;
   uploaded_at: string;
 };
 
@@ -93,23 +94,28 @@ export async function uploadOppositionReport(opponentName: string, file: File): 
 
   const report = data as DbOppositionReport;
 
-  // Best-effort AI summary — logged, not thrown, so an upload always
-  // succeeds even if the summary step fails (missing API key, unreadable
-  // file, AI hiccup).
+  // Best-effort AI summary — the real error is saved (not just logged) so
+  // the UI can show it instead of a bare "Couldn't summarise" with no clue why.
   try {
     const summary = await requestSummary(file, fileType, opponentName);
-    return await updateSummaryResult(report.id, "ready", summary);
+    return await updateSummaryResult(report.id, "ready", summary, null);
   } catch (e) {
+    const message = e instanceof Error ? e.message : "Couldn't generate a summary for that file.";
     console.error("Opposition report AI summary failed:", e);
-    return await updateSummaryResult(report.id, "failed", null);
+    return await updateSummaryResult(report.id, "failed", null, message);
   }
 }
 
-export async function updateSummaryResult(id: string, status: SummaryStatus, summary: string | null): Promise<DbOppositionReport> {
+export async function updateSummaryResult(
+  id: string,
+  status: SummaryStatus,
+  summary: string | null,
+  errorMessage: string | null = null
+): Promise<DbOppositionReport> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { data, error } = await supabase
     .from("opposition_reports")
-    .update({ summary_status: status, ai_summary: summary })
+    .update({ summary_status: status, ai_summary: summary, summary_error: errorMessage })
     .eq("id", id)
     .select()
     .single();

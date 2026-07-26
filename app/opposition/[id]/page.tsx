@@ -401,11 +401,11 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
                   ) : (
                     <span className="text-xs text-neutral-400">Pending</span>
                   )}
-                  {r.summary_status === "ready" && (
+                  {(r.summary_status === "ready" || (r.summary_status === "failed" && r.summary_error)) && (
                     <button
                       onClick={() => setExpandedId(expanded ? null : r.id)}
                       className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
-                      title={expanded ? "Hide summary" : "View summary"}
+                      title={expanded ? "Hide detail" : r.summary_status === "ready" ? "View summary" : "Why did this fail?"}
                     >
                       {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
@@ -427,6 +427,11 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
                     {r.ai_summary.split(/\n+/).filter(Boolean).map((line, i) => (
                       <p key={i} className="mb-1.5 last:mb-0 text-sm text-neutral-200 whitespace-pre-wrap">{line}</p>
                     ))}
+                  </div>
+                )}
+                {expanded && r.summary_status === "failed" && r.summary_error && (
+                  <div className="mt-2.5 ml-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                    <p className="text-sm text-amber-200">{r.summary_error}</p>
                   </div>
                 )}
               </li>
