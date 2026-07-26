@@ -12,8 +12,9 @@ import {
   type DbPlayer, type Availability, type PitchPoint,
 } from "@/lib/players-db";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
+import { PITCH_ROLES, PITCH_ROLE_GROUPS, findPitchRole } from "@/lib/pitch-positions";
 import Link from "next/link";
-import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw, Mail, Phone } from "lucide-react";
+import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw, Mail, Phone, Plus } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
 const AVAILABILITY_OPTIONS: Availability[] = ["green", "amber", "red"];
@@ -333,6 +334,7 @@ function PositionCard({ player, onChanged }: { player: DbPlayer; onChanged: (p: 
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<PitchPoint[]>(savedPositions);
+  const [roleToAdd, setRoleToAdd] = useState(PITCH_ROLES[0].code);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -340,6 +342,13 @@ function PositionCard({ player, onChanged }: { player: DbPlayer; onChanged: (p: 
     setDraft(savedPositions);
     setError("");
     setEditing(true);
+  }
+
+  function handleAddRole() {
+    const role = findPitchRole(roleToAdd);
+    if (!role) return;
+    if (draft.some((p) => p.code === role.code)) return; // already added
+    setDraft([...draft, { code: role.code, x: role.x, y: role.y }]);
   }
 
   async function handleSave() {
@@ -380,14 +389,43 @@ function PositionCard({ player, onChanged }: { player: DbPlayer; onChanged: (p: 
       />
 
       {editing && (
-        <div className="mt-3 flex gap-2">
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
-            <Check size={13} /> {saving ? "Saving…" : "Save"}
-          </button>
-          <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
-            <X size={13} /> Cancel
-          </button>
-        </div>
+        <>
+          <div className="mt-3 flex gap-2">
+            <select
+              value={roleToAdd}
+              onChange={(e) => setRoleToAdd(e.target.value)}
+              className="flex-1 rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+            >
+              {PITCH_ROLE_GROUPS.map((g) => (
+                <optgroup key={g.group} label={g.label}>
+                  {PITCH_ROLES.filter((r) => r.group === g.group).map((r) => (
+                    <option key={r.code} value={r.code}>{r.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleAddRole}
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+            >
+              <Plus size={14} /> Add
+            </button>
+          </div>
+          <p className="mt-1.5 text-xs text-neutral-400">
+            Pick a role and click Add to place it accurately on the pitch (RB/RWB and LB/LWB share the same spot, as a
+            full-back and wing-back play the same width). You can also click directly on the pitch for a custom spot,
+            or click any shirt to remove it.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
+              <Check size={13} /> {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+              <X size={13} /> Cancel
+            </button>
+          </div>
+        </>
       )}
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
     </Card>

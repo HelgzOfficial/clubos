@@ -3,7 +3,7 @@
 import type { MouseEvent } from "react";
 import { ShirtMarker } from "./shirt-marker";
 
-export type PitchPoint = { x: number; y: number };
+export type PitchPoint = { code?: string; x: number; y: number };
 
 // Renders one or more position markers on a pitch diagram, each shown as a
 // stylised club shirt (yellow for goalkeepers, green for everyone else)
@@ -53,11 +53,14 @@ export function PitchPosition({
           <div
             key={i}
             onClick={(e) => handleMarkerClick(e, i)}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 ${editable && positions.length > 1 ? "cursor-pointer" : ""}`}
+            className={`absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center ${editable && positions.length > 1 ? "cursor-pointer" : ""}`}
             style={{ left: `${p.x}%`, top: `${100 - p.y}%` }}
-            title={editable ? "Click to remove this position" : undefined}
+            title={editable ? "Click to remove this position" : p.code}
           >
             <ShirtMarker isGoalkeeper={!!isGoalkeeper} squadNumber={squadNumber} />
+            {p.code && (
+              <span className="mt-0.5 rounded bg-navy-950/70 px-1 text-[9px] font-semibold leading-tight text-white">{p.code}</span>
+            )}
           </div>
         ))}
       </div>

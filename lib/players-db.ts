@@ -4,7 +4,9 @@ import { resizeImageFile } from "./image-resize";
 export type PositionGroup = "GK" | "DEF" | "MID" | "FWD";
 export type Availability = "green" | "amber" | "red";
 
-export type PitchPoint = { x: number; y: number };
+// code is the named role (e.g. "RWB") a marker was placed from, if it was
+// added via the position dropdown rather than a free click on the pitch.
+export type PitchPoint = { code?: string; x: number; y: number };
 
 export type DbPlayer = {
   id: string;
