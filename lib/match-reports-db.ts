@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
-import { extractReportText, parseReportText, type ParsedReport } from "./report-parser";
+import { extractReportText, parseReportText, type ParsedReport, type ReportContext } from "./report-parser";
+import { upsertMatchStats } from "./match-stats-db";
 
 export type ReportSource = "hudl" | "wyscout" | "other";
 export type ParseStatus = "unparsed" | "parsed" | "failed";
@@ -33,7 +34,7 @@ export async function fetchMatchReports(matchId: string): Promise<DbMatchReport[
   return (data ?? []) as DbMatchReport[];
 }
 
-export async function uploadMatchReport(matchId: string, file: File, source: ReportSource): Promise<DbMatchReport> {
+export async function uploadMatchReport(matchId: string, file: File, source: ReportSource, context?: ReportContext): Promise<DbMatchReport> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const fileType = fileTypeOf(file);
   const path = `${matchId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
@@ -63,8 +64,18 @@ export async function uploadMatchReport(matchId: string, file: File, source: Rep
   try {
     if (["pdf", "csv", "txt"].includes(fileType)) {
       const text = await extractReportText(file, fileType);
-      const parsed = parseReportText(text);
-      const hasAnything = parsed.goals.length > 0 || parsed.lineup.length > 0 || parsed.substitutions.length > 0;
+      const parsed = parseReportText(text, context);
+      const hasAnything = parsed.goals.length > 0 || parsed.lineup.length > 0 || parsed.substitutions.length > 0 || parsed.statCategories.length > 0;
+
+      // Auto-populate the stats dashboard whenever a report yields any recognised team stats.
+      if (parsed.statCategories.length > 0) {
+        try {
+          await upsertMatchStats(matchId, parsed.statCategories, report.id);
+        } catch {
+          // Dashboard stats are a bonus on top of the upload — don't fail the whole upload over it.
+        }
+      }
+
       return await updateReportParseResult(report.id, hasAnything ? "parsed" : "failed", parsed);
     }
     return await updateReportParseResult(report.id, "failed", null);

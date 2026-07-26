@@ -16,6 +16,10 @@ import {
   fetchMatchReports, uploadMatchReport, deleteMatchReport, getReportDownloadUrl,
   type DbMatchReport, type ReportSource,
 } from "@/lib/match-reports-db";
+import { fetchMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
+import { StatDashboard } from "@/components/matches/stat-dashboard";
+import { club } from "@/lib/sample-data";
+import { loadClubSettings } from "@/lib/club-settings";
 import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -44,6 +48,7 @@ export default function MatchDetailPage() {
   const [goals, setGoals] = useState<DbGoal[]>([]);
   const [subs, setSubs] = useState<DbSubstitution[]>([]);
   const [reports, setReports] = useState<DbMatchReport[]>([]);
+  const [stats, setStats] = useState<DbMatchStats | null>(null);
   const [error, setError] = useState("");
 
   async function load() {
@@ -51,11 +56,12 @@ export default function MatchDetailPage() {
     setMatch(m);
     if (m) {
       try {
-        const [details, reportRows] = await Promise.all([fetchMatchDetails(m.id), fetchMatchReports(m.id)]);
+        const [details, reportRows, statsRow] = await Promise.all([fetchMatchDetails(m.id), fetchMatchReports(m.id), fetchMatchStats(m.id)]);
         setLineup(details.lineup);
         setGoals(details.goals);
         setSubs(details.substitutions);
         setReports(reportRows);
+        setStats(statsRow);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't load match details.");
       }
@@ -116,8 +122,12 @@ export default function MatchDetailPage() {
         </Card>
       )}
 
+      <div className="mb-5">
+        <StatDashboard matchId={match.id} opponentName={match.opponent} initialStats={stats} />
+      </div>
+
       <div id="reports" className="mb-5 scroll-mt-6">
-        <ReportsCard matchId={match.id} reports={reports} lineup={lineup} goals={goals} subs={subs} onChanged={load} />
+        <ReportsCard matchId={match.id} opponentName={match.opponent} reports={reports} lineup={lineup} goals={goals} subs={subs} onChanged={load} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -131,9 +141,9 @@ export default function MatchDetailPage() {
 }
 
 function ReportsCard({
-  matchId, reports, lineup, goals, subs, onChanged,
+  matchId, opponentName, reports, lineup, goals, subs, onChanged,
 }: {
-  matchId: string; reports: DbMatchReport[];
+  matchId: string; opponentName: string; reports: DbMatchReport[];
   lineup: DbLineupEntry[]; goals: DbGoal[]; subs: DbSubstitution[];
   onChanged: () => void;
 }) {
@@ -146,7 +156,8 @@ function ReportsCard({
     setUploading(true);
     setUploadError("");
     try {
-      await uploadMatchReport(matchId, file, source);
+      const branding = loadClubSettings(club);
+      await uploadMatchReport(matchId, file, source, { clubName: branding.name, opponentName });
       onChanged();
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Couldn't upload that report.");
@@ -182,7 +193,10 @@ function ReportsCard({
       }
       const existingPlayers = new Set(lineup.map((l) => l.player_name));
       let order = lineup.length;
-      for (const l of r.parsed_summary.lineup) {
+      // Only our own lineup gets imported here — the opponent's XI is in the parsed
+      // data too (useful for the "who's us" detection) but this app doesn't track
+      // opposition players individually.
+      for (const l of r.parsed_summary.lineup.filter((entry) => entry.side === "us")) {
         if (existingPlayers.has(l.playerName)) continue;
         await addLineupEntry(matchId, { isStarting: l.isStarting, shirtNumber: l.shirtNumber, playerName: l.playerName, position: "", sortOrder: order++ });
       }
@@ -193,16 +207,20 @@ function ReportsCard({
   }
 
   const extractedCount = (r: DbMatchReport) =>
-    r.parsed_summary ? r.parsed_summary.goals.length + r.parsed_summary.lineup.length + r.parsed_summary.substitutions.length : 0;
+    r.parsed_summary
+      ? r.parsed_summary.goals.length + r.parsed_summary.lineup.length + r.parsed_summary.substitutions.length + r.parsed_summary.statCategories.length
+      : 0;
 
   return (
     <Card>
       <CardHeader><CardTitle>Match Reports (Hudl / Wyscout)</CardTitle></CardHeader>
       <p className="mb-3 text-xs text-neutral-400">
-        Upload a PDF, CSV, or TXT export from Hudl or Wyscout for this fixture. ClubOS will try to automatically pull out
-        goals, substitutions, and the lineup — but Hudl and Wyscout don&apos;t publish a fixed export format, so this is
-        best-effort. Always check the &quot;Import&quot; preview before pulling data into the fixture, and if it consistently
-        misses things for your exports, send a sample report and the parsing patterns can be tuned to match it.
+        Upload a Wyscout/Hudl &quot;Match Report&quot; PDF (or CSV/TXT export) for this fixture. ClubOS reads the Team Stats page
+        straight into the dashboard above, plus the goalscorers and starting lineup — matched to whichever side is us by
+        comparing the report&apos;s scoreline to this fixture&apos;s opponent. It&apos;s still best-effort against real report
+        layouts, so always check the &quot;Import&quot; preview before pulling lineup/goals into the fixture (stats populate the
+        dashboard automatically). Other Hudl/Wyscout export types — like a multi-match squad &quot;Team Report&quot; — don&apos;t
+        contain per-match team stats and won&apos;t fill this dashboard.
       </p>
 
       {reports.length === 0 ? (
@@ -234,7 +252,8 @@ function ReportsCard({
                   <span className="text-xs text-neutral-400">
                     {r.parsed_summary.goals.length} goal{r.parsed_summary.goals.length === 1 ? "" : "s"},{" "}
                     {r.parsed_summary.substitutions.length} sub{r.parsed_summary.substitutions.length === 1 ? "" : "s"},{" "}
-                    {r.parsed_summary.lineup.length} lineup entries detected
+                    {r.parsed_summary.lineup.length} lineup entries,{" "}
+                    {r.parsed_summary.statCategories.length} stat categor{r.parsed_summary.statCategories.length === 1 ? "y" : "ies"} detected
                   </span>
                   <button
                     onClick={() => handleImport(r)}
