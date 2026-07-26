@@ -8,12 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { PitchPosition } from "@/components/pitch-position";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import {
-  fetchPlayer, updatePlayer, deletePlayer, updatePlayerStats, POSITION_OPTIONS,
-  type DbPlayer, type Availability,
+  fetchPlayer, updatePlayer, deletePlayer, updatePlayerStats, updatePlayerPositions, POSITION_OPTIONS,
+  type DbPlayer, type Availability, type PitchPoint,
 } from "@/lib/players-db";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import Link from "next/link";
-import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw } from "lucide-react";
+import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw, Mail, Phone } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
 const AVAILABILITY_OPTIONS: Availability[] = ["green", "amber", "red"];
@@ -41,6 +41,8 @@ export default function PlayerProfilePage() {
   const [dob, setDob] = useState("");
   const [availability, setAvailability] = useState<Availability>("green");
   const [availabilityNote, setAvailabilityNote] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   async function load() {
     const p = await fetchPlayer(params.id);
@@ -53,6 +55,8 @@ export default function PlayerProfilePage() {
       setDob(p.dob ?? "");
       setAvailability(p.availability);
       setAvailabilityNote(p.availability_note);
+      setEmail(p.email ?? "");
+      setPhone(p.phone ?? "");
     }
   }
 
@@ -77,6 +81,8 @@ export default function PlayerProfilePage() {
         dob,
         availability,
         availabilityNote: availabilityNote.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
       });
       setPlayer(updated);
       setEditing(false);
@@ -136,6 +142,12 @@ export default function PlayerProfilePage() {
             <p className="text-sm text-neutral-500">#{player.squad_number} · {player.position} · {player.nationality || "—"}</p>
             <p className="text-xs text-neutral-400 mt-0.5">Click the photo to add or change a headshot</p>
           </div>
+          {(player.email || player.phone) && (
+            <div className="text-xs text-neutral-400 space-y-1 shrink-0">
+              {player.email && <p className="flex items-center gap-1.5"><Mail size={12} /> {player.email}</p>}
+              {player.phone && <p className="flex items-center gap-1.5"><Phone size={12} /> {player.phone}</p>}
+            </div>
+          )}
           <Badge variant={statusVariant[player.availability]}>{player.availability_note}</Badge>
           <button
             onClick={() => setEditing(true)}
@@ -188,7 +200,16 @@ export default function PlayerProfilePage() {
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Availability note</label>
                 <input value={availabilityNote} onChange={(e) => setAvailabilityNote(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
               </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="player@example.com" className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Phone</label>
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xxx xxxxxx" className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
             </div>
+            <p className="text-xs text-neutral-400">Email is used to automatically send calendar invites when treatment is booked for this player.</p>
 
             {error && <p className="text-sm text-red-300">{error}</p>}
 
@@ -205,10 +226,7 @@ export default function PlayerProfilePage() {
       )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <Card>
-          <CardHeader><CardTitle>Position</CardTitle></CardHeader>
-          <PitchPosition x={player.pitch_x} y={player.pitch_y} />
-        </Card>
+        <PositionCard player={player} onChanged={(p) => setPlayer(p)} />
 
         <div className="space-y-5 lg:col-span-2">
           <Card>
@@ -304,6 +322,75 @@ export default function PlayerProfilePage() {
         </Card>
       </div>
     </AppShell>
+  );
+}
+
+function PositionCard({ player, onChanged }: { player: DbPlayer; onChanged: (p: DbPlayer) => void }) {
+  const savedPositions: PitchPoint[] =
+    player.pitch_positions && player.pitch_positions.length > 0
+      ? player.pitch_positions
+      : [{ x: player.pitch_x, y: player.pitch_y }];
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<PitchPoint[]>(savedPositions);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function startEdit() {
+    setDraft(savedPositions);
+    setError("");
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updatePlayerPositions(player.id, draft);
+      onChanged(updated);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save positions.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <CardTitle>Position{(editing ? draft : savedPositions).length > 1 ? "s" : ""}</CardTitle>
+        {!editing && (
+          <button
+            onClick={startEdit}
+            title="Edit positions"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
+      </div>
+
+      <PitchPosition
+        positions={editing ? draft : savedPositions}
+        isGoalkeeper={player.position_group === "GK"}
+        squadNumber={player.squad_number}
+        editable={editing}
+        onChange={setDraft}
+      />
+
+      {editing && (
+        <div className="mt-3 flex gap-2">
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
+            <Check size={13} /> {saving ? "Saving…" : "Save"}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+            <X size={13} /> Cancel
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+    </Card>
   );
 }
 

@@ -25,6 +25,8 @@ export default function PlayersPage() {
   const [positionLabel, setPositionLabel] = useState(POSITION_OPTIONS[0].label);
   const [nationality, setNationality] = useState("");
   const [dob, setDob] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -64,12 +66,16 @@ export default function PlayersPage() {
         dob,
         pitchX: 50,
         pitchY: 50,
+        email: email.trim(),
+        phone: phone.trim(),
       });
       setShowAdd(false);
       setName("");
       setSquadNumber("");
       setNationality("");
       setDob("");
+      setEmail("");
+      setPhone("");
       setPositionLabel(POSITION_OPTIONS[0].label);
       await load();
     } catch (e) {
@@ -212,6 +218,29 @@ export default function PlayersPage() {
                   className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
                 />
               </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="player@example.com"
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Phone</label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="07xxx xxxxxx"
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-neutral-400">Email is used to automatically send calendar invites when treatment is booked.</p>
 
               {formError && <p className="text-sm text-red-300">{formError}</p>}
 

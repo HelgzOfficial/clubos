@@ -4,6 +4,8 @@ import { resizeImageFile } from "./image-resize";
 export type PositionGroup = "GK" | "DEF" | "MID" | "FWD";
 export type Availability = "green" | "amber" | "red";
 
+export type PitchPoint = { x: number; y: number };
+
 export type DbPlayer = {
   id: string;
   name: string;
@@ -15,6 +17,9 @@ export type DbPlayer = {
   dob: string | null;
   pitch_x: number;
   pitch_y: number;
+  pitch_positions: PitchPoint[];
+  email: string | null;
+  phone: string | null;
   availability: Availability;
   availability_note: string;
   photo_url: string | null;
@@ -41,6 +46,8 @@ export type PlayerInput = {
   pitchY: number;
   availability: Availability;
   availabilityNote: string;
+  email: string;
+  phone: string;
 };
 
 export const POSITION_OPTIONS: { label: string; group: PositionGroup }[] = [
@@ -88,6 +95,9 @@ export async function createPlayer(input: Omit<PlayerInput, "availability" | "av
       dob: input.dob || null,
       pitch_x: input.pitchX,
       pitch_y: input.pitchY,
+      pitch_positions: [{ x: input.pitchX, y: input.pitchY }],
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
     })
     .select()
     .single();
@@ -111,6 +121,8 @@ export async function updatePlayer(id: string, input: Partial<PlayerInput>) {
   if (input.pitchY !== undefined) patch.pitch_y = input.pitchY;
   if (input.availability !== undefined) patch.availability = input.availability;
   if (input.availabilityNote !== undefined) patch.availability_note = input.availabilityNote;
+  if (input.email !== undefined) patch.email = input.email.trim() || null;
+  if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
 
   const { data, error } = await supabase.from("players").update(patch).eq("id", id).select().single();
   if (error) throw error;
@@ -121,6 +133,23 @@ export async function deletePlayer(id: string) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { error } = await supabase.from("players").delete().eq("id", id);
   if (error) throw error;
+}
+
+// Lets a player carry more than one pitch position marker (e.g. someone
+// comfortable at both centre-back and right-back). pitch_x/pitch_y are kept
+// in sync with the first entry so anything still reading those two columns
+// keeps working.
+export async function updatePlayerPositions(id: string, positions: PitchPoint[]): Promise<DbPlayer> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const primary = positions[0] ?? { x: 50, y: 50 };
+  const { data, error } = await supabase
+    .from("players")
+    .update({ pitch_positions: positions, pitch_x: primary.x, pitch_y: primary.y })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbPlayer;
 }
 
 export type PlayerSeasonStats = { appearances: number; goals: number; assists: number; cleanSheets: number };
