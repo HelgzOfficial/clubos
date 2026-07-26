@@ -81,10 +81,20 @@ export async function POST(req: Request) {
     }
 
     const data = await aiRes.json();
-    const rawText: string = data?.content?.[0]?.text ?? "";
+    const textBlocks: string[] = (data?.content ?? [])
+      .filter((b: { type?: string }) => b?.type === "text")
+      .map((b: { text?: string }) => b.text ?? "");
+    const rawText: string = textBlocks.join("\n");
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return NextResponse.json({ error: "Couldn't read any recognisable stats out of that image." }, { status: 502 });
+      const stopReason = data?.stop_reason ?? "unknown";
+      const blockTypes = (data?.content ?? []).map((b: { type?: string }) => b?.type).join(", ") || "none";
+      return NextResponse.json(
+        {
+          error: `Couldn't read any recognisable stats out of that image (stop_reason: ${stopReason}, content blocks: [${blockTypes}]).`,
+        },
+        { status: 502 }
+      );
     }
 
     let parsed: {

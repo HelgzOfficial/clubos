@@ -93,9 +93,23 @@ export async function POST(req: Request) {
     }
 
     const data = await aiRes.json();
-    const summary: string = data?.content?.[0]?.text ?? "";
+    const textBlocks: string[] = (data?.content ?? [])
+      .filter((b: { type?: string }) => b?.type === "text")
+      .map((b: { text?: string }) => b.text ?? "");
+    const summary = textBlocks.join("\n").trim();
+
     if (!summary) {
-      return NextResponse.json({ error: "The AI didn't return a usable summary — try a clearer file." }, { status: 502 });
+      // Surface *why* nothing came back (refusal, hit max_tokens with no
+      // output, unexpected block shape, etc.) instead of a generic message —
+      // this is what actually failed, not a guess.
+      const stopReason = data?.stop_reason ?? "unknown";
+      const blockTypes = (data?.content ?? []).map((b: { type?: string }) => b?.type).join(", ") || "none";
+      return NextResponse.json(
+        {
+          error: `The AI didn't return any text (stop_reason: ${stopReason}, content blocks: [${blockTypes}]). Try a clearer or smaller image.`,
+        },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ summary });
