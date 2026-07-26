@@ -6,9 +6,12 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/analysis/video-player";
 import { nextAnalysisId, type Clip, type Playlist } from "@/lib/analysis-types";
+import { usePermissions } from "@/lib/permissions";
 import { Upload, Film, PlayCircle, ListPlus, Trash2, Plus, X, ListVideo } from "lucide-react";
 
 export default function AnalysisPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("analysis");
   const [clips, setClips] = useState<Clip[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [activeClip, setActiveClip] = useState<Clip | null>(null);
@@ -83,21 +86,23 @@ export default function AnalysisPage() {
           <h1 className="text-2xl font-semibold">Analysis</h1>
           <p className="text-sm text-neutral-500">Clip library, telestration, and playlists.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Upload size={15} /> Upload Clip
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/mp4,.mp4,.mov"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && handleFileChosen(e.target.files[0])}
-          />
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <Upload size={15} /> Upload Clip
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,.mp4,.mov"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleFileChosen(e.target.files[0])}
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -140,20 +145,22 @@ export default function AnalysisPage() {
                           ))}
                         </div>
                       )}
-                      <div className="mt-3 flex items-center gap-2">
-                        <button
-                          onClick={() => setAddingToClip(clip)}
-                          className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-                        >
-                          <ListPlus size={12} /> Add to Playlist
-                        </button>
-                        <button
-                          onClick={() => deleteClip(clip.id)}
-                          className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      {canEdit && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            onClick={() => setAddingToClip(clip)}
+                            className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+                          >
+                            <ListPlus size={12} /> Add to Playlist
+                          </button>
+                          <button
+                            onClick={() => deleteClip(clip.id)}
+                            className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -171,15 +178,17 @@ export default function AnalysisPage() {
           <Card>
             <CardHeader>
               <CardTitle>Playlists</CardTitle>
-              <button
-                onClick={() => setShowNewPlaylist((v) => !v)}
-                className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
-              >
-                <Plus size={13} /> New
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => setShowNewPlaylist((v) => !v)}
+                  className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
+                >
+                  <Plus size={13} /> New
+                </button>
+              )}
             </CardHeader>
 
-            {showNewPlaylist && (
+            {canEdit && showNewPlaylist && (
               <div className="mb-4 flex gap-2">
                 <input
                   value={newPlaylistName}
@@ -208,12 +217,14 @@ export default function AnalysisPage() {
                   <div key={p.id} className="rounded-xl border border-white/10 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-sm font-medium">{p.name}</p>
-                      <button
-                        onClick={() => deletePlaylist(p.id)}
-                        className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => deletePlaylist(p.id)}
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                     {p.clipIds.length === 0 ? (
                       <p className="text-xs text-neutral-400">No clips added yet.</p>
@@ -227,12 +238,14 @@ export default function AnalysisPage() {
                               <button onClick={() => setActiveClip(clip)} className="flex-1 truncate text-left hover:text-club-primary">
                                 {clip.title}
                               </button>
-                              <button
-                                onClick={() => removeClipFromPlaylist(p.id, cid)}
-                                className="text-neutral-400 hover:text-red-400"
-                              >
-                                <X size={12} />
-                              </button>
+                              {canEdit && (
+                                <button
+                                  onClick={() => removeClipFromPlaylist(p.id, cid)}
+                                  className="text-neutral-400 hover:text-red-400"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
                             </li>
                           );
                         })}

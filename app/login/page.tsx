@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club } from "@/lib/sample-data";
-import { LogIn, AlertCircle } from "lucide-react";
+import { LogIn, AlertCircle, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +12,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Someone who just clicked an invite/reset email lands here with Supabase
+  // Auth's own recovery token in the URL — instead of asking for a password
+  // they don't have yet, we let them set one.
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordSaved, setPasswordSaved] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash.includes("type=invite") || hash.includes("type=recovery")) {
+      setSettingPassword(true);
+    }
+  }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,6 +42,21 @@ export default function LoginPage() {
     router.replace("/dashboard");
   }
 
+  async function handleSetPassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!supabase) return;
+    setLoading(true);
+    setError("");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setPasswordSaved(true);
+    setTimeout(() => router.replace("/dashboard"), 1200);
+  }
+
   return (
     <div className="flex h-screen w-full items-center justify-center bg-navy-800 dark:bg-navy-950 px-4 text-white">
       <div className="w-full max-w-sm rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-6 shadow-softDark">
@@ -37,7 +67,7 @@ export default function LoginPage() {
           >
             {club.crestInitials}
           </div>
-          <h1 className="text-xl font-semibold">Sign in to ClubOS</h1>
+          <h1 className="text-xl font-semibold">{settingPassword ? "Welcome to ClubOS" : "Sign in to ClubOS"}</h1>
           <p className="mt-1 text-sm text-neutral-400">{club.name}</p>
         </div>
 
@@ -46,6 +76,40 @@ export default function LoginPage() {
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
             <p>Login isn&apos;t connected yet — the Supabase details are missing from this deployment.</p>
           </div>
+        ) : settingPassword ? (
+          <form onSubmit={handleSetPassword} className="space-y-4">
+            <p className="text-sm text-neutral-400">You&apos;ve been invited — set a password to finish signing in.</p>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-400">New password</label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                placeholder="At least 8 characters"
+              />
+            </div>
+            {error && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                <p>{error}</p>
+              </div>
+            )}
+            {passwordSaved && (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+                <p>Password set — taking you in…</p>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+            >
+              <KeyRound size={15} /> {loading ? "Saving…" : "Set Password & Continue"}
+            </button>
+          </form>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -87,7 +151,7 @@ export default function LoginPage() {
             </button>
 
             <p className="text-center text-xs text-neutral-400">
-              Don&apos;t have an account? Ask your club admin to add you in Supabase.
+              Don&apos;t have an account? Ask an owner or manager to invite you from the Staff module.
             </p>
           </form>
         )}

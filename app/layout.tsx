@@ -3,6 +3,9 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth";
 import { AuthGate } from "@/components/auth-gate";
+import { PermissionsProvider } from "@/lib/permissions";
+import { ModuleGate } from "@/components/module-gate";
+import { ClubColorProvider } from "@/components/club-color-provider";
 
 export const metadata: Metadata = {
   title: "ClubOS",
@@ -14,9 +17,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider>
-          <AuthProvider>
-            <AuthGate>{children}</AuthGate>
-          </AuthProvider>
+          <ClubColorProvider>
+            <AuthProvider>
+              <AuthGate>
+                <PermissionsProvider>
+                  <ModuleGate>{children}</ModuleGate>
+                </PermissionsProvider>
+              </AuthGate>
+            </AuthProvider>
+          </ClubColorProvider>
         </ThemeProvider>
       </body>
     </html>

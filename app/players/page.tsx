@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { fetchPlayers, createPlayer, POSITION_OPTIONS, type DbPlayer, type PositionGroup } from "@/lib/players-db";
 import { supabaseConfigured } from "@/lib/supabase";
+import { usePermissions } from "@/lib/permissions";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, X, AlertCircle } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
@@ -15,6 +17,17 @@ const groupOrder: PositionGroup[] = ["GK", "DEF", "MID", "FWD"];
 const groupLabel: Record<PositionGroup, string> = { GK: "Goalkeepers", DEF: "Defenders", MID: "Midfielders", FWD: "Forwards" };
 
 export default function PlayersPage() {
+  const { role, appUser, canWrite } = usePermissions();
+  const canEdit = canWrite("players");
+  const router = useRouter();
+  // A player's own login only ever needs their own profile — send them
+  // straight there instead of the full squad list.
+  useEffect(() => {
+    if (role === "player" && appUser?.player_id) {
+      router.replace(`/players/${appUser.player_id}`);
+    }
+  }, [role, appUser?.player_id, router]);
+
   const [players, setPlayers] = useState<DbPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -92,12 +105,14 @@ export default function PlayersPage() {
           <h1 className="text-2xl font-semibold">Players</h1>
           <p className="text-sm text-neutral-500">{players.length} players in the first-team squad.</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Plus size={15} /> Add Player
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus size={15} /> Add Player
+          </button>
+        )}
       </div>
 
       {!supabaseConfigured && (

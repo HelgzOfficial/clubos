@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DirectionsLinks } from "@/components/directions-links";
+import { PlayerAvatar } from "@/components/players/player-avatar";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
+import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
+import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
 import {
   fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   expandEvent, type DbCalendarEvent, type CalendarEventType,
@@ -26,10 +30,11 @@ import {
 import {
   fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl, type DbTrainingPlan,
 } from "@/lib/training-plans-db";
-import { playerAvailability, injuryList, staffTasks } from "@/lib/sample-data";
+import { playerAvailability } from "@/lib/sample-data";
+import { usePermissions } from "@/lib/permissions";
 import {
   CloudSun, Clock, ShieldAlert, Trophy, TrendingUp, Upload, FileText, Download, Trash2, X,
-  Pencil, Plus, Settings, Loader2, Film, Play,
+  Pencil, Plus, Settings, Loader2, Film, Play, Target, Goal,
 } from "lucide-react";
 
 function todayStr() {
@@ -77,11 +82,17 @@ const blankScheduleForm = {
 
 export default function DashboardPage() {
   const today = todayStr();
+  const { canWrite } = usePermissions();
+  const canEditDashboard = canWrite("dashboard");
+  const canEditDocuments = canWrite("documents");
+  const canEditTraining = canWrite("training");
 
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [events, setEvents] = useState<DbCalendarEvent[]>([]);
   const [league, setLeague] = useState<DbLeagueRow[]>([]);
   const [clips, setClips] = useState<DbClip[]>([]);
+  const [players, setPlayers] = useState<DbPlayer[]>([]);
+  const [injuries, setInjuries] = useState<DbInjury[]>([]);
   const [settings, setSettings] = useState<DashboardSettings>({ widgetOrder: DEFAULT_WIDGET_ORDER, hiddenWidgets: [] });
   const [weather, setWeather] = useState<LiveWeather | null>(null);
   const [weatherError, setWeatherError] = useState("");
@@ -96,14 +107,17 @@ export default function DashboardPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [m, e, lt, c, s] = await Promise.all([
+      const [m, e, lt, c, s, p, inj] = await Promise.all([
         fetchMatches(), fetchCalendarEvents(), fetchLeagueTable(), fetchClips(6), fetchDashboardSettings(),
+        fetchPlayers(), fetchActiveInjuries(),
       ]);
       setMatches(m);
       setEvents(e);
       setLeague(lt);
       setClips(c);
       setSettings(s);
+      setPlayers(p);
+      setInjuries(inj);
     } finally {
       setLoading(false);
     }
@@ -230,12 +244,14 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold">Good afternoon, Helge</h1>
           <p className="text-sm text-neutral-500">Here's what's happening at the club today.</p>
         </div>
-        <button
-          onClick={() => setShowWidgetEditor(true)}
-          className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
-        >
-          <Settings size={14} /> Customise Dashboard
-        </button>
+        {canEditDashboard && (
+          <button
+            onClick={() => setShowWidgetEditor(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+          >
+            <Settings size={14} /> Customise Dashboard
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -298,9 +314,11 @@ export default function DashboardPage() {
                 <CardTitle>Today's Schedule</CardTitle>
                 <div className="flex items-center gap-2">
                   <Clock size={18} className="text-neutral-400" />
-                  <button onClick={openAddSchedule} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
-                    <Plus size={15} />
-                  </button>
+                  {canEditDashboard && (
+                    <button onClick={openAddSchedule} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                      <Plus size={15} />
+                    </button>
+                  )}
                 </div>
               </CardHeader>
               {scheduleItems.length === 0 ? (
@@ -314,7 +332,7 @@ export default function DashboardPage() {
                         <p className="font-medium">{item.title}</p>
                         <p className="text-xs text-neutral-400">{item.location} · {item.group}</p>
                       </div>
-                      {item.eventId && (
+                      {item.eventId && canEditDashboard && (
                         <button onClick={() => openEditSchedule(item)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
                           <Pencil size={13} />
                         </button>
@@ -354,9 +372,11 @@ export default function DashboardPage() {
                 <CardTitle>League Position</CardTitle>
                 <div className="flex items-center gap-2">
                   <Trophy size={18} className="text-neutral-400" />
-                  <button onClick={() => setShowLeagueEditor(true)} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
-                    <Pencil size={13} />
-                  </button>
+                  {canEditDashboard && (
+                    <button onClick={() => setShowLeagueEditor(true)} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                      <Pencil size={13} />
+                    </button>
+                  )}
                 </div>
               </CardHeader>
               {!ownRow ? (
@@ -388,26 +408,37 @@ export default function DashboardPage() {
 
           {/* Form guide */}
           {isVisible("form-guide") && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Form Guide</CardTitle>
-                <TrendingUp size={18} className="text-neutral-400" />
-              </CardHeader>
-              {formGuide.length === 0 ? (
-                <p className="text-sm text-neutral-400">No completed fixtures recorded yet.</p>
-              ) : (
-                <>
-                  <div className="flex gap-2">
-                    {formGuide.map((f) => (
-                      <div key={f.id} title={`${f.result} — vs ${f.opponent} (${f.score})`} className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${resultColor[f.result]}`}>
-                        {f.result}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[11px] text-neutral-500">Last {formGuide.length} fixtures, all competitions</p>
-                </>
-              )}
-            </Card>
+            <Link href="/matches" className="block">
+              <Card className="h-full transition-colors hover:border-club-primary/40">
+                <CardHeader>
+                  <CardTitle>Form Guide</CardTitle>
+                  <TrendingUp size={18} className="text-neutral-400" />
+                </CardHeader>
+                {formGuide.length === 0 ? (
+                  <p className="text-sm text-neutral-400">No completed fixtures recorded yet.</p>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      {formGuide.map((f) => (
+                        <div key={f.id} title={`${f.result} — vs ${f.opponent} (${f.score})`} className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${resultColor[f.result]}`}>
+                          {f.result}
+                        </div>
+                      ))}
+                    </div>
+                    <ul className="mt-3 divide-y divide-white/10">
+                      {[...formGuide].reverse().map((f) => (
+                        <li key={`row-${f.id}`} className="flex items-center justify-between py-1.5 text-xs">
+                          <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
+                          <span className="flex-1 truncate px-2 text-neutral-300">{f.opponent}</span>
+                          <span className="tabular-nums text-neutral-400">{f.score}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-[11px] text-neutral-500">Last {formGuide.length} fixtures, all competitions — latest first · tap for Match Centre</p>
+                  </>
+                )}
+              </Card>
+            </Link>
           )}
 
           {/* Match pack / training upload */}
@@ -418,8 +449,8 @@ export default function DashboardPage() {
                 <Upload size={18} className="text-neutral-400" />
               </CardHeader>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                {nextMatch && <MatchPackUpload match={nextMatch} />}
-                {todaysTraining && <TrainingUpload date={today} />}
+                {nextMatch && <MatchPackUpload match={nextMatch} canEdit={canEditDocuments} />}
+                {todaysTraining && <TrainingUpload date={today} canEdit={canEditTraining} />}
                 {!nextMatch && !todaysTraining && (
                   <p className="text-sm text-neutral-400 sm:col-span-2">No upcoming fixture or training session to attach files to right now.</p>
                 )}
@@ -427,44 +458,44 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Injury list — unchanged */}
+          {/* Injury list — pulled live from the Medical module */}
           {isVisible("injuries") && (
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>Injury List</CardTitle>
                 <ShieldAlert size={18} className="text-neutral-400" />
               </CardHeader>
-              <ul className="divide-y divide-white/10">
-                {injuryList.map((p) => (
-                  <li key={p.name} className="flex items-center justify-between py-2.5 text-sm">
-                    <div>
-                      <p className="font-medium">{p.name}</p>
-                      <p className="text-xs text-neutral-400">{p.injury}</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={statusVariant[p.status]}>{p.status.toUpperCase()}</Badge>
-                      <p className="text-xs text-neutral-400 mt-1">Back {p.expectedReturn}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {injuries.length === 0 ? (
+                <p className="text-sm text-neutral-400">No active injuries recorded.</p>
+              ) : (
+                <ul className="divide-y divide-white/10">
+                  {injuries.map((inj) => {
+                    const player = players.find((p) => p.id === inj.player_id);
+                    return (
+                      <li key={inj.id} className="flex items-center justify-between py-2.5 text-sm">
+                        <div>
+                          <p className="font-medium">{player?.name ?? "Unknown player"}</p>
+                          <p className="text-xs text-neutral-400">{inj.injury}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={statusVariant[inj.severity]}>{inj.severity.toUpperCase()}</Badge>
+                          <p className="text-xs text-neutral-400 mt-1">
+                            {inj.expected_return ? `Back ${new Date(inj.expected_return).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Return TBC"}
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </Card>
           )}
 
-          {/* Staff tasks — unchanged */}
-          {isVisible("staff-tasks") && (
-            <Card>
-              <CardHeader><CardTitle>Staff Tasks</CardTitle></CardHeader>
-              <ul className="space-y-2.5">
-                {staffTasks.map((t) => (
-                  <li key={t.task} className="flex items-center justify-between text-sm">
-                    <span>{t.task}</span>
-                    <span className="text-xs text-neutral-400 shrink-0 ml-3">{t.owner} · {t.due}</span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
+          {/* Top goalscorers */}
+          {isVisible("top-scorers") && <TopStatCard title="Top Goalscorers" icon={Goal} players={players} statKey="goals" />}
+
+          {/* Top assist makers */}
+          {isVisible("top-assists") && <TopStatCard title="Top Assist Makers" icon={Target} players={players} statKey="assists" />}
 
           {/* Latest clips */}
           {isVisible("clips") && <ClipsCard clips={clips} onChange={loadAll} />}
@@ -553,7 +584,7 @@ export default function DashboardPage() {
 }
 
 // ---- Match pack upload (for the next fixture) ----
-function MatchPackUpload({ match }: { match: DbMatch }) {
+function MatchPackUpload({ match, canEdit }: { match: DbMatch; canEdit: boolean }) {
   const [docs, setDocs] = useState<DbMatchDocument[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -583,23 +614,27 @@ function MatchPackUpload({ match }: { match: DbMatch }) {
               <FileText size={13} className="shrink-0 text-neutral-400" />
               <span className="flex-1 truncate">{d.file_name}</span>
               <button onClick={() => handleDownload(d)} className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800"><Download size={12} /></button>
-              <button onClick={() => handleDelete(d)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
+              {canEdit && (
+                <button onClick={() => handleDelete(d)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
-        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-        {uploading ? "Uploading…" : "Upload Match Pack"}
-        <input type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" className="hidden" disabled={uploading}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
-      </label>
+      {canEdit && (
+        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
+          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+          {uploading ? "Uploading…" : "Upload Match Pack"}
+          <input type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" className="hidden" disabled={uploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+        </label>
+      )}
     </div>
   );
 }
 
 // ---- Training plan upload (for today, when today is a training day) ----
-function TrainingUpload({ date }: { date: string }) {
+function TrainingUpload({ date, canEdit }: { date: string; canEdit: boolean }) {
   const [plans, setPlans] = useState<DbTrainingPlan[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -629,18 +664,50 @@ function TrainingUpload({ date }: { date: string }) {
               <FileText size={13} className="shrink-0 text-neutral-400" />
               <span className="flex-1 truncate">{p.file_name}</span>
               <button onClick={() => handleDownload(p)} className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800"><Download size={12} /></button>
-              <button onClick={() => handleDelete(p)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
+              {canEdit && (
+                <button onClick={() => handleDelete(p)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
-        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-        {uploading ? "Uploading…" : "Upload Session Plan"}
-        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" disabled={uploading}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
-      </label>
+      {canEdit && (
+        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
+          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+          {uploading ? "Uploading…" : "Upload Session Plan"}
+          <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" disabled={uploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+        </label>
+      )}
     </div>
+  );
+}
+
+// ---- Top scorers / top assists ----
+function TopStatCard({
+  title, icon: Icon, players, statKey,
+}: { title: string; icon: typeof Goal; players: DbPlayer[]; statKey: "goals" | "assists" }) {
+  const top = [...players].filter((p) => (p[statKey] ?? 0) > 0).sort((a, b) => b[statKey] - a[statKey]).slice(0, 5);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <Icon size={18} className="text-neutral-400" />
+      </CardHeader>
+      {top.length === 0 ? (
+        <p className="text-sm text-neutral-400">No {statKey} recorded yet this season.</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {top.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 text-sm">
+              <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
+              <span className="flex-1 truncate">{p.name}</span>
+              <span className="tabular-nums font-semibold text-club-primary">{p[statKey]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

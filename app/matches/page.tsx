@@ -10,6 +10,7 @@ import { supabaseConfigured } from "@/lib/supabase";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
+import { usePermissions } from "@/lib/permissions";
 import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -26,6 +27,8 @@ function CompetitionBadge({ competition }: { competition: string }) {
 }
 
 export default function MatchesPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("matches");
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -149,21 +152,23 @@ export default function MatchesPage() {
           <h1 className="text-2xl font-semibold">Match Centre</h1>
           <p className="text-sm text-neutral-500">Fixtures, results, and match preparation.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors disabled:opacity-60"
-          >
-            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync Fixtures"}
-          </button>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus size={15} /> Add Match
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors disabled:opacity-60"
+            >
+              <RefreshCw size={14} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync Fixtures"}
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <Plus size={15} /> Add Match
+            </button>
+          </div>
+        )}
       </div>
 
       {syncMessage && (
@@ -220,9 +225,11 @@ export default function MatchesPage() {
                     >
                       <Upload size={13} />
                     </Link>
-                    <button onClick={() => handleDelete(m.id)} className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
-                      <Trash2 size={13} />
-                    </button>
+                    {canEdit && (
+                      <button onClick={() => handleDelete(m.id)} className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -260,13 +267,15 @@ export default function MatchesPage() {
                               <Badge variant="neutral">No result yet</Badge>
                             )}
                           </div>
-                          <button
-                            onClick={() => startResultEdit(m)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
-                            title={hasScore ? "Edit result" : "Add result"}
-                          >
-                            <Pencil size={13} />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => startResultEdit(m)}
+                              className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                              title={hasScore ? "Edit result" : "Add result"}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

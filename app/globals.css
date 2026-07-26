@@ -5,6 +5,10 @@
 :root {
   --background: 20 31 61;
   --foreground: 245 247 250;
+  /* Club colours — overridden at runtime by ClubColorProvider from Settings > Appearance. */
+  --club-primary-rgb: 212 175 55;
+  --club-secondary-rgb: 230 199 102;
+  --club-accent-rgb: 212 175 55;
 }
 
 .dark {

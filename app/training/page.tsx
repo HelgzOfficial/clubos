@@ -19,6 +19,7 @@ import {
   fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl,
   type DbTrainingPlan,
 } from "@/lib/training-plans-db";
+import { usePermissions } from "@/lib/permissions";
 import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Loader2, AlertCircle } from "lucide-react";
 
 type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kind: "drill"; sessionId: string; drillId: string };
@@ -26,7 +27,7 @@ type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kin
 // Training Plans + directions for one specific calendar date — this is what
 // clicking a training entry on the Calendar page lands on, so a coach gets
 // the day's plan and travel info immediately instead of a generic archive.
-function TrainingDayCard({ date }: { date: string }) {
+function TrainingDayCard({ date, canEdit }: { date: string; canEdit: boolean }) {
   const [venue, setVenue] = useState<string | null>(null);
   const [plans, setPlans] = useState<DbTrainingPlan[]>([]);
   const [matchOnDay, setMatchOnDay] = useState<string | null>(null);
@@ -117,9 +118,11 @@ function TrainingDayCard({ date }: { date: string }) {
                   <button onClick={() => handleDownload(p)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
                     <Download size={13} />
                   </button>
-                  <button onClick={() => handleDelete(p)} title="Remove" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
-                    <Trash2 size={13} />
-                  </button>
+                  {canEdit && (
+                    <button onClick={() => handleDelete(p)} title="Remove" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -127,21 +130,23 @@ function TrainingDayCard({ date }: { date: string }) {
 
           {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
 
-          <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? "Uploading…" : "Upload Session Plan"}
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg,.webp"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFile(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          {canEdit && (
+            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              {uploading ? "Uploading…" : "Upload Session Plan"}
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFile(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
         </>
       )}
     </Card>
@@ -157,6 +162,8 @@ export default function TrainingPage() {
 }
 
 function TrainingPageInner() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("training");
   const [ready, setReady] = useState(false);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [drills, setDrills] = useState<Record<string, Drill>>({});
@@ -263,12 +270,14 @@ function TrainingPageInner() {
             <h1 className="text-2xl font-semibold">Training Planner</h1>
             <p className="text-sm text-neutral-500">{sessions.length} saved session{sessions.length === 1 ? "" : "s"} in your archive.</p>
           </div>
-          <button
-            onClick={() => createSession()}
-            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus size={15} /> New Session
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => createSession()}
+              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <Plus size={15} /> New Session
+            </button>
+          )}
         </div>
 
         {dateParam && (
@@ -279,13 +288,15 @@ function TrainingPageInner() {
             >
               <ArrowLeft size={14} /> Back to full archive
             </button>
-            <TrainingDayCard date={dateParam} />
-            <button
-              onClick={() => openOrCreateSessionForDate(dateParam)}
-              className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 py-4 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
-            >
-              <Plus size={16} /> Open/Create Drill Session for This Day
-            </button>
+            <TrainingDayCard date={dateParam} canEdit={canEdit} />
+            {canEdit && (
+              <button
+                onClick={() => openOrCreateSessionForDate(dateParam)}
+                className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 py-4 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
+              >
+                <Plus size={16} /> Open/Create Drill Session for This Day
+              </button>
+            )}
           </>
         )}
 
@@ -348,7 +359,8 @@ function TrainingPageInner() {
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <input
             value={drill.name}
-            onChange={(e) => updateDrill(drill.id, { name: e.target.value })}
+            readOnly={!canEdit}
+            onChange={(e) => canEdit && updateDrill(drill.id, { name: e.target.value })}
             className="text-2xl font-semibold bg-transparent outline-none border-b border-transparent focus:border-white/20"
           />
           <div className="ml-auto flex items-center gap-2 text-sm text-neutral-500">
@@ -357,8 +369,9 @@ function TrainingPageInner() {
               id="dur"
               type="number"
               min={1}
+              readOnly={!canEdit}
               value={drill.durationMin}
-              onChange={(e) => updateDrill(drill.id, { durationMin: Number(e.target.value) || 0 })}
+              onChange={(e) => canEdit && updateDrill(drill.id, { durationMin: Number(e.target.value) || 0 })}
               className="w-16 rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1 text-sm outline-none"
             />
             <span>min</span>
@@ -372,6 +385,7 @@ function TrainingPageInner() {
               items={drill.items}
               lines={drill.lines}
               onChange={({ items, lines }) => updateDrill(drill.id, { items, lines })}
+              readOnly={!canEdit}
             />
           </Card>
 
@@ -385,7 +399,8 @@ function TrainingPageInner() {
               <CardHeader><CardTitle>Drill Notes</CardTitle></CardHeader>
               <textarea
                 value={drill.notes}
-                onChange={(e) => updateDrill(drill.id, { notes: e.target.value })}
+                readOnly={!canEdit}
+                onChange={(e) => canEdit && updateDrill(drill.id, { notes: e.target.value })}
                 rows={8}
                 placeholder="Coaching points for this drill..."
                 className="w-full resize-none rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 p-3 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
@@ -411,17 +426,20 @@ function TrainingPageInner() {
         <div className="flex-1 min-w-0">
           <input
             value={activeSession.name}
-            onChange={(e) => updateSessionName(activeSession.id, e.target.value)}
+            readOnly={!canEdit}
+            onChange={(e) => canEdit && updateSessionName(activeSession.id, e.target.value)}
             className="text-2xl font-semibold bg-transparent outline-none border-b border-transparent focus:border-white/20 w-full"
           />
           <p className="text-sm text-neutral-500 mt-1">{new Date(activeSession.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
         </div>
-        <button
-          onClick={() => deleteSession(activeSession.id)}
-          className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-        >
-          <Trash2 size={14} /> Delete Session
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => deleteSession(activeSession.id)}
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 size={14} /> Delete Session
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -436,29 +454,37 @@ function TrainingPageInner() {
                 <p className="text-xs text-neutral-400">{drill.durationMin} min · {drill.items.length} item{drill.items.length === 1 ? "" : "s"} on pitch</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => moveDrill(activeSession.id, drillId, -1)} disabled={i === 0} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">
-                  <ChevronUp size={15} />
-                </button>
-                <button onClick={() => moveDrill(activeSession.id, drillId, 1)} disabled={i === activeSession.drillIds.length - 1} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">
-                  <ChevronDown size={15} />
-                </button>
-                <button onClick={() => setView({ kind: "drill", sessionId: activeSession.id, drillId })} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800">
+                {canEdit && (
+                  <>
+                    <button onClick={() => moveDrill(activeSession.id, drillId, -1)} disabled={i === 0} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">
+                      <ChevronUp size={15} />
+                    </button>
+                    <button onClick={() => moveDrill(activeSession.id, drillId, 1)} disabled={i === activeSession.drillIds.length - 1} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">
+                      <ChevronDown size={15} />
+                    </button>
+                  </>
+                )}
+                <button onClick={() => setView({ kind: "drill", sessionId: activeSession.id, drillId })} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800" title={canEdit ? "Edit drill" : "View drill"}>
                   <Pencil size={14} />
                 </button>
-                <button onClick={() => removeDrillFromSession(activeSession.id, drillId)} className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
-                  <Trash2 size={14} />
-                </button>
+                {canEdit && (
+                  <button onClick={() => removeDrillFromSession(activeSession.id, drillId)} className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </Card>
           );
         })}
 
+        {canEdit && (
         <button
           onClick={() => addDrillToSession(activeSession.id)}
           className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 py-6 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
         >
           <Plus size={16} /> Add Drill to Session
         </button>
+        )}
       </div>
     </AppShell>
   );

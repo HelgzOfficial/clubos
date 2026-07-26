@@ -12,6 +12,7 @@ import {
   fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   expandEvent, type DbCalendarEvent, type CalendarEventType, type Recurrence,
 } from "@/lib/calendar-events-db";
+import { usePermissions } from "@/lib/permissions";
 import { ChevronLeft, ChevronRight, AlertCircle, Plus, X, Pencil, Trash2, ArrowRight } from "lucide-react";
 
 const typeVariant = {
@@ -62,6 +63,8 @@ const blankForm = {
 };
 
 export default function CalendarPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("calendar");
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -235,12 +238,14 @@ export default function CalendarPage() {
               <ChevronRight size={16} />
             </button>
           </div>
-          <button
-            onClick={() => openAddForm(selectedDate)}
-            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus size={15} /> Add Event
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => openAddForm(selectedDate)}
+              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <Plus size={15} /> Add Event
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,12 +302,14 @@ export default function CalendarPage() {
           <p className="font-medium">
             {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
           </p>
-          <button
-            onClick={() => openAddForm(selectedDate)}
-            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-club-primary"
-          >
-            <Plus size={13} /> Add to this day
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => openAddForm(selectedDate)}
+              className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-club-primary"
+            >
+              <Plus size={13} /> Add to this day
+            </button>
+          )}
         </div>
 
         {selectedInstances.length === 0 ? (
@@ -327,7 +334,7 @@ export default function CalendarPage() {
                           {inst.type === "match" ? "Match Centre" : "Training page"} <ArrowRight size={11} />
                         </Link>
                       )}
-                      {owningEvent && (
+                      {owningEvent && canEdit && (
                         <>
                           <button onClick={() => openEditForm(owningEvent)} className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
                             <Pencil size={13} />

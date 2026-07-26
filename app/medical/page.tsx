@@ -15,6 +15,7 @@ import {
 import { TreatmentBookings } from "@/components/medical/treatment-bookings";
 import { AiInjurySearch } from "@/components/medical/ai-injury-search";
 import { VoiceNoteButton } from "@/components/voice-note-button";
+import { usePermissions } from "@/lib/permissions";
 import { ChevronDown, Plus, Pencil, Check, X, Trash2, AlertCircle } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
@@ -29,6 +30,8 @@ const emptyForm = {
 };
 
 export default function MedicalPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("medical");
   const [players, setPlayers] = useState<DbPlayer[]>([]);
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,7 +162,7 @@ export default function MedicalPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <TreatmentBookings players={players} injuries={injuries} />
+        <TreatmentBookings players={players} injuries={injuries} canEdit={canEdit} />
         <AiInjurySearch players={players} />
       </div>
 
@@ -209,6 +212,7 @@ export default function MedicalPage() {
                                 {injury.expected_return ? ` · Expected return ${injury.expected_return}` : ""}
                               </p>
                             </div>
+                            {canEdit && (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button onClick={() => startEdit(injury)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white" title="Edit">
                                 <Pencil size={13} />
@@ -217,20 +221,21 @@ export default function MedicalPage() {
                                 <Trash2 size={13} />
                               </button>
                             </div>
+                            )}
                           </div>
 
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Rehab Stage</p>
                             <div className="flex items-center gap-1">
                               {rehabStages.map((stage, i) => (
-                                <button key={stage} onClick={() => handleRehabStage(injury, i)} className="flex-1" title={stage}>
+                                <button key={stage} disabled={!canEdit} onClick={() => handleRehabStage(injury, i)} className="flex-1 disabled:cursor-default" title={stage}>
                                   <div className={`h-1.5 rounded-full transition-colors ${i <= injury.rehab_stage ? "bg-emerald-500" : "bg-neutral-200 dark:bg-neutral-800"}`} />
                                 </button>
                               ))}
                             </div>
                             <p className="mt-1.5 text-xs text-neutral-500">
                               Stage {injury.rehab_stage + 1} of {rehabStages.length}: <span className="font-medium">{rehabStages[injury.rehab_stage]}</span>
-                              <span className="ml-1 text-neutral-600">(click a bar to update)</span>
+                              {canEdit && <span className="ml-1 text-neutral-600">(click a bar to update)</span>}
                             </p>
                           </div>
 
@@ -241,17 +246,19 @@ export default function MedicalPage() {
                             </div>
                           )}
 
+                          {canEdit && (
                           <button
                             onClick={() => handleRecovered(injury)}
                             className="flex items-center gap-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
                           >
                             <Check size={14} /> Mark Recovered
                           </button>
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {!injury && !isAdding && (
+                    {!injury && !isAdding && canEdit && (
                       <button
                         onClick={() => startAdd(p.id)}
                         className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity"

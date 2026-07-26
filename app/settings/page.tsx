@@ -1,66 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { club } from "@/lib/sample-data";
-import {
-  loadClubSettings, saveClubSettings, ClubSettings,
-  loadStaff, saveStaff, StaffMember,
-} from "@/lib/club-settings";
-import { Trash2, Plus, Check, PlugZap } from "lucide-react";
+import { loadClubSettings, saveClubSettings, type ClubSettings } from "@/lib/club-settings";
+import { applyClubColors } from "@/components/club-color-provider";
+import { extractCrestColors } from "@/lib/extract-crest-colors";
+import { Check, PlugZap, ArrowRight, Upload, Loader2 } from "lucide-react";
 
-const ROLES: StaffMember["role"][] = [
-  "Owner", "Admin", "Head Coach", "Assistant Coach", "Analyst", "Medical", "Recruitment", "Player",
+const COLOR_FIELDS: { key: keyof ClubSettings; label: string; hint: string }[] = [
+  { key: "primaryColor", label: "Primary", hint: "Buttons, highlights, active nav" },
+  { key: "secondaryColor", label: "Secondary", hint: "Lighter accents" },
+  { key: "accentColor", label: "Accent", hint: "Badges and callouts" },
 ];
-
-function StaffAvatar({ name }: { name: string }) {
-  const initials = name.split(" ").map((w) => w[0]).slice(0, 2).join("");
-  return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-xs font-semibold shrink-0">
-      {initials}
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const [ready, setReady] = useState(false);
   const [branding, setBranding] = useState<ClubSettings>(club);
   const [saved, setSaved] = useState(false);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteName, setInviteName] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<StaffMember["role"]>("Assistant Coach");
+  const [crestSwatches, setCrestSwatches] = useState<string[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const crestInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setBranding(loadClubSettings(club));
-    setStaff(loadStaff());
     setReady(true);
   }, []);
 
   function saveBranding() {
     saveClubSettings(branding);
+    applyClubColors(branding);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  function addStaff() {
-    if (!inviteName.trim() || !inviteEmail.trim()) return;
-    const next = [...staff, { id: `s-${Date.now()}`, name: inviteName.trim(), email: inviteEmail.trim(), role: inviteRole }];
-    setStaff(next);
-    saveStaff(next);
-    setInviteName("");
-    setInviteEmail("");
-    setInviteRole("Assistant Coach");
-    setShowInvite(false);
+  // Live-preview colour changes immediately, so the picker feels instant —
+  // "Save Branding" is what persists it for next visit/other devices.
+  function updateColor(key: keyof ClubSettings, value: string) {
+    const next = { ...branding, [key]: value };
+    setBranding(next);
+    applyClubColors(next);
   }
 
-  function removeStaff(id: string) {
-    const next = staff.filter((s) => s.id !== id);
-    setStaff(next);
-    saveStaff(next);
+  async function handleCrestFile(file: File) {
+    setExtracting(true);
+    try {
+      const colors = await extractCrestColors(file);
+      setCrestSwatches(colors);
+    } finally {
+      setExtracting(false);
+    }
   }
 
   if (!ready) {
@@ -75,7 +67,7 @@ export default function SettingsPage() {
     <AppShell>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-neutral-500">Club branding, staff access, and subscription.</p>
+        <p className="text-sm text-neutral-500">Club branding, appearance, and subscription.</p>
       </div>
 
       <div className="space-y-5 max-w-2xl">
@@ -90,28 +82,14 @@ export default function SettingsPage() {
                 className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
               />
             </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Crest initials</label>
-                <input
-                  value={branding.crestInitials}
-                  maxLength={4}
-                  onChange={(e) => setBranding({ ...branding, crestInitials: e.target.value.toUpperCase() })}
-                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Crest colour</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={branding.primaryColor}
-                    onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                    className="h-9 w-11 cursor-pointer rounded-lg border border-white/10 bg-transparent"
-                  />
-                  <span className="text-sm text-neutral-400">{branding.primaryColor}</span>
-                </div>
-              </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">Crest initials</label>
+              <input
+                value={branding.crestInitials}
+                maxLength={4}
+                onChange={(e) => setBranding({ ...branding, crestInitials: e.target.value.toUpperCase() })}
+                className="w-full max-w-[160px] rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+              />
             </div>
 
             <div className="flex items-center gap-3 rounded-xl border border-white/10 p-3">
@@ -126,81 +104,86 @@ export default function SettingsPage() {
                 <p className="text-xs text-neutral-400">Preview — this is how it appears in the sidebar</p>
               </div>
             </div>
-
-            <button
-              onClick={saveBranding}
-              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              {saved ? <><Check size={15} /> Saved</> : "Save Branding"}
-            </button>
           </div>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Staff & Access</CardTitle>
-            <button
-              onClick={() => setShowInvite((v) => !v)}
-              className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
-            >
-              <Plus size={13} /> Invite
-            </button>
-          </CardHeader>
+          <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
+          <p className="mb-4 text-xs text-neutral-400">
+            Set the app's colour scheme to match your club colours — every button, badge and highlight across ClubOS uses these.
+          </p>
 
-          {showInvite && (
-            <div className="mb-4 space-y-3 rounded-xl border border-white/10 p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <input
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="Full name"
-                  className="rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                />
-                <input
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Email address"
-                  type="email"
-                  className="rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                />
-              </div>
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as StaffMember["role"])}
-                className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-              >
-                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <button
-                onClick={addStaff}
-                className="w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Add to Staff List
-              </button>
-              <p className="text-xs text-neutral-400">
-                This adds them to your staff list here. It doesn't send a real invite email yet — that needs Supabase to be connected.
-              </p>
-            </div>
-          )}
-
-          <ul className="divide-y divide-white/10">
-            {staff.map((s) => (
-              <li key={s.id} className="flex items-center gap-3 py-3">
-                <StaffAvatar name={s.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{s.name}</p>
-                  <p className="text-xs text-neutral-400 truncate">{s.email}</p>
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {COLOR_FIELDS.map(({ key, label, hint }) => (
+              <div key={key}>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">{label}</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={branding[key]}
+                    onChange={(e) => updateColor(key, e.target.value)}
+                    className="h-9 w-11 cursor-pointer rounded-lg border border-white/10 bg-transparent"
+                  />
+                  <span className="text-xs text-neutral-400">{branding[key]}</span>
                 </div>
-                <Badge variant="neutral">{s.role}</Badge>
-                <button
-                  onClick={() => removeStaff(s.id)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10 shrink-0"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </li>
+                <p className="mt-1 text-[11px] text-neutral-500">{hint}</p>
+              </div>
             ))}
-          </ul>
+          </div>
+
+          <div className="rounded-xl border border-white/10 p-3">
+            <p className="mb-2 text-xs font-medium text-neutral-500">Or pick colours from your crest</p>
+            <button
+              onClick={() => crestInputRef.current?.click()}
+              className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800"
+            >
+              {extracting ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              {extracting ? "Reading crest…" : "Upload Crest Image"}
+            </button>
+            <input
+              ref={crestInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCrestFile(f); e.target.value = ""; }}
+            />
+            {crestSwatches.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {crestSwatches.map((hex) => (
+                  <button
+                    key={hex}
+                    title={`Use ${hex} as primary — shift-click for secondary, alt-click for accent`}
+                    onClick={(e) => updateColor(e.shiftKey ? "secondaryColor" : e.altKey ? "accentColor" : "primaryColor", hex)}
+                    className="h-8 w-8 rounded-lg border border-white/20"
+                    style={{ backgroundColor: hex }}
+                  />
+                ))}
+              </div>
+            )}
+            {crestSwatches.length > 0 && (
+              <p className="mt-2 text-[11px] text-neutral-500">Click a swatch for Primary, Shift-click for Secondary, Alt-click for Accent.</p>
+            )}
+          </div>
+
+          <button
+            onClick={saveBranding}
+            className="mt-4 flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            {saved ? <><Check size={15} /> Saved</> : "Save Branding & Appearance"}
+          </button>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Staff & Access</CardTitle></CardHeader>
+          <p className="mb-3 text-sm text-neutral-400">
+            Invite people, assign roles, and manage who can edit what — that's all moved to its own module now.
+          </p>
+          <Link
+            href="/staff"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            Open Staff Module <ArrowRight size={14} />
+          </Link>
         </Card>
 
         <Card>

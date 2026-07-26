@@ -13,6 +13,7 @@ import {
 } from "@/lib/opposition-reports-db";
 import { fetchHeadToHead, refreshHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-head-db";
 import { loadClubSettings } from "@/lib/club-settings";
+import { usePermissions } from "@/lib/permissions";
 import Link from "next/link";
 import {
   ArrowLeft, ShieldCheck, ShieldAlert, Target, Users, FileText,
@@ -35,6 +36,8 @@ function norm(s: string) {
 }
 
 export default function OppositionDetailPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("opposition");
   const params = useParams<{ id: string }>();
   // Supports two ways of reaching this page: a legacy static profile id
   // (e.g. from an older link) or — the normal path now — a URL-encoded
@@ -188,7 +191,7 @@ export default function OppositionDetailPage() {
         )}
 
         <div className="lg:col-span-3">
-          <OppositionReportsCard opponentName={opponentName} />
+          <OppositionReportsCard opponentName={opponentName} canEdit={canEdit} />
         </div>
       </div>
     </AppShell>
@@ -298,7 +301,7 @@ function HeadToHeadCard({
   );
 }
 
-function OppositionReportsCard({ opponentName }: { opponentName: string }) {
+function OppositionReportsCard({ opponentName, canEdit }: { opponentName: string; canEdit: boolean }) {
   const [reports, setReports] = useState<DbOppositionReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -365,21 +368,23 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
 
       {uploadError && <p className="mb-2 text-sm text-red-300">{uploadError}</p>}
 
-      <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
-        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-        {uploading ? "Uploading…" : "Upload team report"}
-        <input
-          type="file"
-          accept=".pdf,.csv,.txt,.png,.jpg,.jpeg,.webp"
-          className="hidden"
-          disabled={uploading}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
-            e.target.value = "";
-          }}
-        />
-      </label>
+      {canEdit && (
+        <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          {uploading ? "Uploading…" : "Upload team report"}
+          <input
+            type="file"
+            accept=".pdf,.csv,.txt,.png,.jpg,.jpeg,.webp"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
 
       {loading ? (
         <p className="text-sm text-neutral-400">Loading reports…</p>
@@ -413,14 +418,16 @@ function OppositionReportsCard({ opponentName }: { opponentName: string }) {
                   <button onClick={() => handleDownload(r)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
                     <Download size={13} />
                   </button>
-                  <button
-                    onClick={() => handleDelete(r)}
-                    disabled={deletingId === r.id}
-                    title="Remove report"
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10 disabled:opacity-60"
-                  >
-                    {deletingId === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => handleDelete(r)}
+                      disabled={deletingId === r.id}
+                      title="Remove report"
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10 disabled:opacity-60"
+                    >
+                      {deletingId === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    </button>
+                  )}
                 </div>
                 {expanded && r.ai_stats && r.ai_stats.length > 0 && <StatBars stats={r.ai_stats} />}
                 {expanded && r.ai_summary && (
