@@ -9,6 +9,7 @@ import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync
 import { supabaseConfigured } from "@/lib/supabase";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
+import { DirectionsLinks } from "@/components/directions-links";
 import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -205,6 +206,7 @@ export default function MatchesPage() {
                     <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
                     <div className="mt-1 mb-1"><CompetitionBadge competition={m.competition} /></div>
                     <p className="text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
+                    <DirectionsLinks venue={m.venue} className="mt-1.5" />
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge variant={m.is_home ? "green" : "neutral"}>{m.is_home ? "Home" : "Away"}</Badge>

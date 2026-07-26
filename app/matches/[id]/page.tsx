@@ -17,12 +17,18 @@ import {
   type DbMatchReport, type ReportSource,
 } from "@/lib/match-reports-db";
 import { fetchMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
+import {
+  fetchMatchDocuments, uploadMatchDocument, deleteMatchDocument, getMatchDocumentUrl, fetchDocumentViewers,
+  type DbMatchDocument, type DocumentViewer,
+} from "@/lib/match-documents-db";
+import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { StatDashboard } from "@/components/matches/stat-dashboard";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings } from "@/lib/club-settings";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
-import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { DirectionsLinks } from "@/components/directions-links";
+import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -99,6 +105,7 @@ export default function MatchDetailPage() {
         <div>
           <h1 className="text-2xl font-semibold">{match.is_home ? "vs" : "@"} {match.opponent}</h1>
           <p className="text-sm text-neutral-500">{formatDate(match.kickoff)}{match.venue ? ` · ${match.venue}` : ""}</p>
+          <DirectionsLinks venue={match.venue} className="mt-1.5" />
         </div>
         <div className="flex items-center gap-2">
           {match.competition && (
@@ -117,6 +124,10 @@ export default function MatchDetailPage() {
 
       <div className="mb-5">
         <StatDashboard matchId={match.id} opponentName={match.opponent} initialStats={stats} />
+      </div>
+
+      <div id="documents" className="mb-5 scroll-mt-6">
+        <MatchDocumentsCard matchId={match.id} />
       </div>
 
       <div id="reports" className="mb-5 scroll-mt-6">
@@ -478,6 +489,145 @@ function SubsCard({ matchId, subs, onAdded }: { matchId: string; subs: DbSubstit
           <Plus size={13} /> Add
         </button>
       </form>
+    </Card>
+  );
+}
+
+function MatchDocumentsCard({ matchId }: { matchId: string }) {
+  const [docs, setDocs] = useState<DbMatchDocument[]>([]);
+  const [squadSize, setSquadSize] = useState(0);
+  const [viewers, setViewers] = useState<Record<string, DocumentViewer[]>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setError("");
+    try {
+      const [docRows, players] = await Promise.all([fetchMatchDocuments(matchId), fetchPlayers()]);
+      setDocs(docRows);
+      setSquadSize((players as DbPlayer[]).length);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load documents.");
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId]);
+
+  async function loadViewers(documentId: string) {
+    const rows = await fetchDocumentViewers(documentId);
+    setViewers((prev) => ({ ...prev, [documentId]: rows }));
+  }
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError("");
+    try {
+      await uploadMatchDocument(matchId, file);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't upload that document.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(d: DbMatchDocument) {
+    if (!window.confirm(`Remove "${d.file_name}"?`)) return;
+    await deleteMatchDocument(d.id, d.file_path);
+    await load();
+  }
+
+  async function handleDownload(d: DbMatchDocument) {
+    const url = await getMatchDocumentUrl(d.file_path);
+    window.open(url, "_blank");
+  }
+
+  function toggleExpand(d: DbMatchDocument) {
+    if (expandedId === d.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(d.id);
+    if (!viewers[d.id]) loadViewers(d.id);
+  }
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Match Documents</CardTitle></CardHeader>
+      <p className="mb-3 text-xs text-neutral-400">
+        Upload the match pack or any other document for this fixture. Players can open it from their own portal
+        login, and each one who has viewed it is tracked here — useful for confirming everyone&apos;s seen the details
+        before matchday.
+      </p>
+
+      {docs.length === 0 ? (
+        <p className="mb-3 text-sm text-neutral-400">No documents uploaded yet.</p>
+      ) : (
+        <ul className="mb-3 divide-y divide-white/10">
+          {docs.map((d) => {
+            const seenCount = viewers[d.id]?.length ?? 0;
+            const expanded = expandedId === d.id;
+            return (
+              <li key={d.id} className="py-2.5">
+                <div className="flex items-center gap-2.5 text-sm">
+                  <FileText size={14} className="shrink-0 text-neutral-400" />
+                  <span className="flex-1 truncate">{d.file_name}</span>
+                  <button
+                    onClick={() => toggleExpand(d)}
+                    className="flex items-center gap-1 rounded-full bg-navy-600 dark:bg-navy-800 px-2.5 py-1 text-xs text-neutral-300 hover:text-white"
+                    title="See who's opened this"
+                  >
+                    <Eye size={12} /> {expanded ? seenCount : "Seen by"}{expanded ? ` / ${squadSize}` : ""}
+                  </button>
+                  <button onClick={() => handleDownload(d)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                    <Download size={13} />
+                  </button>
+                  <button onClick={() => handleDelete(d)} title="Remove" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                {expanded && (
+                  <div className="mt-2.5 ml-6 rounded-xl border border-white/10 bg-navy-600/40 dark:bg-navy-800/40 p-3">
+                    {(viewers[d.id]?.length ?? 0) === 0 ? (
+                      <p className="text-sm text-neutral-400">No one has opened this yet.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {viewers[d.id].map((v) => (
+                          <li key={v.player_id} className="flex items-center justify-between text-sm">
+                            <span className="text-neutral-200">{v.player_name}</span>
+                            <span className="text-xs text-neutral-500">{new Date(v.viewed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
+
+      <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+        {uploading ? "Uploading…" : "Upload Document"}
+        <input
+          type="file"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
     </Card>
   );
 }

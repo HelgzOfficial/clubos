@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DirectionsLinks } from "@/components/directions-links";
 import { PitchCanvas } from "@/components/training/pitch-canvas";
 import { SessionTimer } from "@/components/training/session-timer";
 import {
@@ -11,15 +13,145 @@ import {
   loadSessions, saveSessions, loadDrills, saveDrills,
   nextId, blankDrill,
 } from "@/lib/training-storage";
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil } from "lucide-react";
+import { fetchCalendarEvents, expandEvent, type DbCalendarEvent } from "@/lib/calendar-events-db";
+import {
+  fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl,
+  type DbTrainingPlan,
+} from "@/lib/training-plans-db";
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Loader2 } from "lucide-react";
 
 type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kind: "drill"; sessionId: string; drillId: string };
 
+// Training Plans + directions for one specific calendar date — this is what
+// clicking a training entry on the Calendar page lands on, so a coach gets
+// the day's plan and travel info immediately instead of a generic archive.
+function TrainingDayCard({ date }: { date: string }) {
+  const [venue, setVenue] = useState<string | null>(null);
+  const [plans, setPlans] = useState<DbTrainingPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [events, planRows] = await Promise.all([fetchCalendarEvents(), fetchTrainingPlans(date)]);
+      const occurrence = events
+        .flatMap((ev: DbCalendarEvent) => expandEvent(ev, date, date))
+        .find((occ) => occ.type === "training");
+      setVenue(occurrence?.venue ?? null);
+      setPlans(planRows);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load this training day.");
+    } finally {
+      setLoading(false);
+    }
+  }, [date]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError("");
+    try {
+      await uploadTrainingPlan(date, file);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't upload that plan.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(p: DbTrainingPlan) {
+    if (!window.confirm(`Remove "${p.file_name}"?`)) return;
+    await deleteTrainingPlan(p.id, p.file_path);
+    await load();
+  }
+
+  async function handleDownload(p: DbTrainingPlan) {
+    const url = await getTrainingPlanDownloadUrl(p.file_path);
+    window.open(url, "_blank");
+  }
+
+  return (
+    <Card className="mb-5">
+      <CardHeader><CardTitle>{new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</CardTitle></CardHeader>
+      {loading ? (
+        <p className="text-sm text-neutral-400">Loading…</p>
+      ) : (
+        <>
+          {venue && (
+            <div className="mb-4">
+              <p className="text-sm text-neutral-300">{venue}</p>
+              <DirectionsLinks venue={venue} className="mt-1.5" />
+            </div>
+          )}
+
+          <p className="mb-2 text-sm font-medium">Session Plans</p>
+          <p className="mb-3 text-xs text-neutral-400">Upload a PDF or photo of the session plan for this day so the whole coaching staff can see it.</p>
+
+          {plans.length === 0 ? (
+            <p className="mb-3 text-sm text-neutral-400">No session plan uploaded for this day yet.</p>
+          ) : (
+            <ul className="mb-3 divide-y divide-white/10">
+              {plans.map((p) => (
+                <li key={p.id} className="flex items-center gap-2.5 py-2.5 text-sm">
+                  <FileText size={14} className="shrink-0 text-neutral-400" />
+                  <span className="flex-1 truncate">{p.file_name}</span>
+                  <button onClick={() => handleDownload(p)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                    <Download size={13} />
+                  </button>
+                  <button onClick={() => handleDelete(p)} title="Remove" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                    <Trash2 size={13} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
+
+          <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            {uploading ? "Uploading…" : "Upload Session Plan"}
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function TrainingPage() {
+  return (
+    <Suspense fallback={<AppShell><p className="text-sm text-neutral-400">Loading…</p></AppShell>}>
+      <TrainingPageInner />
+    </Suspense>
+  );
+}
+
+function TrainingPageInner() {
   const [ready, setReady] = useState(false);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [drills, setDrills] = useState<Record<string, Drill>>({});
   const [view, setView] = useState<View>({ kind: "archive" });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const dateParam = searchParams.get("date");
 
   useEffect(() => {
     setSessions(loadSessions());
@@ -30,15 +162,25 @@ export default function TrainingPage() {
   useEffect(() => { if (ready) saveSessions(sessions); }, [sessions, ready]);
   useEffect(() => { if (ready) saveDrills(drills); }, [drills, ready]);
 
-  function createSession() {
+  function createSession(forDate?: string) {
+    const d = forDate ? new Date(`${forDate}T00:00:00`) : new Date();
     const s: TrainingSession = {
       id: nextId("session"),
-      name: `Session — ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
-      date: new Date().toISOString(),
+      name: `Session — ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+      date: d.toISOString(),
       drillIds: [],
     };
     setSessions((prev) => [s, ...prev]);
     setView({ kind: "session", sessionId: s.id });
+  }
+
+  function openOrCreateSessionForDate(date: string) {
+    const existing = sessions.find((s) => s.date.slice(0, 10) === date);
+    if (existing) {
+      setView({ kind: "session", sessionId: existing.id });
+    } else {
+      createSession(date);
+    }
   }
 
   function deleteSession(id: string) {
@@ -110,12 +252,30 @@ export default function TrainingPage() {
             <p className="text-sm text-neutral-500">{sessions.length} saved session{sessions.length === 1 ? "" : "s"} in your archive.</p>
           </div>
           <button
-            onClick={createSession}
+            onClick={() => createSession()}
             className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <Plus size={15} /> New Session
           </button>
         </div>
+
+        {dateParam && (
+          <>
+            <button
+              onClick={() => router.push("/training")}
+              className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white"
+            >
+              <ArrowLeft size={14} /> Back to full archive
+            </button>
+            <TrainingDayCard date={dateParam} />
+            <button
+              onClick={() => openOrCreateSessionForDate(dateParam)}
+              className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 py-4 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
+            >
+              <Plus size={16} /> Open/Create Drill Session for This Day
+            </button>
+          </>
+        )}
 
         {sessions.length === 0 ? (
           <Card className="flex flex-col items-center justify-center py-20 text-center">

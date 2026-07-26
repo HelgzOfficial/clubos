@@ -83,6 +83,15 @@ export async function fetchPlayer(id: string): Promise<DbPlayer | null> {
   return data;
 }
 
+// Used by the player portal to match a logged-in auth email back to a squad
+// profile — players log in with the same email stored on their player record.
+export async function fetchPlayerByEmail(email: string): Promise<DbPlayer | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.from("players").select("*").ilike("email", email).limit(1);
+  if (error || !data || data.length === 0) return null;
+  return data[0] as DbPlayer;
+}
+
 export async function createPlayer(input: Omit<PlayerInput, "availability" | "availabilityNote">) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { data, error } = await supabase

@@ -210,7 +210,11 @@ export default function PlayerProfilePage() {
                 <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xxx xxxxxx" className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
               </div>
             </div>
-            <p className="text-xs text-neutral-400">Email is used to automatically send calendar invites when treatment is booked for this player.</p>
+            <p className="text-xs text-neutral-400">
+              Email is used to automatically send calendar invites when treatment is booked, and lets this player sign
+              into the Player Portal (at /portal) with a one-tap login link — no password needed, and no extra setup
+              once it&apos;s saved here.
+            </p>
 
             {error && <p className="text-sm text-red-300">{error}</p>}
 
