@@ -39,6 +39,15 @@ let pdfjsLoadPromise: Promise<any> | null = null;
 
 // Loads pdf.js from a CDN at runtime instead of bundling it, so this feature
 // doesn't add a new build dependency to a project we can't test-build locally.
+//
+// Pinned to 3.11.174 deliberately: pdf.js v4+ dropped the legacy browser
+// <script> build (pdf.min.js) from its cdnjs package in favour of ES modules
+// only, so that file 404s on cdnjs for v4+ and this script tag would silently
+// fail to load every single time, with no PDF ever getting auto-read. 3.11.174
+// is the last line that reliably serves a working pdf.min.js there — verified
+// directly against the CDN, not assumed.
+const PDFJS_VERSION = "3.11.174";
+
 function loadPdfJs(): Promise<any> {
   if (pdfjsLoadPromise) return pdfjsLoadPromise;
   pdfjsLoadPromise = new Promise((resolve, reject) => {
@@ -48,17 +57,16 @@ function loadPdfJs(): Promise<any> {
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js";
+    script.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.min.js`;
     script.onload = () => {
       const lib = (window as any).pdfjsLib;
       if (!lib) {
-        reject(new Error("pdf.js failed to load."));
+        reject(new Error("pdf.js loaded but didn't expose the expected library — try again or use a different file."));
         return;
       }
-      lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js";
       resolve(lib);
     };
-    script.onerror = () => reject(new Error("pdf.js failed to load."));
+    script.onerror = () => reject(new Error("Couldn't load the PDF reader from the CDN — check your internet connection and try again."));
     document.head.appendChild(script);
   });
   return pdfjsLoadPromise;
