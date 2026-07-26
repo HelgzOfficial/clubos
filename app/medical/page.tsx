@@ -12,6 +12,9 @@ import {
   fetchActiveInjuries, createInjury, updateInjury, markInjuryRecovered, deleteInjury,
   BODY_PART_OPTIONS, type DbInjury, type InjurySeverity,
 } from "@/lib/injuries-db";
+import { TreatmentBookings } from "@/components/medical/treatment-bookings";
+import { AiInjurySearch } from "@/components/medical/ai-injury-search";
+import { VoiceNoteButton } from "@/components/voice-note-button";
 import { ChevronDown, Plus, Pencil, Check, X, Trash2, AlertCircle } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
@@ -155,6 +158,11 @@ export default function MedicalPage() {
         </Card>
       </div>
 
+      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <TreatmentBookings players={players} injuries={injuries} />
+        <AiInjurySearch players={players} />
+      </div>
+
       {loading ? (
         <p className="text-sm text-neutral-400">Loading…</p>
       ) : (
@@ -284,7 +292,12 @@ export default function MedicalPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Medical notes</label>
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <label className="block text-xs font-medium text-neutral-500">Medical notes</label>
+                            <VoiceNoteButton
+                              onTranscript={(text) => setForm((f) => ({ ...f, notes: f.notes ? `${f.notes} ${text}` : text }))}
+                            />
+                          </div>
                           <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
                         </div>
                         <div className="flex gap-2">
