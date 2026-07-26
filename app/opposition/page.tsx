@@ -39,15 +39,16 @@ export default function OppositionPage() {
     .filter((m) => new Date(m.kickoff).getTime() >= now && m.status !== "cancelled")
     .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
 
-  // Match each upcoming fixture's opponent to any scouting report we already have on file.
+  // Match each upcoming fixture's opponent to any manually-written scouting
+  // profile we have on file — this is just for showing extra detail (form,
+  // league position) on the card. Every opponent is clickable regardless,
+  // since scouting reports and head-to-head data can be added for any of
+  // them straight from their page, whether or not a profile exists yet.
   const norm = (s: string) => s.trim().toLowerCase();
-  const matchedReportIds = new Set<string>();
   const upcomingWithReports = upcoming.map((m) => {
     const report = opposition.find((o) => norm(o.name) === norm(m.opponent));
-    if (report) matchedReportIds.add(report.id);
     return { match: m, report };
   });
-  const otherReports = opposition.filter((o) => !matchedReportIds.has(o.id));
 
   return (
     <AppShell>
@@ -80,7 +81,7 @@ export default function OppositionPage() {
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {upcomingWithReports.map(({ match, report }) => {
             const card = (
-              <Card className={`h-full ${report ? "hover:shadow-lg transition-shadow cursor-pointer" : ""}`}>
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{match.opponent}</p>
@@ -89,7 +90,7 @@ export default function OppositionPage() {
                     </p>
                   </div>
                   <Badge variant={report ? statusVariant[report.reportStatus] : "neutral"}>
-                    {report ? report.reportStatus : "No report yet"}
+                    {report ? report.reportStatus : "Add scouting report"}
                   </Badge>
                 </div>
 
@@ -109,45 +110,11 @@ export default function OppositionPage() {
                 )}
               </Card>
             );
-            return report ? (
-              <Link key={match.id} href={`/opposition/${report.id}`}>{card}</Link>
-            ) : (
-              <div key={match.id}>{card}</div>
+            return (
+              <Link key={match.id} href={`/opposition/${encodeURIComponent(match.opponent)}`}>{card}</Link>
             );
           })}
         </div>
-      )}
-
-      {otherReports.length > 0 && (
-        <>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Other Scouting Reports ({otherReports.length})
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {otherReports.map((o) => (
-              <Link key={o.id} href={`/opposition/${o.id}`}>
-                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium">{o.name}</p>
-                      <p className="text-xs text-neutral-400">{o.formation} · {o.leaguePosition}{ordinal(o.leaguePosition)} in league</p>
-                    </div>
-                    <Badge variant={statusVariant[o.reportStatus]}>{o.reportStatus}</Badge>
-                  </div>
-                  <p className="mt-3 text-xs text-neutral-500">Last meeting: {o.lastMeeting.date} — {o.lastMeeting.result}</p>
-                  <div className="mt-4 flex items-center gap-1.5">
-                    <span className="text-xs text-neutral-400 mr-1">Form:</span>
-                    {o.form.map((r, i) => (
-                      <span key={i} className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white ${formColor[r]}`}>
-                        {r}
-                      </span>
-                    ))}
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </>
       )}
     </AppShell>
   );
