@@ -112,19 +112,25 @@ export default function CalendarPage() {
       eventId: null,
     }));
 
-    const eventInstances: Instance[] = events.flatMap((ev) =>
-      expandEvent(ev, rangeStart, rangeEnd).map((occ) => ({
-        key: occ.key,
-        date: occ.date,
-        title: occ.title,
-        type: occ.type,
-        startTime: occ.startTime,
-        endTime: occ.endTime,
-        venue: occ.venue,
-        href: occ.type === "training" ? `/training?date=${occ.date}` : null,
-        eventId: occ.eventId,
-      }))
-    );
+    const matchDates = new Set(matchInstances.map((m) => m.date));
+
+    const eventInstances: Instance[] = events
+      .flatMap((ev) =>
+        expandEvent(ev, rangeStart, rangeEnd).map((occ) => ({
+          key: occ.key,
+          date: occ.date,
+          title: occ.title,
+          type: occ.type,
+          startTime: occ.startTime,
+          endTime: occ.endTime,
+          venue: occ.venue,
+          href: occ.type === "training" ? `/training?date=${occ.date}` : null,
+          eventId: occ.eventId,
+        }))
+      )
+      // A recurring training slot that lands on a match day is skipped — the
+      // squad plays that day instead, so there's no separate training session.
+      .filter((occ) => !(occ.type === "training" && matchDates.has(occ.date)));
 
     return [...matchInstances, ...eventInstances].filter((i) => i.date >= rangeStart && i.date <= rangeEnd);
   }, [matches, events, rangeStart, rangeEnd]);

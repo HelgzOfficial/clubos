@@ -14,11 +14,12 @@ import {
   nextId, blankDrill,
 } from "@/lib/training-storage";
 import { fetchCalendarEvents, expandEvent, type DbCalendarEvent } from "@/lib/calendar-events-db";
+import { fetchMatches } from "@/lib/matches-db";
 import {
   fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl,
   type DbTrainingPlan,
 } from "@/lib/training-plans-db";
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Loader2, AlertCircle } from "lucide-react";
 
 type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kind: "drill"; sessionId: string; drillId: string };
 
@@ -28,6 +29,7 @@ type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kin
 function TrainingDayCard({ date }: { date: string }) {
   const [venue, setVenue] = useState<string | null>(null);
   const [plans, setPlans] = useState<DbTrainingPlan[]>([]);
+  const [matchOnDay, setMatchOnDay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -36,12 +38,17 @@ function TrainingDayCard({ date }: { date: string }) {
     setLoading(true);
     setError("");
     try {
-      const [events, planRows] = await Promise.all([fetchCalendarEvents(), fetchTrainingPlans(date)]);
+      const [events, planRows, matches] = await Promise.all([fetchCalendarEvents(), fetchTrainingPlans(date), fetchMatches()]);
       const occurrence = events
         .flatMap((ev: DbCalendarEvent) => expandEvent(ev, date, date))
         .find((occ) => occ.type === "training");
       setVenue(occurrence?.venue ?? null);
       setPlans(planRows);
+      // A match on this date takes priority — the same rule the Calendar page
+      // uses to hide the training entry in the first place — so a direct
+      // link straight to this URL still reflects that training is off.
+      const match = matches.find((m) => m.kickoff.slice(0, 10) === date);
+      setMatchOnDay(match ? `${match.is_home ? "vs" : "@"} ${match.opponent}` : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load this training day.");
     } finally {
@@ -82,6 +89,11 @@ function TrainingDayCard({ date }: { date: string }) {
       <CardHeader><CardTitle>{new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</CardTitle></CardHeader>
       {loading ? (
         <p className="text-sm text-neutral-400">Loading…</p>
+      ) : matchOnDay ? (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-200">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <span>There's a match on this day ({matchOnDay}) — training is off, so no session plan is needed.</span>
+        </div>
       ) : (
         <>
           {venue && (
