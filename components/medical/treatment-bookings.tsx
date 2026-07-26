@@ -9,7 +9,8 @@ import {
   fetchBookings, createBooking, updateBookingStatus, deleteBooking, sendTreatmentInvite,
   TREATMENT_TYPE_OPTIONS, type DbTreatmentBooking, type BookingStatus,
 } from "@/lib/treatment-bookings-db";
-import { loadStaff } from "@/lib/club-settings";
+import { fetchAppUsersByRole } from "@/lib/app-users-db";
+import type { AppUserRecord } from "@/lib/permissions";
 import { Plus, X, Check, Trash2, CalendarClock, Ban, CalendarPlus, Loader2 } from "lucide-react";
 
 const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral"> = {
@@ -30,7 +31,7 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function TreatmentBookings({ players, injuries }: { players: DbPlayer[]; injuries: DbInjury[] }) {
+export function TreatmentBookings({ players, injuries, canEdit }: { players: DbPlayer[]; injuries: DbInjury[]; canEdit: boolean }) {
   const [bookings, setBookings] = useState<DbTreatmentBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,9 +42,7 @@ export function TreatmentBookings({ players, injuries }: { players: DbPlayer[]; 
   const [inviteNote, setInviteNote] = useState("");
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
 
-  const staff = loadStaff();
-  const doctors = staff.filter((s) => s.role === "Medical");
-  const doctorOptions = doctors.length > 0 ? doctors : staff;
+  const [doctorOptions, setDoctorOptions] = useState<AppUserRecord[]>([]);
 
   const [playerId, setPlayerId] = useState("");
   const [treatmentType, setTreatmentType] = useState(TREATMENT_TYPE_OPTIONS[0]);
@@ -51,7 +50,7 @@ export function TreatmentBookings({ players, injuries }: { players: DbPlayer[]; 
   const [startTime, setStartTime] = useState("09:00");
   const [durationMins, setDurationMins] = useState("30");
   const [notes, setNotes] = useState("");
-  const [doctorId, setDoctorId] = useState(doctorOptions[0]?.id ?? "");
+  const [doctorId, setDoctorId] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -59,7 +58,10 @@ export function TreatmentBookings({ players, injuries }: { players: DbPlayer[]; 
     setLoading(true);
     setError("");
     try {
-      setBookings(await fetchBookings());
+      const [bookingRows, doctors] = await Promise.all([fetchBookings(), fetchAppUsersByRole("doctor_physio")]);
+      setBookings(bookingRows);
+      setDoctorOptions(doctors);
+      setDoctorId((prev) => prev || doctors[0]?.id || "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load treatment bookings.");
     } finally {
@@ -143,12 +145,14 @@ export function TreatmentBookings({ players, injuries }: { players: DbPlayer[]; 
     <Card>
       <CardHeader>
         <CardTitle>Treatment Bookings</CardTitle>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Plus size={13} /> Book Slot
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus size={13} /> Book Slot
+          </button>
+        )}
       </CardHeader>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -191,34 +195,38 @@ export function TreatmentBookings({ players, injuries }: { players: DbPlayer[]; 
                   </p>
                 </div>
                 <Badge variant={statusVariant[b.status]}>{b.status}</Badge>
-                <button
-                  onClick={async () => {
-                    const player = players.find((p) => p.id === b.player_id);
-                    setSendingInviteId(b.id);
-                    const result = await sendTreatmentInvite(b, { name: player?.name ?? "Player", email: player?.email ?? null });
-                    setSendingInviteId(null);
-                    setInviteNoteId(b.id);
-                    setInviteNote(result.ok ? "Calendar invite sent." : `Couldn't send invite: ${result.error}`);
-                  }}
-                  disabled={sendingInviteId === b.id}
-                  title="Send/resend calendar invite"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white disabled:opacity-60"
-                >
-                  {sendingInviteId === b.id ? <Loader2 size={13} className="animate-spin" /> : <CalendarPlus size={13} />}
-                </button>
-                {b.status === "scheduled" && (
+                {canEdit && (
                   <>
-                    <button onClick={() => handleStatus(b.id, "completed")} title="Mark completed" className="flex h-7 w-7 items-center justify-center rounded-full text-emerald-400 hover:bg-emerald-500/10">
-                      <Check size={13} />
+                    <button
+                      onClick={async () => {
+                        const player = players.find((p) => p.id === b.player_id);
+                        setSendingInviteId(b.id);
+                        const result = await sendTreatmentInvite(b, { name: player?.name ?? "Player", email: player?.email ?? null });
+                        setSendingInviteId(null);
+                        setInviteNoteId(b.id);
+                        setInviteNote(result.ok ? "Calendar invite sent." : `Couldn't send invite: ${result.error}`);
+                      }}
+                      disabled={sendingInviteId === b.id}
+                      title="Send/resend calendar invite"
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white disabled:opacity-60"
+                    >
+                      {sendingInviteId === b.id ? <Loader2 size={13} className="animate-spin" /> : <CalendarPlus size={13} />}
                     </button>
-                    <button onClick={() => handleStatus(b.id, "cancelled")} title="Cancel" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800">
-                      <Ban size={13} />
+                    {b.status === "scheduled" && (
+                      <>
+                        <button onClick={() => handleStatus(b.id, "completed")} title="Mark completed" className="flex h-7 w-7 items-center justify-center rounded-full text-emerald-400 hover:bg-emerald-500/10">
+                          <Check size={13} />
+                        </button>
+                        <button onClick={() => handleStatus(b.id, "cancelled")} title="Cancel" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800">
+                          <Ban size={13} />
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => handleDelete(b.id)} title="Delete" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                      <Trash2 size={13} />
                     </button>
                   </>
                 )}
-                <button onClick={() => handleDelete(b.id)} title="Delete" className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
-                  <Trash2 size={13} />
-                </button>
               </div>
               {inviteNoteId === b.id && <p className="mt-1 ml-24 text-xs text-neutral-400">{inviteNote}</p>}
             </li>

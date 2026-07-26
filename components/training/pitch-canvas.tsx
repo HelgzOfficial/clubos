@@ -90,10 +90,12 @@ export function PitchCanvas({
   items,
   lines,
   onChange,
+  readOnly = false,
 }: {
   items: PitchItem[];
   lines: PitchLine[];
   onChange: (next: { items: PitchItem[]; lines: PitchLine[] }) => void;
+  readOnly?: boolean;
 }) {
   const pitchRef = useRef<HTMLDivElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -110,7 +112,7 @@ export function PitchCanvas({
   }, []);
 
   useEffect(() => {
-    if (!draggingId) return;
+    if (!draggingId || readOnly) return;
     function onMove(e: PointerEvent) {
       const { x, y } = clientToPercent(e.clientX, e.clientY);
       onChange({ items: items.map((it) => (it.id === draggingId ? { ...it, x, y } : it)), lines });
@@ -128,20 +130,24 @@ export function PitchCanvas({
   }, [draggingId, clientToPercent]);
 
   function addItem(type: ItemType) {
+    if (readOnly) return;
     const offset = (items.length % 6) * 3;
     onChange({ items: [...items, { id: nextId("item"), type, x: 46 + offset, y: 46 + offset }], lines });
   }
 
   function removeItem(id: string) {
+    if (readOnly) return;
     onChange({ items: items.filter((it) => it.id !== id), lines });
     setSelectedId(null);
   }
 
   function removeLine(id: string) {
+    if (readOnly) return;
     onChange({ items, lines: lines.filter((l) => l.id !== id) });
   }
 
   function handlePitchClick(e: MouseEvent) {
+    if (readOnly) return;
     if (!lineMode) {
       setSelectedId(null);
       return;
@@ -156,62 +162,68 @@ export function PitchCanvas({
   }
 
   function clearAll() {
+    if (readOnly) return;
     onChange({ items: [], lines: [] });
     setLineStart(null);
     setSelectedId(null);
   }
 
   function toggleLineMode(style: LineStyle) {
+    if (readOnly) return;
     setLineMode((m) => (m === style ? null : style));
     setLineStart(null);
   }
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {PALETTE.map((p) => (
-          <button
-            key={p.type}
-            onClick={() => addItem(p.type)}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-navy-700 dark:bg-navy-900 px-3 py-2 text-xs font-medium hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-          >
-            <span className={`flex items-center justify-center ${glyphSize[p.type]}`}>
-              <ItemGlyph type={p.type} />
-            </span>
-            {p.label}
-          </button>
-        ))}
-      </div>
+      {!readOnly && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {PALETTE.map((p) => (
+            <button
+              key={p.type}
+              onClick={() => addItem(p.type)}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-navy-700 dark:bg-navy-900 px-3 py-2 text-xs font-medium hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+            >
+              <span className={`flex items-center justify-center ${glyphSize[p.type]}`}>
+                <ItemGlyph type={p.type} />
+              </span>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => toggleLineMode("solid")}
-          className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
-            lineMode === "solid" ? "bg-club-primary text-white" : "border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
-          }`}
-        >
-          {lineMode === "solid" ? (lineStart ? "Click end point…" : "Click start point…") : "Add Pass (solid)"}
-        </button>
-        <button
-          onClick={() => toggleLineMode("dashed")}
-          className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
-            lineMode === "dashed" ? "bg-club-primary text-white" : "border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
-          }`}
-        >
-          {lineMode === "dashed" ? (lineStart ? "Click end point…" : "Click start point…") : "Add Run (dotted)"}
-        </button>
-        <button
-          onClick={clearAll}
-          className="ml-auto flex items-center gap-1.5 rounded-xl border border-white/10 bg-navy-700 dark:bg-navy-900 px-3 py-2 text-xs font-medium hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-        >
-          <Undo2 size={13} /> Clear Pitch
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => toggleLineMode("solid")}
+            className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+              lineMode === "solid" ? "bg-club-primary text-white" : "border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
+            }`}
+          >
+            {lineMode === "solid" ? (lineStart ? "Click end point…" : "Click start point…") : "Add Pass (solid)"}
+          </button>
+          <button
+            onClick={() => toggleLineMode("dashed")}
+            className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+              lineMode === "dashed" ? "bg-club-primary text-white" : "border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
+            }`}
+          >
+            {lineMode === "dashed" ? (lineStart ? "Click end point…" : "Click start point…") : "Add Run (dotted)"}
+          </button>
+          <button
+            onClick={clearAll}
+            className="ml-auto flex items-center gap-1.5 rounded-xl border border-white/10 bg-navy-700 dark:bg-navy-900 px-3 py-2 text-xs font-medium hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+          >
+            <Undo2 size={13} /> Clear Pitch
+          </button>
+        </div>
+      )}
 
       <div
         ref={pitchRef}
         onClick={handlePitchClick}
-        className={`relative w-full aspect-[3/2] rounded-2xl overflow-hidden bg-emerald-600 dark:bg-emerald-800 select-none ${lineMode ? "cursor-crosshair" : ""}`}
+        className={`relative w-full aspect-[3/2] rounded-2xl overflow-hidden bg-emerald-600 dark:bg-emerald-800 select-none ${lineMode ? "cursor-crosshair" : ""} ${readOnly ? "cursor-default" : ""}`}
       >
         <svg viewBox="0 0 150 100" className="absolute inset-0 h-full w-full pointer-events-none">
           <g fill="none" stroke="white" strokeOpacity="0.6" strokeWidth="0.5">
@@ -246,13 +258,13 @@ export function PitchCanvas({
         {items.map((it) => (
           <div
             key={it.id}
-            onPointerDown={(e) => { e.stopPropagation(); setDraggingId(it.id); setSelectedId(it.id); }}
+            onPointerDown={(e) => { if (readOnly) return; e.stopPropagation(); setDraggingId(it.id); setSelectedId(it.id); }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing touch-none"
+            className={`absolute -translate-x-1/2 -translate-y-1/2 touch-none ${readOnly ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
             style={{ left: `${it.x}%`, top: `${it.y}%` }}
           >
             <ItemGlyph type={it.type} />
-            {selectedId === it.id && (
+            {!readOnly && selectedId === it.id && (
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); removeItem(it.id); }}
@@ -267,20 +279,31 @@ export function PitchCanvas({
 
       {lines.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {lines.map((l, i) => (
-            <button
-              key={l.id}
-              onClick={() => removeLine(l.id)}
-              className="flex items-center gap-1 rounded-full bg-navy-600 dark:bg-navy-800 px-2.5 py-1 text-xs text-neutral-500 hover:text-white"
-            >
-              {l.style === "dashed" ? "Run" : "Pass"} {i + 1} <X size={11} />
-            </button>
-          ))}
+          {lines.map((l, i) =>
+            readOnly ? (
+              <span
+                key={l.id}
+                className="flex items-center gap-1 rounded-full bg-navy-600 dark:bg-navy-800 px-2.5 py-1 text-xs text-neutral-500"
+              >
+                {l.style === "dashed" ? "Run" : "Pass"} {i + 1}
+              </span>
+            ) : (
+              <button
+                key={l.id}
+                onClick={() => removeLine(l.id)}
+                className="flex items-center gap-1 rounded-full bg-navy-600 dark:bg-navy-800 px-2.5 py-1 text-xs text-neutral-500 hover:text-white"
+              >
+                {l.style === "dashed" ? "Run" : "Pass"} {i + 1} <X size={11} />
+              </button>
+            )
+          )}
         </div>
       )}
 
       <p className="mt-3 text-xs text-neutral-400">
-        Click a palette item to add it, then drag to position. Click an item to select and remove it with ✕.
+        {readOnly
+          ? "View only — you don't have edit access to Training."
+          : "Click a palette item to add it, then drag to position. Click an item to select and remove it with ✕."}
       </p>
     </div>
   );

@@ -2,24 +2,11 @@ export type ClubSettings = {
   name: string;
   crestInitials: string;
   primaryColor: string;
-};
-
-export type StaffMember = {
-  id: string;
-  name: string;
-  email: string;
-  role: "Owner" | "Admin" | "Head Coach" | "Assistant Coach" | "Analyst" | "Medical" | "Recruitment" | "Player";
+  secondaryColor: string;
+  accentColor: string;
 };
 
 const SETTINGS_KEY = "clubos_club_settings_v1";
-const STAFF_KEY = "clubos_staff_v1";
-
-export const defaultStaff: StaffMember[] = [
-  { id: "s1", name: "Helge Orome", email: "helge.orome@wwfc.com", role: "Owner" },
-  { id: "s2", name: "Dan Whitcombe", email: "dan.whitcombe@riversidefc.com", role: "Head Coach" },
-  { id: "s3", name: "Priya Nandan", email: "priya.nandan@riversidefc.com", role: "Analyst" },
-  { id: "s4", name: "Chris Ojo", email: "chris.ojo@riversidefc.com", role: "Medical" },
-];
 
 export function loadClubSettings(fallback: ClubSettings): ClubSettings {
   if (typeof window === "undefined") return fallback;
@@ -36,17 +23,15 @@ export function saveClubSettings(settings: ClubSettings) {
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
-export function loadStaff(): StaffMember[] {
-  if (typeof window === "undefined") return defaultStaff;
-  try {
-    const raw = window.localStorage.getItem(STAFF_KEY);
-    return raw ? JSON.parse(raw) : defaultStaff;
-  } catch {
-    return defaultStaff;
-  }
-}
-
-export function saveStaff(staff: StaffMember[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+// "#RRGGBB" -> "R G B", the format Tailwind's rgb(var(--x) / <alpha-value>)
+// colors expect. Falls back to a neutral grey on anything unparseable.
+export function hexToRgbTriplet(hex: string): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const num = parseInt(full, 16);
+  if (Number.isNaN(num) || full.length !== 6) return "148 163 184";
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `${r} ${g} ${b}`;
 }

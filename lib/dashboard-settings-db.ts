@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 
 export type DashboardWidgetKey =
   | "next-match" | "weather" | "schedule" | "availability" | "league-position"
-  | "form-guide" | "uploads" | "injuries" | "staff-tasks" | "clips";
+  | "form-guide" | "uploads" | "injuries" | "top-scorers" | "top-assists" | "clips";
 
 export const WIDGET_LABELS: Record<DashboardWidgetKey, string> = {
   "next-match": "Next Match / Matchday",
@@ -13,13 +13,14 @@ export const WIDGET_LABELS: Record<DashboardWidgetKey, string> = {
   "form-guide": "Form Guide",
   uploads: "Match Pack / Training Upload",
   injuries: "Injury List",
-  "staff-tasks": "Staff Tasks",
+  "top-scorers": "Top Goalscorers",
+  "top-assists": "Top Assist Makers",
   clips: "Latest Clips",
 };
 
 export const DEFAULT_WIDGET_ORDER: DashboardWidgetKey[] = [
   "next-match", "weather", "schedule", "availability", "league-position",
-  "form-guide", "uploads", "injuries", "staff-tasks", "clips",
+  "form-guide", "uploads", "injuries", "top-scorers", "top-assists", "clips",
 ];
 
 export type DashboardSettings = {

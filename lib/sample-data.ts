@@ -5,6 +5,8 @@ export const club = {
   name: "Riverside FC",
   crestInitials: "RFC",
   primaryColor: "#D4AF37",
+  secondaryColor: "#E6C766",
+  accentColor: "#D4AF37",
 };
 
 export const nextMatch = {

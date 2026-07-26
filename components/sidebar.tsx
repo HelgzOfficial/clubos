@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings } from "@/lib/club-settings";
+import { usePermissions, type AppModule } from "@/lib/permissions";
 import {
   LayoutDashboard,
   Swords,
@@ -19,28 +20,40 @@ import {
   FolderOpen,
   CalendarDays,
   Settings,
+  ShieldCheck,
+  HeartPulse,
 } from "lucide-react";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/matches", label: "Matches", icon: Swords },
-  { href: "/opposition", label: "Opposition", icon: Shield },
-  { href: "/analysis", label: "Analysis", icon: Film },
-  { href: "/training", label: "Training", icon: Dumbbell },
-  { href: "/players", label: "Players", icon: Users },
-  { href: "/medical", label: "Medical", icon: Stethoscope },
-  { href: "/recruitment", label: "Recruitment", icon: UserSearch },
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+const navItems: { href: string; label: string; icon: typeof LayoutDashboard; module: AppModule }[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" },
+  { href: "/matches", label: "Matches", icon: Swords, module: "matches" },
+  { href: "/opposition", label: "Opposition", icon: Shield, module: "opposition" },
+  { href: "/analysis", label: "Analysis", icon: Film, module: "analysis" },
+  { href: "/training", label: "Training", icon: Dumbbell, module: "training" },
+  { href: "/players", label: "Players", icon: Users, module: "players" },
+  { href: "/medical", label: "Medical", icon: Stethoscope, module: "medical" },
+  { href: "/recruitment", label: "Recruitment", icon: UserSearch, module: "recruitment" },
+  { href: "/documents", label: "Documents", icon: FolderOpen, module: "documents" },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, module: "calendar" },
+  { href: "/staff", label: "Staff", icon: ShieldCheck, module: "staff" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [branding, setBranding] = useState(club);
+  const { can, role } = usePermissions();
 
   useEffect(() => {
     setBranding(loadClubSettings(club));
   }, []);
+
+  // "Book Treatment" only makes sense as its own nav entry for players —
+  // everyone else who can reach it (doctor/physio, owner, manager) already
+  // has the full Medical module for that.
+  const items = role === "player"
+    ? [...navItems, { href: "/treatment", label: "Book Treatment", icon: HeartPulse, module: "treatment" as AppModule }]
+    : navItems;
+  const visibleItems = items.filter((item) => can(item.module));
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col border-r border-white/10 bg-navy-700 dark:bg-navy-950 shrink-0">
@@ -65,7 +78,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
@@ -86,6 +99,7 @@ export function Sidebar() {
       </nav>
 
       <div className="px-3 pb-6">
+        {can("settings") && (
         <Link
           href="/settings"
           className={cn(
@@ -98,6 +112,7 @@ export function Sidebar() {
           <Settings size={18} strokeWidth={1.75} />
           Settings
         </Link>
+        )}
       </div>
     </aside>
   );
