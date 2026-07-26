@@ -10,9 +10,9 @@ const config: Config = {
     extend: {
       colors: {
         club: {
-          primary: "#D4AF37",
-          primaryLight: "#E6C766",
-          accent: "#D4AF37",
+          primary: "rgb(var(--club-primary-rgb) / <alpha-value>)",
+          primaryLight: "rgb(var(--club-secondary-rgb) / <alpha-value>)",
+          accent: "rgb(var(--club-accent-rgb) / <alpha-value>)",
         },
         navy: {
           50: "#EEF1F8",
