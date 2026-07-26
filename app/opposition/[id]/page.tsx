@@ -7,8 +7,15 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { opposition, type Opposition } from "@/lib/sample-data";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
+import {
+  fetchOppositionReports, uploadOppositionReport, deleteOppositionReport, getOppositionReportDownloadUrl,
+  type DbOppositionReport,
+} from "@/lib/opposition-reports-db";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, ShieldAlert, Target, Users, FileText } from "lucide-react";
+import {
+  ArrowLeft, ShieldCheck, ShieldAlert, Target, Users, FileText,
+  Upload, Trash2, Download, Loader2, Sparkles, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
+} from "lucide-react";
 
 const formColor: Record<string, string> = {
   W: "bg-emerald-500", D: "bg-amber-400", L: "bg-red-500",
@@ -178,7 +185,151 @@ export default function OppositionDetailPage() {
             ))}
           </div>
         </Card>
+
+        <div className="lg:col-span-3">
+          <OppositionReportsCard opponentName={team.name} />
+        </div>
       </div>
     </AppShell>
+  );
+}
+
+function OppositionReportsCard({ opponentName }: { opponentName: string }) {
+  const [reports, setReports] = useState<DbOppositionReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function load(expandLatest = false) {
+    const rows = await fetchOppositionReports(opponentName);
+    setReports(rows);
+    setLoading(false);
+    if (expandLatest) {
+      const latestReady = rows.find((r) => r.summary_status === "ready");
+      if (latestReady) setExpandedId(latestReady.id);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opponentName]);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setUploadError("");
+    try {
+      await uploadOppositionReport(opponentName, file);
+      await load(true);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Couldn't upload that file.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(r: DbOppositionReport) {
+    if (!window.confirm(`Remove "${r.file_name}"? This also deletes its AI summary.`)) return;
+    setDeletingId(r.id);
+    try {
+      await deleteOppositionReport(r.id, r.file_path);
+      await load();
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleDownload(r: DbOppositionReport) {
+    const url = await getOppositionReportDownloadUrl(r.file_path);
+    window.open(url, "_blank");
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Scouting Reports & AI Summary</CardTitle>
+        <Sparkles size={18} className="text-neutral-400" />
+      </CardHeader>
+      <p className="mb-3 text-xs text-neutral-400">
+        Upload a Wyscout/Hudl team stats export (PDF, CSV or TXT) or a screenshot of one — a multi-match squad view
+        like the &quot;Stats&quot; tab works well here, not just a single fixture. ClubOS reads the numbers and asks AI to
+        write a short scouting summary (form/trend, style, strengths, weaknesses) below. Always sanity-check the
+        summary against the original file before relying on it.
+      </p>
+
+      {uploadError && <p className="mb-2 text-sm text-red-300">{uploadError}</p>}
+
+      <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+        {uploading ? "Uploading…" : "Upload team report"}
+        <input
+          type="file"
+          accept=".pdf,.csv,.txt,.png,.jpg,.jpeg,.webp"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
+
+      {loading ? (
+        <p className="text-sm text-neutral-400">Loading reports…</p>
+      ) : reports.length === 0 ? (
+        <p className="text-sm text-neutral-400">No scouting reports uploaded yet.</p>
+      ) : (
+        <ul className="divide-y divide-white/10">
+          {reports.map((r) => {
+            const expanded = expandedId === r.id;
+            return (
+              <li key={r.id} className="py-2.5">
+                <div className="flex items-center gap-2.5 text-sm">
+                  <FileText size={14} className="shrink-0 text-neutral-400" />
+                  <span className="flex-1 truncate">{r.file_name}</span>
+                  {r.summary_status === "ready" ? (
+                    <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle2 size={13} /> Summary ready</span>
+                  ) : r.summary_status === "failed" ? (
+                    <span className="flex items-center gap-1 text-xs text-amber-400"><AlertTriangle size={13} /> Couldn&apos;t summarise</span>
+                  ) : (
+                    <span className="text-xs text-neutral-400">Pending</span>
+                  )}
+                  {r.summary_status === "ready" && (
+                    <button
+                      onClick={() => setExpandedId(expanded ? null : r.id)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                      title={expanded ? "Hide summary" : "View summary"}
+                    >
+                      {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  )}
+                  <button onClick={() => handleDownload(r)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                    <Download size={13} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(r)}
+                    disabled={deletingId === r.id}
+                    title="Remove report"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10 disabled:opacity-60"
+                  >
+                    {deletingId === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                  </button>
+                </div>
+                {expanded && r.ai_summary && (
+                  <div className="mt-2.5 ml-6 rounded-xl border border-white/10 bg-navy-600/40 dark:bg-navy-800/40 p-3">
+                    {r.ai_summary.split(/\n+/).filter(Boolean).map((line, i) => (
+                      <p key={i} className="mb-1.5 last:mb-0 text-sm text-neutral-200 whitespace-pre-wrap">{line}</p>
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }
