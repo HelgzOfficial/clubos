@@ -10,6 +10,7 @@ import { PlayerAvatar } from "@/components/players/player-avatar";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
+import { fetchPlayerAbsences, isAbsentOn, todayStr, type DbPlayerAbsence } from "@/lib/player-absences-db";
 import {
   fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   expandEvent, type DbCalendarEvent, type CalendarEventType,
@@ -30,7 +31,6 @@ import {
 import {
   fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl, type DbTrainingPlan,
 } from "@/lib/training-plans-db";
-import { playerAvailability } from "@/lib/sample-data";
 import { usePermissions } from "@/lib/permissions";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import {
@@ -94,6 +94,7 @@ export default function DashboardPage() {
   const [clips, setClips] = useState<DbClip[]>([]);
   const [players, setPlayers] = useState<DbPlayer[]>([]);
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
+  const [absences, setAbsences] = useState<DbPlayerAbsence[]>([]);
   const [settings, setSettings] = useState<DashboardSettings>({ widgetOrder: DEFAULT_WIDGET_ORDER, hiddenWidgets: [] });
   const [weather, setWeather] = useState<LiveWeather | null>(null);
   const [weatherError, setWeatherError] = useState("");
@@ -108,9 +109,9 @@ export default function DashboardPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [m, e, lt, c, s, p, inj] = await Promise.all([
+      const [m, e, lt, c, s, p, inj, abs] = await Promise.all([
         fetchMatches(), fetchCalendarEvents(), fetchLeagueTable(), fetchClips(6), fetchDashboardSettings(),
-        fetchPlayers(), fetchActiveInjuries(),
+        fetchPlayers(), fetchActiveInjuries(), fetchPlayerAbsences(),
       ]);
       setMatches(m);
       setEvents(e);
@@ -119,6 +120,7 @@ export default function DashboardPage() {
       setSettings(s);
       setPlayers(p);
       setInjuries(inj);
+      setAbsences(abs);
     } finally {
       setLoading(false);
     }
@@ -213,6 +215,26 @@ export default function DashboardPage() {
   }
 
   // ---- League position + form guide ----
+  // Real registered squad — replaces the old hard-coded sample counts.
+  // A player on an approved absence today (holiday, international duty,
+  // etc. — set from the Players module's Holiday tab) counts as
+  // unavailable here even if their medical status is otherwise green,
+  // since they're not actually available for selection.
+  const playerAvailabilitySummary = useMemo(() => {
+    const today = todayStr();
+    const activeAbsencePlayerIds = new Set(
+      absences.filter((a) => isAbsentOn(a, today)).map((a) => a.player_id)
+    );
+    let available = 0, doubtful = 0, unavailable = 0;
+    for (const p of players) {
+      if (activeAbsencePlayerIds.has(p.id)) { unavailable++; continue; }
+      if (p.availability === "green") available++;
+      else if (p.availability === "amber") doubtful++;
+      else unavailable++;
+    }
+    return { available, doubtful, unavailable, total: players.length, onLeave: activeAbsencePlayerIds.size };
+  }, [players, absences]);
+
   const ownRow = league.find((r) => r.is_own_club) ?? null;
   const miniTable = useMemo(() => {
     if (!ownRow) return league.slice(0, 5);
@@ -345,25 +367,35 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Player availability — unchanged */}
+          {/* Player availability — driven by the real registered squad plus
+              any approved absences active today, not a fixed sample count. */}
           {isVisible("availability") && (
-            <Card>
+            <Link href="/players" className="block">
+            <Card className="h-full transition-colors hover:border-club-primary/40">
               <CardHeader><CardTitle>Player Availability</CardTitle></CardHeader>
+              {playerAvailabilitySummary.total === 0 ? (
+                <p className="text-sm text-neutral-400">No players registered yet.</p>
+              ) : (
+              <>
               <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold">{playerAvailability.available}</p>
-                <p className="text-sm text-neutral-400">/ {playerAvailability.total} available</p>
+                <p className="text-3xl font-bold">{playerAvailabilitySummary.available}</p>
+                <p className="text-sm text-neutral-400">/ {playerAvailabilitySummary.total} available</p>
               </div>
               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-navy-600 dark:bg-navy-800 flex">
-                <div className="bg-emerald-500 h-full" style={{ width: `${(playerAvailability.available / playerAvailability.total) * 100}%` }} />
-                <div className="bg-amber-400 h-full" style={{ width: `${(playerAvailability.doubtful / playerAvailability.total) * 100}%` }} />
-                <div className="bg-red-500 h-full" style={{ width: `${(playerAvailability.unavailable / playerAvailability.total) * 100}%` }} />
+                <div className="bg-emerald-500 h-full" style={{ width: `${(playerAvailabilitySummary.available / playerAvailabilitySummary.total) * 100}%` }} />
+                <div className="bg-amber-400 h-full" style={{ width: `${(playerAvailabilitySummary.doubtful / playerAvailabilitySummary.total) * 100}%` }} />
+                <div className="bg-red-500 h-full" style={{ width: `${(playerAvailabilitySummary.unavailable / playerAvailabilitySummary.total) * 100}%` }} />
               </div>
-              <div className="mt-3 flex gap-4 text-xs text-neutral-500">
-                <span>🟢 {playerAvailability.available} available</span>
-                <span>🟡 {playerAvailability.doubtful} doubtful</span>
-                <span>🔴 {playerAvailability.unavailable} out</span>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+                <span>🟢 {playerAvailabilitySummary.available} available</span>
+                <span>🟡 {playerAvailabilitySummary.doubtful} doubtful</span>
+                <span>🔴 {playerAvailabilitySummary.unavailable} out</span>
+                {playerAvailabilitySummary.onLeave > 0 && <span>🏖️ {playerAvailabilitySummary.onLeave} on approved leave today</span>}
               </div>
+              </>
+              )}
             </Card>
+            </Link>
           )}
 
           {/* League position — replaces Club KPIs */}
