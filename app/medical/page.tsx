@@ -17,9 +17,23 @@ import { PlayerAvatar } from "@/components/players/player-avatar";
 import { AiInjurySearch } from "@/components/medical/ai-injury-search";
 import { VoiceNoteButton } from "@/components/voice-note-button";
 import { usePermissions } from "@/lib/permissions";
-import { ChevronDown, Plus, Pencil, Check, X, Trash2, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Check, X, Trash2, AlertCircle } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
+
+// Card border/wash colour keyed off a player's current availability —
+// mirrors the same severity meaning used everywhere else (Available/green,
+// Doubtful/amber, Unavailable/red).
+const severityRing = {
+  green: "ring-emerald-500/40",
+  amber: "ring-amber-500/50",
+  red: "ring-red-500/50",
+} as const;
+const severityGradient = {
+  green: "from-emerald-900/70 to-transparent",
+  amber: "from-amber-900/70 to-transparent",
+  red: "from-red-900/70 to-transparent",
+} as const;
 
 const emptyForm = {
   bodyPart: BODY_PART_OPTIONS[0].value,
@@ -170,30 +184,57 @@ export default function MedicalPage() {
       {loading ? (
         <p className="text-sm text-neutral-400">Loading…</p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ordered.map((p) => {
             const injury = injuries.find((i) => i.player_id === p.id);
-            const isOpen = openId === p.id;
-            const isAdding = addingFor === p.id;
-            const isEditing = injury && editingInjuryId === injury.id;
-
             return (
-              <Card key={p.id} className="p-0 overflow-hidden">
-                <button
-                  onClick={() => setOpenId(isOpen ? null : p.id)}
-                  className="flex w-full items-center gap-3 px-5 py-4 text-left"
-                >
-                  <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{p.name}</p>
-                    <p className="text-xs text-neutral-400">#{p.squad_number} · {p.position}</p>
+              <button key={p.id} onClick={() => setOpenId(p.id)} className="text-left">
+                <Card className={`h-full overflow-hidden p-0 ring-2 transition-shadow hover:shadow-lg ${severityRing[p.availability]}`}>
+                  <div className="relative aspect-[3/4] w-full">
+                    <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="card" />
+                    <div className={`absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t ${severityGradient[p.availability]}`} />
+                    <span className="absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-lg bg-black/50 px-1.5 text-sm font-bold text-white backdrop-blur-sm">
+                      {p.squad_number}
+                    </span>
                   </div>
-                  <Badge variant={statusVariant[p.availability]} className="max-w-[6rem] truncate sm:max-w-none">{p.availability_note}</Badge>
-                  <ChevronDown size={16} className={`shrink-0 text-neutral-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                </button>
+                  <div className="p-3.5">
+                    <p className="font-medium truncate">{p.name}</p>
+                    <p className="text-xs text-neutral-400">{p.position}</p>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <Badge variant={statusVariant[p.availability]} className="truncate">{p.availability_note}</Badge>
+                      {injury && <span className="shrink-0 text-xs text-neutral-400">{injury.injury}</span>}
+                    </div>
+                  </div>
+                </Card>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-                {isOpen && (
-                  <div className="border-t border-white/10 px-5 py-5">
+      {openId && (() => {
+        const p = ordered.find((pp) => pp.id === openId);
+        if (!p) return null;
+        const injury = injuries.find((i) => i.player_id === p.id);
+        const isAdding = addingFor === p.id;
+        const isEditing = injury && editingInjuryId === injury.id;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setOpenId(null)}>
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center gap-3">
+                <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{p.name}</p>
+                  <p className="text-xs text-neutral-400">#{p.squad_number} · {p.position}</p>
+                </div>
+                <Badge variant={statusVariant[p.availability]} className="max-w-[6rem] truncate sm:max-w-none">{p.availability_note}</Badge>
+                <button onClick={() => setOpenId(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div>
                     {injury && !isEditing && (
                       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                         <div>
@@ -316,13 +357,11 @@ export default function MedicalPage() {
                         </div>
                       </form>
                     )}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      )}
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
     </AppShell>
   );
 }
