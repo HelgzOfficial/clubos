@@ -6,7 +6,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
-import { loadClubSettings } from "@/lib/club-settings";
+import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { usePermissions } from "@/lib/permissions";
 import { getNavItems } from "@/lib/nav-items";
 import { Settings } from "lucide-react";
@@ -18,6 +19,10 @@ export function Sidebar() {
 
   useEffect(() => {
     setBranding(loadClubSettings(club));
+    fetchClubSettings(club).then((settings) => {
+      setBranding(settings);
+      saveClubSettings(settings);
+    });
   }, []);
 
   const visibleItems = getNavItems(role).filter((item) => can(item.module));

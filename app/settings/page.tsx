@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings, type ClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings, saveClubSettingsRemote } from "@/lib/club-settings-db";
 import { applyClubColors } from "@/components/club-color-provider";
 import { extractCrestColors } from "@/lib/extract-crest-colors";
 import { useAuth } from "@/lib/auth";
@@ -81,16 +82,36 @@ export default function SettingsPage() {
     setTimeout(() => setPasswordSaved(false), 2500);
   }
 
+  const [brandingSaving, setBrandingSaving] = useState(false);
+  const [brandingError, setBrandingError] = useState("");
+
   useEffect(() => {
+    // Paint instantly from the local cache, then load the real shared
+    // value from Supabase — this is what an owner is actually editing.
     setBranding(loadClubSettings(club));
     setReady(true);
+    fetchClubSettings(club).then((settings) => {
+      setBranding(settings);
+      applyClubColors(settings);
+    });
   }, []);
 
-  function saveBranding() {
-    saveClubSettings(branding);
-    applyClubColors(branding);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  async function saveBranding() {
+    setBrandingError("");
+    setBrandingSaving(true);
+    try {
+      await saveClubSettingsRemote(branding);
+      saveClubSettings(branding);
+      applyClubColors(branding);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setBrandingError(
+        e instanceof Error ? e.message : "Couldn't save branding — make sure the club_settings table has been set up in Supabase."
+      );
+    } finally {
+      setBrandingSaving(false);
+    }
   }
 
   // Live-preview colour changes immediately, so the picker feels instant —
@@ -221,11 +242,18 @@ export default function SettingsPage() {
             )}
           </div>
 
+          {brandingError && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+              <AlertCircle size={15} className="mt-0.5 shrink-0" />
+              <p>{brandingError}</p>
+            </div>
+          )}
           <button
             onClick={saveBranding}
-            className="mt-4 flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            disabled={brandingSaving}
+            className="mt-4 flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            {saved ? <><Check size={15} /> Saved</> : "Save Branding & Appearance"}
+            {brandingSaving ? "Saving…" : saved ? <><Check size={15} /> Saved</> : "Save Branding & Appearance"}
           </button>
         </Card>
 

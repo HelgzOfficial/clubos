@@ -12,7 +12,7 @@ import {
   type DbOppositionReport, type StatBar,
 } from "@/lib/opposition-reports-db";
 import { fetchHeadToHead, refreshHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-head-db";
-import { loadClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { usePermissions } from "@/lib/permissions";
 import Link from "next/link";
 import {
@@ -227,7 +227,7 @@ function HeadToHeadCard({
     setRefreshing(true);
     if (!silent) setError("");
     try {
-      const branding = loadClubSettings(club);
+      const branding = await fetchClubSettings(club);
       const row = await refreshHeadToHead(opponentName, branding.name);
       setH2h(row);
     } catch (e) {

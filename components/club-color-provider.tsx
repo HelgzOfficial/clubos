@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { loadClubSettings, hexToRgbTriplet } from "@/lib/club-settings";
+import { loadClubSettings, saveClubSettings, hexToRgbTriplet } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { club } from "@/lib/sample-data";
 
 // Applies the saved club colours as CSS variables on the document root, so
@@ -18,7 +19,14 @@ export function applyClubColors(settings: { primaryColor: string; secondaryColor
 
 export function ClubColorProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
+    // Paint instantly from whatever this browser last saw (avoids a flash
+    // of the sample defaults), then replace with the real shared value from
+    // Supabase — the source of truth every device/user actually reads.
     applyClubColors(loadClubSettings(club));
+    fetchClubSettings(club).then((settings) => {
+      applyClubColors(settings);
+      saveClubSettings(settings);
+    });
   }, []);
   return <>{children}</>;
 }

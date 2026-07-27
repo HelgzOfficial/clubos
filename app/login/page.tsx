@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club } from "@/lib/sample-data";
+import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { LogIn, AlertCircle, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
@@ -12,6 +14,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // The sign-in screen shows before anyone is authenticated, so it can't
+  // rely on any per-device saved setting — it needs the real, shared club
+  // name/crest from Supabase. Paint instantly from whatever this browser
+  // cached last (avoids a flash of the "Riverside FC" sample default), then
+  // replace with the live value.
+  const [branding, setBranding] = useState(club);
+  useEffect(() => {
+    setBranding(loadClubSettings(club));
+    fetchClubSettings(club).then((settings) => {
+      setBranding(settings);
+      saveClubSettings(settings);
+    });
+  }, []);
 
   // Someone who just clicked an invite/reset email lands here with Supabase
   // Auth's own recovery token in the URL — instead of asking for a password
@@ -121,14 +137,14 @@ export default function LoginPage() {
         <div className="mb-6 flex flex-col items-center text-center">
           <div
             className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl text-navy-950 text-sm font-bold"
-            style={{ backgroundColor: club.primaryColor }}
+            style={{ backgroundColor: branding.primaryColor }}
           >
-            {club.crestInitials}
+            {branding.crestInitials}
           </div>
           <h1 className="text-xl font-semibold">
             {settingPassword ? "Welcome to ClubOS" : showForgot ? "Reset your password" : "Sign in to ClubOS"}
           </h1>
-          <p className="mt-1 text-sm text-neutral-400">{club.name}</p>
+          <p className="mt-1 text-sm text-neutral-400">{branding.name}</p>
         </div>
 
         {!supabaseConfigured ? (

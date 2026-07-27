@@ -564,6 +564,108 @@ export default function DashboardPage() {
     }
   }, [widgetEntries, activeWidgetTab]);
 
+  // A row of small "at a glance" stat tiles that sits above the mobile tab
+  // strip, visible no matter which tab is open. The single-widget-per-tab
+  // layout otherwise leaves a lot of blank space below a short card on a
+  // tall phone screen — this fills that with live, tappable numbers instead
+  // (tapping a tile jumps straight to its full widget below). Only built
+  // from widgets that are actually visible/have data, so it never shows an
+  // empty or dead tile.
+  const glanceTiles = useMemo(() => {
+    const present = new Set(widgetEntries.map((w) => w.key));
+    const tiles: { key: string; targetTab: DashboardWidgetKey; label: string; content: ReactNode }[] = [];
+
+    if (present.has("next-match") && nextMatch) {
+      tiles.push({
+        key: "glance-next-match",
+        targetTab: "next-match",
+        label: isMatchday ? "Kicks off today" : "Next match",
+        content: (
+          <>
+            <p className="text-2xl font-bold tabular-nums text-club-primary">{countdown}</p>
+            <p className="truncate text-xs text-neutral-400">{nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}</p>
+          </>
+        ),
+      });
+    }
+    if (present.has("availability") && playerAvailabilitySummary.total > 0) {
+      const pct = Math.round((playerAvailabilitySummary.available / playerAvailabilitySummary.total) * 100);
+      tiles.push({
+        key: "glance-availability",
+        targetTab: "availability",
+        label: "Availability",
+        content: (
+          <div className="flex items-center gap-2.5">
+            <RingStat percent={pct} color="#22C55E" active={activeWidgetTab === "availability"} />
+            <p className="text-lg font-bold">
+              {playerAvailabilitySummary.available}
+              <span className="text-xs font-normal text-neutral-400">/{playerAvailabilitySummary.total}</span>
+            </p>
+          </div>
+        ),
+      });
+    }
+    if (present.has("league-position") && ownRow) {
+      tiles.push({
+        key: "glance-league",
+        targetTab: "league-position",
+        label: "League position",
+        content: (
+          <p className="text-2xl font-bold">
+            {ownRow.position}
+            <span className="text-sm font-normal text-neutral-400">
+              {ownRow.position === 1 ? "st" : ownRow.position === 2 ? "nd" : ownRow.position === 3 ? "rd" : "th"}
+            </span>
+          </p>
+        ),
+      });
+    }
+    if (present.has("form-guide") && formGuide.length > 0) {
+      tiles.push({
+        key: "glance-form",
+        targetTab: "form-guide",
+        label: "Form",
+        content: (
+          <div className="flex gap-1">
+            {formGuide.slice(-5).map((f) => (
+              <span key={f.id} className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${resultColor[f.result]}`}>
+                {f.result}
+              </span>
+            ))}
+          </div>
+        ),
+      });
+    }
+    if (present.has("weather") && weather) {
+      tiles.push({
+        key: "glance-weather",
+        targetTab: "weather",
+        label: "Weather",
+        content: (
+          <div className="flex items-center gap-2">
+            <CloudSun size={22} className="shrink-0 text-club-primary" />
+            <p className="text-2xl font-bold">{weather.tempC}°<span className="text-sm font-normal text-neutral-400">C</span></p>
+          </div>
+        ),
+      });
+    }
+    if (present.has("injuries") && injuries.length > 0) {
+      tiles.push({
+        key: "glance-injuries",
+        targetTab: "injuries",
+        label: "Injury list",
+        content: (
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={20} className="shrink-0 text-red-400" />
+            <p className="text-2xl font-bold">{injuries.length}</p>
+          </div>
+        ),
+      });
+    }
+    return tiles;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widgetEntries, nextMatch, isMatchday, countdown, playerAvailabilitySummary, ownRow, formGuide, weather, injuries, activeWidgetTab]);
+
   return (
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -587,6 +689,24 @@ export default function DashboardPage() {
         <p className="text-sm text-neutral-400">No widgets to show — enable one from Customise Dashboard.</p>
       ) : isMobile ? (
         <div>
+          {glanceTiles.length > 0 && (
+            <div className="mb-4 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+              {glanceTiles.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveWidgetTab(t.targetTab)}
+                  className={`flex w-[136px] shrink-0 flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-colors ${
+                    activeWidgetTab === t.targetTab
+                      ? "border-club-primary/50 bg-navy-600 dark:bg-navy-800"
+                      : "border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
+                  }`}
+                >
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">{t.label}</span>
+                  {t.content}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mb-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
             {widgetEntries.map((w) => (
               <button
@@ -800,6 +920,18 @@ function TrainingUpload({ date, canEdit }: { date: string; canEdit: boolean }) {
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
         </label>
       )}
+    </div>
+  );
+}
+
+// ---- Small donut ring for the mobile "at a glance" tiles ----
+function RingStat({ percent, color, active }: { percent: number; color: string; active: boolean }) {
+  return (
+    <div
+      className="relative h-9 w-9 shrink-0 rounded-full"
+      style={{ background: `conic-gradient(${color} ${Math.max(0, Math.min(100, percent)) * 3.6}deg, rgba(255,255,255,0.12) 0deg)` }}
+    >
+      <div className={`absolute inset-[3px] rounded-full ${active ? "bg-navy-600 dark:bg-navy-800" : "bg-navy-700 dark:bg-navy-900"}`} />
     </div>
   );
 }

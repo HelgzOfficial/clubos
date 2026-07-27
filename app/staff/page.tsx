@@ -9,7 +9,7 @@ import { ROLE_LABELS, ALL_ROLES, type AppRole } from "@/lib/permissions";
 import { fetchAppUsers, updateAppUserRole, removeAppUser, inviteAppUser } from "@/lib/app-users-db";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import type { AppUserRecord } from "@/lib/permissions";
-import { Plus, X, Trash2, Mail, AlertCircle, Check } from "lucide-react";
+import { Plus, X, Trash2, Mail, AlertCircle, Check, RotateCw } from "lucide-react";
 
 const roleBadgeVariant: Record<AppRole, "green" | "amber" | "red" | "neutral" | "blue" | "purple"> = {
   owner: "green",
@@ -45,6 +45,7 @@ export default function StaffPage() {
   const [playerId, setPlayerId] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -95,6 +96,39 @@ export default function StaffPage() {
       setFormError(e instanceof Error ? e.message : "Something went wrong sending the invite.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Sends a brand-new invite link to someone who's still "Invited" (never
+  // finished setting a password) — e.g. because their first link expired,
+  // was sent before a domain/redirect fix went in, or just never arrived.
+  // Reuses the same invite endpoint, which already knows to fall back to a
+  // fresh recovery link if the auth account technically already exists.
+  async function handleResend(person: AppUserRecord) {
+    if (!appUser?.email) {
+      setError("Your own account isn't fully loaded yet — refresh the page and try again.");
+      return;
+    }
+    setResendingId(person.id);
+    setError("");
+    try {
+      const result = await inviteAppUser({
+        requesterEmail: appUser.email,
+        name: person.name,
+        email: person.email,
+        role: person.role,
+        playerId: person.role === "player" ? person.player_id : null,
+      });
+      if (!result.ok) {
+        setError(result.error ?? `Couldn't resend the invite to ${person.email}.`);
+        return;
+      }
+      setSuccess(`Invite resent to ${person.email}.`);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong resending the invite.");
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -156,6 +190,17 @@ export default function StaffPage() {
                 <Badge variant={person.invite_status === "pending" ? "amber" : "green"}>
                   {person.invite_status === "pending" ? "Invited" : "Active"}
                 </Badge>
+                {person.invite_status === "pending" && (
+                  <button
+                    onClick={() => handleResend(person)}
+                    disabled={resendingId === person.id}
+                    title="Send a fresh invite link"
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-60"
+                  >
+                    <RotateCw size={12} className={resendingId === person.id ? "animate-spin" : ""} />
+                    {resendingId === person.id ? "Sending…" : "Resend"}
+                  </button>
+                )}
                 <select
                   value={person.role}
                   onChange={(e) => handleRoleChange(person, e.target.value as AppRole)}

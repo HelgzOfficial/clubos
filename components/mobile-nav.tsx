@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { Menu, X, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
-import { loadClubSettings } from "@/lib/club-settings";
+import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { usePermissions } from "@/lib/permissions";
 import { getNavItems } from "@/lib/nav-items";
 
@@ -43,6 +44,10 @@ export function MobileNav() {
 
   useEffect(() => {
     setBranding(loadClubSettings(club));
+    fetchClubSettings(club).then((settings) => {
+      setBranding(settings);
+      saveClubSettings(settings);
+    });
   }, []);
 
   // Close automatically if the user navigates (e.g. via browser back/forward).

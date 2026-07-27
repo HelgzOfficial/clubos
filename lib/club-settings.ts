@@ -6,6 +6,12 @@ export type ClubSettings = {
   accentColor: string;
 };
 
+// NOTE: this is a per-browser LOCAL CACHE only, used purely to paint
+// something instantly (avoiding a flash of the sample "Riverside FC"
+// defaults) while the real, shared value loads from Supabase — see
+// lib/club-settings-db.ts for the source of truth every device and user
+// actually reads. Do not rely on this alone; it will not reflect changes
+// made on another device/browser.
 const SETTINGS_KEY = "clubos_club_settings_v1";
 
 export function loadClubSettings(fallback: ClubSettings): ClubSettings {

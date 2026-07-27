@@ -25,7 +25,7 @@ import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { StatDashboard } from "@/components/matches/stat-dashboard";
 import { club } from "@/lib/sample-data";
-import { loadClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
@@ -162,7 +162,7 @@ function ReportsCard({
     setUploading(true);
     setUploadError("");
     try {
-      const branding = loadClubSettings(club);
+      const branding = await fetchClubSettings(club);
       await uploadMatchReport(matchId, file, source, { clubName: branding.name, opponentName });
       onChanged();
     } catch (e) {
