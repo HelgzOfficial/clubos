@@ -13,6 +13,7 @@ export type DbClip = {
   file_path: string;
   file_type: string;
   category: string | null;
+  match_id: string | null;
   uploaded_at: string;
 };
 
@@ -40,7 +41,26 @@ export async function fetchAllClips(): Promise<DbClip[]> {
   return (data ?? []) as DbClip[];
 }
 
-export async function uploadClip(title: string, file: File, category?: string | null): Promise<DbClip> {
+// Every clip/highlight uploaded against one specific fixture — for Match
+// Centre's "Highlights" section, as opposed to fetchClips/fetchAllClips
+// above which pull the general Analysis library regardless of match.
+export async function fetchClipsForMatch(matchId: string): Promise<DbClip[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("clips")
+    .select("*")
+    .eq("match_id", matchId)
+    .order("uploaded_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as DbClip[];
+}
+
+export async function uploadClip(
+  title: string,
+  file: File,
+  category?: string | null,
+  matchId?: string | null
+): Promise<DbClip> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
   const { error: uploadError } = await supabase.storage.from("clips").upload(path, file);
@@ -48,7 +68,14 @@ export async function uploadClip(title: string, file: File, category?: string | 
 
   const { data, error } = await supabase
     .from("clips")
-    .insert({ title: title || file.name, file_name: file.name, file_path: path, file_type: fileTypeOf(file), category: category || null })
+    .insert({
+      title: title || file.name,
+      file_name: file.name,
+      file_path: path,
+      file_type: fileTypeOf(file),
+      category: category || null,
+      match_id: matchId || null,
+    })
     .select()
     .single();
   if (error) throw error;

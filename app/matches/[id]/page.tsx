@@ -30,7 +30,12 @@ import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PitchMapInput, type PitchPoint } from "@/components/analysis/pitch-map";
-import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin } from "lucide-react";
+import { fetchClipsForMatch, uploadClip, getClipUrl, deleteClip, type DbClip } from "@/lib/clips-db";
+import { VideoPlayer } from "@/components/analysis/video-player";
+import type { Clip } from "@/lib/analysis-types";
+import {
+  ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin, Film, Play,
+} from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -136,6 +141,10 @@ export default function MatchDetailPage() {
         <ReportsCard matchId={match.id} opponentName={match.opponent} reports={reports} lineup={lineup} goals={goals} subs={subs} onChanged={load} />
       </div>
 
+      <div id="highlights" className="mb-5 scroll-mt-6">
+        <HighlightsCard matchId={match.id} />
+      </div>
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <LineupCard title="Starting XI" matchId={match.id} entries={starting} isStarting onAdded={load} />
         <LineupCard title="Substitutes" matchId={match.id} entries={bench} isStarting={false} onAdded={load} />
@@ -143,6 +152,103 @@ export default function MatchDetailPage() {
         <SubsCard matchId={match.id} subs={subs} onAdded={load} />
       </div>
     </AppShell>
+  );
+}
+
+// ---- Match highlights / clips ----
+function HighlightsCard({ matchId }: { matchId: string }) {
+  const [clips, setClips] = useState<DbClip[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [playing, setPlaying] = useState<Clip | null>(null);
+
+  async function load() {
+    setError("");
+    try {
+      setClips(await fetchClipsForMatch(matchId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load highlights.");
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId]);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError("");
+    try {
+      await uploadClip(file.name.replace(/\.[^.]+$/, ""), file, null, matchId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't upload that clip.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handlePlay(c: DbClip) {
+    const url = await getClipUrl(c.file_path);
+    setPlaying({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
+  }
+
+  async function handleDelete(c: DbClip) {
+    if (!window.confirm(`Remove "${c.title}"?`)) return;
+    await deleteClip(c.id, c.file_path);
+    await load();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Highlights</CardTitle>
+        <Film size={18} className="text-neutral-400" />
+      </CardHeader>
+      <p className="mb-3 text-xs text-neutral-400">
+        Upload clips or highlights for this fixture — they'll show up here and in the Analysis clip library, ready to review or annotate.
+      </p>
+
+      {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
+
+      {clips.length === 0 ? (
+        <p className="mb-3 text-sm text-neutral-400">No highlights uploaded yet for this match.</p>
+      ) : (
+        <ul className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {clips.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 rounded-xl border border-white/10 p-2.5 text-sm">
+              <button
+                onClick={() => handlePlay(c)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-navy-600 dark:bg-navy-800 text-club-primary"
+              >
+                <Play size={13} />
+              </button>
+              <button onClick={() => handlePlay(c)} className="flex-1 truncate text-left hover:text-club-primary">
+                {c.title}
+              </button>
+              <button onClick={() => handleDelete(c)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
+                <Trash2 size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
+        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+        {uploading ? "Uploading…" : "Upload Highlight"}
+        <input
+          type="file"
+          accept="video/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+        />
+      </label>
+
+      {playing && <VideoPlayer clip={playing} onClose={() => setPlaying(null)} sourceClipId={playing.id} />}
+    </Card>
   );
 }
 
