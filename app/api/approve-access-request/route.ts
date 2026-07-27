@@ -80,13 +80,44 @@ export async function POST(req: Request) {
     user_metadata: { name: reqRow.name, role },
   });
   if (createError) {
-    if (/already been registered|already registered|already exists/i.test(createError.message)) {
+    const alreadyExists = /already been registered|already registered|already exists/i.test(createError.message);
+    if (!alreadyExists) {
+      return NextResponse.json({ error: createError.message }, { status: 500 });
+    }
+    // A Supabase Auth account already exists for this email — most likely
+    // from an earlier invite that was sent before they went and requested
+    // access separately. Rather than dead-ending the approval, find that
+    // existing account and set its password to the one they just chose, so
+    // approving here still leaves them able to sign in immediately.
+    let existingUserId: string | null = null;
+    let page = 1;
+    while (!existingUserId) {
+      const { data: pageData, error: listError } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+      if (listError) {
+        return NextResponse.json({ error: `Couldn't reconcile the existing account: ${listError.message}` }, { status: 500 });
+      }
+      const match = pageData.users.find((u) => (u.email ?? "").toLowerCase() === reqRow.email.toLowerCase());
+      if (match) {
+        existingUserId = match.id;
+        break;
+      }
+      if (pageData.users.length < 200) break;
+      page += 1;
+    }
+    if (!existingUserId) {
       return NextResponse.json(
-        { error: "An account already exists for this email — use \"Resend\" on their entry in Staff & Access instead." },
+        { error: "An account already exists for this email, but it couldn't be found to update — use \"Resend\" on their entry in Staff & Access instead." },
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: createError.message }, { status: 500 });
+    const { error: updateError } = await admin.auth.admin.updateUserById(existingUserId, {
+      password: reqRow.password,
+      email_confirm: true,
+      user_metadata: { name: reqRow.name, role },
+    });
+    if (updateError) {
+      return NextResponse.json({ error: `Couldn't update the existing account: ${updateError.message}` }, { status: 500 });
+    }
   }
 
   const { error: upsertError } = await admin.from("app_users").upsert(

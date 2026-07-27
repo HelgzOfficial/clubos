@@ -673,12 +673,18 @@ export default function DashboardPage() {
           {mobileTabEntries.length > 0 && (
             <>
               {glanceTiles.length > 0 && (
-                <div className="mb-4 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+                // touch-pan-x: on Android Chrome, a horizontally-scrolling
+                // row without an explicit touch-action can have its taps
+                // swallowed as "possible scroll" gestures, so a real tap on
+                // a tile silently does nothing. Restricting the allowed
+                // gesture to horizontal panning only lets Android resolve a
+                // stationary tap as a click instead of a cancelled scroll.
+                <div className="touch-pan-x mb-4 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
                   {glanceTiles.map((t) => (
                     <button
                       key={t.key}
                       onClick={() => setActiveWidgetTab(t.targetTab)}
-                      className={`flex w-[136px] shrink-0 flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-colors ${
+                      className={`touch-manipulation flex w-[136px] shrink-0 flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-colors ${
                         activeWidgetTab === t.targetTab
                           ? "border-club-primary/50 bg-navy-600 dark:bg-navy-800"
                           : "border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
@@ -690,12 +696,12 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )}
-              <div className="mb-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+              <div className="touch-pan-x mb-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
                 {mobileTabEntries.map((w) => (
                   <button
                     key={w.key}
                     onClick={() => setActiveWidgetTab(w.key)}
-                    className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    className={`touch-manipulation shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
                       activeWidgetTab === w.key
                         ? "bg-club-primary text-navy-950"
                         : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
