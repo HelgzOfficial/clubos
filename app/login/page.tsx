@@ -20,6 +20,14 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState("");
   const [passwordSaved, setPasswordSaved] = useState(false);
 
+  // "Forgot password" — sends the same kind of recovery link Supabase uses
+  // for invites, which is why the settingPassword screen above already
+  // handles it once they click through from their email.
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined" || !supabase) return;
 
@@ -68,6 +76,30 @@ export default function LoginPage() {
     router.replace("/dashboard");
   }
 
+  async function handleForgotPassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!supabase) return;
+    setForgotLoading(true);
+    setError("");
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setForgotLoading(false);
+    // Always show the same "check your email" message whether or not the
+    // address exists — Supabase itself doesn't reveal that either, so
+    // showing a different message here would just leak whether someone has
+    // a ClubOS account for a given email.
+    if (error && !/rate limit/i.test(error.message)) {
+      setForgotSent(true);
+      return;
+    }
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setForgotSent(true);
+  }
+
   async function handleSetPassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!supabase) return;
@@ -93,7 +125,9 @@ export default function LoginPage() {
           >
             {club.crestInitials}
           </div>
-          <h1 className="text-xl font-semibold">{settingPassword ? "Welcome to ClubOS" : "Sign in to ClubOS"}</h1>
+          <h1 className="text-xl font-semibold">
+            {settingPassword ? "Welcome to ClubOS" : showForgot ? "Reset your password" : "Sign in to ClubOS"}
+          </h1>
           <p className="mt-1 text-sm text-neutral-400">{club.name}</p>
         </div>
 
@@ -136,6 +170,49 @@ export default function LoginPage() {
               <KeyRound size={15} /> {loading ? "Saving…" : "Set Password & Continue"}
             </button>
           </form>
+        ) : showForgot ? (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            {forgotSent ? (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+                <p>If an account exists for that email, a password reset link is on its way — check your inbox (and spam folder).</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-400">Enter your email and we&apos;ll send you a link to set a new password.</p>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                    placeholder="you@club.com"
+                  />
+                </div>
+                {error && (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                    <p>{error}</p>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                >
+                  <KeyRound size={15} /> {forgotLoading ? "Sending…" : "Send Reset Link"}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => { setShowForgot(false); setForgotSent(false); setError(""); }}
+              className="w-full text-center text-xs text-neutral-400 hover:text-white transition-colors"
+            >
+              Back to sign in
+            </button>
+          </form>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -159,6 +236,13 @@ export default function LoginPage() {
                 className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
                 placeholder="••••••••"
               />
+              <button
+                type="button"
+                onClick={() => { setShowForgot(true); setForgotEmail(email); setError(""); }}
+                className="mt-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+              >
+                Forgot password?
+              </button>
             </div>
 
             {error && (
