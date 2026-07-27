@@ -36,6 +36,20 @@ export async function fetchMatchReports(matchId: string): Promise<DbMatchReport[
   return (data ?? []) as DbMatchReport[];
 }
 
+// Most recently uploaded reports across every match, for the Analyst
+// Dashboard's "Recent Match Reports" panel — as opposed to
+// fetchMatchReports() above, which is scoped to one fixture.
+export async function fetchRecentMatchReports(limit = 5): Promise<DbMatchReport[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("match_reports")
+    .select("*")
+    .order("uploaded_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as DbMatchReport[];
+}
+
 export async function uploadMatchReport(matchId: string, file: File, source: ReportSource, context?: ReportContext): Promise<DbMatchReport> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const fileType = fileTypeOf(file);

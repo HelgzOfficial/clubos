@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
-  Play, Pause, Pencil, Circle, ArrowUpRight, Eraser, Camera, X, Palette,
+  Play, Pause, Pencil, Circle, ArrowUpRight, Eraser, Camera, X, Palette, Save, Loader2, Check,
 } from "lucide-react";
 import type { Clip } from "@/lib/analysis-types";
+import { saveAnnotatedImage } from "@/lib/annotated-images-db";
 
 type Tool = "none" | "pen" | "circle" | "arrow";
 type Point = { x: number; y: number };
@@ -12,7 +13,9 @@ type Shape = { tool: Tool; color: string; points: Point[] };
 
 const COLORS = ["#D4AF37", "#EF4444", "#22C55E", "#3B82F6", "#FFFFFF"];
 
-export function VideoPlayer({ clip, onClose }: { clip: Clip; onClose: () => void }) {
+export function VideoPlayer({
+  clip, onClose, sourceClipId, onSaved,
+}: { clip: Clip; onClose: () => void; sourceClipId?: string; onSaved?: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -22,6 +25,9 @@ export function VideoPlayer({ clip, onClose }: { clip: Clip; onClose: () => void
   const [color, setColor] = useState(COLORS[0]);
   const [shapes, setShapes] = useState<Shape[]>([]);
   const drawing = useRef<Shape | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   function redraw() {
     const canvas = canvasRef.current;
@@ -126,15 +132,15 @@ export function VideoPlayer({ clip, onClose }: { clip: Clip; onClose: () => void
     }
   }
 
-  function captureFreezeFrame() {
+  function buildFreezeFrameDataUrl(): string | null {
     const video = videoRef.current;
     const overlay = canvasRef.current;
-    if (!video || !overlay) return;
+    if (!video || !overlay) return null;
     const out = document.createElement("canvas");
     out.width = video.videoWidth || overlay.width;
     out.height = video.videoHeight || overlay.height;
     const ctx = out.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return null;
     ctx.drawImage(video, 0, 0, out.width, out.height);
     // scale the overlay drawing (sized to displayed element) up to the video's native resolution
     const scaleX = out.width / overlay.width;
@@ -143,11 +149,33 @@ export function VideoPlayer({ clip, onClose }: { clip: Clip; onClose: () => void
     ctx.scale(scaleX, scaleY);
     ctx.drawImage(overlay, 0, 0);
     ctx.restore();
-    const url = out.toDataURL("image/png");
+    return out.toDataURL("image/png");
+  }
+
+  function captureFreezeFrame() {
+    const url = buildFreezeFrameDataUrl();
+    if (!url) return;
     const a = document.createElement("a");
     a.href = url;
     a.download = `${clip.title.replace(/\.[^.]+$/, "")}-freeze-frame.png`;
     a.click();
+  }
+
+  async function saveFreezeFrameToClubOS() {
+    const url = buildFreezeFrameDataUrl();
+    if (!url) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await saveAnnotatedImage(`${clip.title.replace(/\.[^.]+$/, "")} — freeze frame`, url, sourceClipId);
+      setSaved(true);
+      onSaved?.();
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Couldn't save this to ClubOS.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const tools: { key: Tool; icon: typeof Pencil; label: string }[] = [
@@ -237,13 +265,25 @@ export function VideoPlayer({ clip, onClose }: { clip: Clip; onClose: () => void
             onClick={captureFreezeFrame}
             className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
           >
-            <Camera size={14} /> Freeze Frame Export
+            <Camera size={14} /> Download PNG
+          </button>
+
+          <button
+            onClick={saveFreezeFrameToClubOS}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
+            {saving ? "Saving…" : saved ? "Saved" : "Save to ClubOS"}
           </button>
         </div>
 
+        {saveError && <p className="mt-2 text-xs text-red-300">{saveError}</p>}
+
         <p className="mt-3 text-xs text-neutral-400">
-          Select a tool, then draw on the video to mark up runs, passing lanes, or positioning. "Freeze Frame Export" downloads the current
-          frame with your markup as a PNG.
+          Select a tool, then draw on the video to mark up runs, passing lanes, or positioning. "Download PNG" saves the current
+          frame with your markup to your device; "Save to ClubOS" attaches it to the Analysis module's image library instead, ready to
+          use in a match pack.
         </p>
       </div>
     </div>

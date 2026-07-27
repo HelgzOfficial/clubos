@@ -17,6 +17,11 @@ export type DbGoal = {
   team: "us" | "opponent";
   scorer: string;
   assist: string | null;
+  // Where on the pitch it happened, as a 0-100 percentage of width/height
+  // (top-left origin) — null for goals logged before this existed, or where
+  // the analyst chose to skip it. Powers the Goals/Assist maps.
+  x: number | null;
+  y: number | null;
 };
 
 export type DbSubstitution = {
@@ -63,7 +68,10 @@ export async function deleteLineupEntry(id: string) {
   if (error) throw error;
 }
 
-export async function addGoal(matchId: string, input: { minute: string; team: "us" | "opponent"; scorer: string; assist: string }) {
+export async function addGoal(
+  matchId: string,
+  input: { minute: string; team: "us" | "opponent"; scorer: string; assist: string; x?: number | null; y?: number | null }
+) {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { error } = await supabase.from("match_goals").insert({
     match_id: matchId,
@@ -71,8 +79,20 @@ export async function addGoal(matchId: string, input: { minute: string; team: "u
     team: input.team,
     scorer: input.scorer,
     assist: input.assist || null,
+    x: input.x ?? null,
+    y: input.y ?? null,
   });
   if (error) throw error;
+}
+
+// Every goal across every match, for the Analyst Dashboard's season-wide
+// Goals Scored/Conceded/Assist maps and timeline — as opposed to
+// fetchMatchDetails() above, which is scoped to one fixture.
+export async function fetchAllGoals(): Promise<DbGoal[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from("match_goals").select("*").order("minute", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as DbGoal[];
 }
 
 export async function deleteGoal(id: string) {

@@ -9,6 +9,16 @@ export type DbMatchStats = {
   updated_at: string;
 };
 
+// Every match's stats at once, for the Analyst Dashboard's season-wide
+// aggregate panels (Defensive Actions / Chance Creation / Possession &
+// Control) — as opposed to fetchMatchStats() below, which is one fixture.
+export async function fetchAllMatchStats(): Promise<DbMatchStats[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from("match_stats").select("*");
+  if (error) throw error;
+  return (data ?? []) as DbMatchStats[];
+}
+
 export async function fetchMatchStats(matchId: string): Promise<DbMatchStats | null> {
   if (!supabase) return null;
   const { data, error } = await supabase.from("match_stats").select("*").eq("match_id", matchId).maybeSingle();
