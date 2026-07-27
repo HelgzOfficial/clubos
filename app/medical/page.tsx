@@ -13,6 +13,7 @@ import {
   BODY_PART_OPTIONS, type DbInjury, type InjurySeverity,
 } from "@/lib/injuries-db";
 import { TreatmentBookings } from "@/components/medical/treatment-bookings";
+import { PlayerAvatar } from "@/components/players/player-avatar";
 import { AiInjurySearch } from "@/components/medical/ai-injury-search";
 import { VoiceNoteButton } from "@/components/voice-note-button";
 import { usePermissions } from "@/lib/permissions";
@@ -182,9 +183,7 @@ export default function MedicalPage() {
                   onClick={() => setOpenId(isOpen ? null : p.id)}
                   className="flex w-full items-center gap-3 px-5 py-4 text-left"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-xs font-semibold shrink-0">
-                    {p.initials}
-                  </div>
+                  <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{p.name}</p>
                     <p className="text-xs text-neutral-400">#{p.squad_number} · {p.position}</p>
