@@ -13,6 +13,7 @@ import {
 } from "@/lib/players-db";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { PITCH_ROLES, PITCH_ROLE_GROUPS, findPitchRole } from "@/lib/pitch-positions";
+import { COUNTRIES, getCountryFlag, flagEmoji } from "@/lib/countries";
 import Link from "next/link";
 import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw, Mail, Phone, Plus } from "lucide-react";
 
@@ -129,39 +130,55 @@ export default function PlayerProfilePage() {
       </Link>
 
       {!editing ? (
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <PlayerAvatar
-            playerId={player.id}
-            initials={player.initials}
-            photoUrl={player.photo_url}
-            size="lg"
-            editable
-            onPhotoChanged={(url) => setPlayer((prev) => (prev ? { ...prev, photo_url: url } : prev))}
-          />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold">{player.name}</h1>
-            <p className="text-sm text-neutral-500">#{player.squad_number} · {player.position} · {player.nationality || "—"}</p>
-            <p className="text-xs text-neutral-400 mt-0.5">Click the photo to add or change a headshot</p>
-          </div>
-          {(player.email || player.phone) && (
-            <div className="text-xs text-neutral-400 space-y-1 shrink-0">
-              {player.email && <p className="flex items-center gap-1.5"><Mail size={12} /> {player.email}</p>}
-              {player.phone && <p className="flex items-center gap-1.5"><Phone size={12} /> {player.phone}</p>}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex min-w-0 items-center gap-4">
+            <PlayerAvatar
+              playerId={player.id}
+              initials={player.initials}
+              photoUrl={player.photo_url}
+              size="lg"
+              editable
+              onPhotoChanged={(url) => setPlayer((prev) => (prev ? { ...prev, photo_url: url } : prev))}
+            />
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-2xl font-semibold">{player.name}</h1>
+              <p className="truncate text-sm text-neutral-500">
+                #{player.squad_number} · {player.position}
+                {player.nationality ? ` · ${getCountryFlag(player.nationality)} ${player.nationality}` : ""}
+              </p>
+              <p className="mt-0.5 text-xs text-neutral-400">Click the photo to add or change a headshot</p>
             </div>
-          )}
-          <Badge variant={statusVariant[player.availability]}>{player.availability_note}</Badge>
-          <button
-            onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-          >
-            <Pencil size={14} /> Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 transition-colors"
-          >
-            <Trash2 size={14} /> Delete
-          </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
+            {(player.email || player.phone) && (
+              <div className="min-w-0 shrink-0 space-y-1 text-xs text-neutral-400">
+                {player.email && (
+                  <p className="flex items-center gap-1.5">
+                    <Mail size={12} className="shrink-0" /> <span className="truncate">{player.email}</span>
+                  </p>
+                )}
+                {player.phone && (
+                  <p className="flex items-center gap-1.5">
+                    <Phone size={12} className="shrink-0" /> {player.phone}
+                  </p>
+                )}
+              </div>
+            )}
+            <Badge variant={statusVariant[player.availability]} className="shrink-0">{player.availability_note}</Badge>
+            <button
+              onClick={() => setEditing(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+            >
+              <Pencil size={14} /> Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-red-500/30 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
         </div>
       ) : (
         <Card className="mb-6">
@@ -183,7 +200,16 @@ export default function PlayerProfilePage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Nationality</label>
-                <input value={nationality} onChange={(e) => setNationality(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+                <select
+                  value={nationality}
+                  onChange={(e) => setNationality(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                >
+                  <option value="">Not set</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.name}>{flagEmoji(c.code)} {c.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Date of birth</label>
@@ -243,7 +269,9 @@ export default function PlayerProfilePage() {
               </div>
               <div>
                 <p className="text-xs text-neutral-400">Nationality</p>
-                <p className="font-medium">{player.nationality || "Not set"}</p>
+                <p className="font-medium truncate">
+                  {player.nationality ? `${getCountryFlag(player.nationality)} ${player.nationality}` : "Not set"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-neutral-400">Squad Number</p>

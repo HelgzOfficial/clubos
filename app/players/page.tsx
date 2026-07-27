@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { fetchPlayers, createPlayer, POSITION_OPTIONS, type DbPlayer, type PositionGroup } from "@/lib/players-db";
+import { COUNTRIES, flagEmoji } from "@/lib/countries";
 import {
   fetchPlayerAbsences, createPlayerAbsence, deletePlayerAbsence, isAbsentOn, todayStr,
   type DbPlayerAbsence, type AbsenceReason,
@@ -361,11 +362,16 @@ export default function PlayersPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Nationality</label>
-                <input
+                <select
                   value={nationality}
                   onChange={(e) => setNationality(e.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                />
+                >
+                  <option value="">Not set</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.name}>{flagEmoji(c.code)} {c.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-3">
                 <div className="flex-1">
