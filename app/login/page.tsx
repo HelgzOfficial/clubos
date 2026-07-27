@@ -6,7 +6,8 @@ import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
-import { LogIn, AlertCircle, KeyRound } from "lucide-react";
+import { submitAccessRequest } from "@/lib/access-requests-db";
+import { LogIn, AlertCircle, KeyRound, UserPlus } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,6 +44,22 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+
+  // "Request an invite" — for someone without an account yet, instead of
+  // needing an owner/manager to think to invite them first. They pick their
+  // own password now; an owner/manager reviews and approves the request
+  // from Staff & Access (or the email notification that goes out to them),
+  // and once approved this password works immediately — no follow-up
+  // "set your password" email needed.
+  const [showRequest, setShowRequest] = useState(false);
+  const [requestName, setRequestName] = useState("");
+  const [requestEmail, setRequestEmail] = useState("");
+  const [requestPassword, setRequestPassword] = useState("");
+  const [requestConfirm, setRequestConfirm] = useState("");
+  const [requestMessage, setRequestMessage] = useState("");
+  const [requestSent, setRequestSent] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestError, setRequestError] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined" || !supabase) return;
@@ -131,6 +148,32 @@ export default function LoginPage() {
     setTimeout(() => router.replace("/dashboard"), 1200);
   }
 
+  async function handleRequestAccess(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setRequestError("");
+    if (requestPassword.length < 8) {
+      setRequestError("Password must be at least 8 characters.");
+      return;
+    }
+    if (requestPassword !== requestConfirm) {
+      setRequestError("Password and confirmation don't match.");
+      return;
+    }
+    setRequestLoading(true);
+    const result = await submitAccessRequest({
+      name: requestName.trim(),
+      email: requestEmail.trim(),
+      password: requestPassword,
+      message: requestMessage.trim(),
+    });
+    setRequestLoading(false);
+    if (!result.ok) {
+      setRequestError(result.error ?? "Couldn't send that request.");
+      return;
+    }
+    setRequestSent(true);
+  }
+
   return (
     <div className="flex h-screen w-full items-center justify-center bg-navy-800 dark:bg-navy-950 px-4 text-white">
       <div className="w-full max-w-sm rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-6 shadow-softDark">
@@ -142,7 +185,7 @@ export default function LoginPage() {
             {branding.crestInitials}
           </div>
           <h1 className="text-xl font-semibold">
-            {settingPassword ? "Welcome to ClubOS" : showForgot ? "Reset your password" : "Sign in to ClubOS"}
+            {settingPassword ? "Welcome to ClubOS" : showForgot ? "Reset your password" : showRequest ? "Request an Invite" : "Sign in to ClubOS"}
           </h1>
           <p className="mt-1 text-sm text-neutral-400">{branding.name}</p>
         </div>
@@ -229,6 +272,94 @@ export default function LoginPage() {
               Back to sign in
             </button>
           </form>
+        ) : showRequest ? (
+          <form onSubmit={handleRequestAccess} className="space-y-4">
+            {requestSent ? (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+                <p>Request sent — an owner or manager will review it. Once approved, sign in here with the password you just chose.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-400">Pick a password now — once an owner or manager approves your request, sign in straight away with it.</p>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Full name</label>
+                  <input
+                    required
+                    value={requestName}
+                    onChange={(e) => setRequestName(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={requestEmail}
+                    onChange={(e) => setRequestEmail(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                    placeholder="you@club.com"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Choose a password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={requestPassword}
+                    onChange={(e) => setRequestPassword(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                    placeholder="At least 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Confirm password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={requestConfirm}
+                    onChange={(e) => setRequestConfirm(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Message (optional)</label>
+                  <textarea
+                    rows={2}
+                    value={requestMessage}
+                    onChange={(e) => setRequestMessage(e.target.value)}
+                    placeholder="e.g. who you are and what role you need"
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                  />
+                </div>
+                {requestError && (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                    <p>{requestError}</p>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={requestLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                >
+                  <UserPlus size={15} /> {requestLoading ? "Sending…" : "Send Request"}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setShowRequest(false); setRequestSent(false); setRequestError("");
+                setRequestName(""); setRequestEmail(""); setRequestPassword(""); setRequestConfirm(""); setRequestMessage("");
+              }}
+              className="w-full text-center text-xs text-neutral-400 hover:text-white transition-colors"
+            >
+              Back to sign in
+            </button>
+          </form>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -277,7 +408,14 @@ export default function LoginPage() {
             </button>
 
             <p className="text-center text-xs text-neutral-400">
-              Don&apos;t have an account? Ask an owner or manager to invite you from the Staff module.
+              Don&apos;t have an account?{" "}
+              <button
+                type="button"
+                onClick={() => { setShowRequest(true); setRequestEmail(email); setError(""); }}
+                className="text-neutral-300 underline underline-offset-2 hover:text-white transition-colors"
+              >
+                Request an invite
+              </button>
             </p>
           </form>
         )}

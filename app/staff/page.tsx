@@ -8,8 +8,9 @@ import { usePermissions } from "@/lib/permissions";
 import { ROLE_LABELS, ALL_ROLES, type AppRole } from "@/lib/permissions";
 import { fetchAppUsers, updateAppUserRole, removeAppUser, inviteAppUser } from "@/lib/app-users-db";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
+import { fetchPendingAccessRequests, approveAccessRequest, rejectAccessRequest, type AccessRequest } from "@/lib/access-requests-db";
 import type { AppUserRecord } from "@/lib/permissions";
-import { Plus, X, Trash2, Mail, AlertCircle, Check, RotateCw } from "lucide-react";
+import { Plus, X, Trash2, Mail, AlertCircle, Check, RotateCw, UserCheck, UserX } from "lucide-react";
 
 const roleBadgeVariant: Record<AppRole, "green" | "amber" | "red" | "neutral" | "blue" | "purple"> = {
   owner: "green",
@@ -47,6 +48,15 @@ export default function StaffPage() {
   const [formError, setFormError] = useState("");
   const [resendingId, setResendingId] = useState<string | null>(null);
 
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [reviewing, setReviewing] = useState<AccessRequest | null>(null);
+  const [reviewRole, setReviewRole] = useState<AppRole>("head_coach");
+  const [reviewPlayerId, setReviewPlayerId] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
     setError("");
@@ -61,8 +71,21 @@ export default function StaffPage() {
     }
   }
 
+  async function loadRequests() {
+    setRequestsLoading(true);
+    try {
+      const r = await fetchPendingAccessRequests();
+      setRequests(r);
+    } catch {
+      // Non-fatal — the rest of the page still works without this list.
+    } finally {
+      setRequestsLoading(false);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadRequests();
   }, []);
 
   async function handleInvite(e: FormEvent) {
@@ -148,6 +171,61 @@ export default function StaffPage() {
     return players.find((p) => p.id === id)?.name ?? "Unknown player";
   }
 
+  function openReview(request: AccessRequest) {
+    setReviewing(request);
+    setReviewRole("head_coach");
+    setReviewPlayerId("");
+    setReviewError("");
+  }
+
+  async function handleApprove(e: FormEvent) {
+    e.preventDefault();
+    if (!reviewing) return;
+    if (reviewRole === "player" && !reviewPlayerId) {
+      setReviewError("Pick which player profile this account links to.");
+      return;
+    }
+    if (!appUser?.email) {
+      setReviewError("Your own account isn't fully loaded yet — refresh the page and try again.");
+      return;
+    }
+    setReviewSaving(true);
+    setReviewError("");
+    try {
+      const result = await approveAccessRequest({
+        requesterEmail: appUser.email,
+        requestId: reviewing.id,
+        role: reviewRole,
+        playerId: reviewRole === "player" ? reviewPlayerId : null,
+      });
+      if (!result.ok) {
+        setReviewError(result.error ?? "Couldn't approve that request.");
+        return;
+      }
+      setSuccess(`${reviewing.name} approved — they can sign in now.`);
+      setTimeout(() => setSuccess(""), 4000);
+      setReviewing(null);
+      await Promise.all([load(), loadRequests()]);
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : "Something went wrong approving that request.");
+    } finally {
+      setReviewSaving(false);
+    }
+  }
+
+  async function handleReject(request: AccessRequest) {
+    if (!window.confirm(`Decline ${request.name}'s request for access?`)) return;
+    setRejectingId(request.id);
+    try {
+      await rejectAccessRequest(request.id);
+      await loadRequests();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't decline that request.");
+    } finally {
+      setRejectingId(null);
+    }
+  }
+
   return (
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -168,6 +246,40 @@ export default function StaffPage() {
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
           <Check size={15} /> {success}
         </div>
+      )}
+
+      {!requestsLoading && requests.length > 0 && (
+        <Card className="mb-5 border-club-primary/30">
+          <div className="mb-3 flex items-center gap-2">
+            <p className="font-medium">Access Requests</p>
+            <Badge variant="amber">{requests.length} pending</Badge>
+          </div>
+          <ul className="divide-y divide-white/10">
+            {requests.map((request) => (
+              <li key={request.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <StaffAvatar name={request.name} />
+                <div className="min-w-[10rem] flex-1">
+                  <p className="text-sm font-medium truncate">{request.name}</p>
+                  <p className="text-xs text-neutral-400 truncate">{request.email}</p>
+                  {request.message && <p className="mt-0.5 text-xs text-neutral-500 italic truncate">"{request.message}"</p>}
+                </div>
+                <button
+                  onClick={() => openReview(request)}
+                  className="flex items-center gap-1.5 rounded-lg bg-club-primary text-navy-950 px-2.5 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
+                >
+                  <UserCheck size={13} /> Approve
+                </button>
+                <button
+                  onClick={() => handleReject(request)}
+                  disabled={rejectingId === request.id}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-60"
+                >
+                  <UserX size={13} /> {rejectingId === request.id ? "Declining…" : "Decline"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       <Card className="p-0 overflow-hidden">
@@ -279,6 +391,52 @@ export default function StaffPage() {
               <button type="submit" disabled={saving}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
                 <Mail size={15} /> {saving ? "Sending…" : "Send Invite"}
+              </button>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {reviewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="font-medium">Approve {reviewing.name}</p>
+              <button onClick={() => setReviewing(null)} className="text-neutral-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <p className="mb-3 text-xs text-neutral-400">
+              They already chose a password when they requested access — approving creates their account immediately, no further email needed. Pick the role to grant them.
+            </p>
+            <form onSubmit={handleApprove} className="space-y-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Role</label>
+                <select value={reviewRole} onChange={(e) => setReviewRole(e.target.value as AppRole)}
+                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
+                  {ALL_ROLES.map((r) => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                  ))}
+                </select>
+              </div>
+              {reviewRole === "player" && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Linked player profile</label>
+                  <select value={reviewPlayerId} onChange={(e) => setReviewPlayerId(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
+                    <option value="">Select a player…</option>
+                    {players.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {reviewError && (
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" /><p>{reviewError}</p>
+                </div>
+              )}
+              <button type="submit" disabled={reviewSaving}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
+                <UserCheck size={15} /> {reviewSaving ? "Approving…" : "Approve & Create Account"}
               </button>
             </form>
           </Card>
