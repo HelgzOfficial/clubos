@@ -21,6 +21,16 @@ const typeVariant = {
   meeting: "amber" as const,
 };
 
+// Compact colour dots used on narrow screens instead of full text badges —
+// a phone-width grid column has no room to render even a truncated word
+// legibly, so each event becomes a small tappable dot instead. Still one
+// dot per event, still links straight to its destination.
+const dotColor: Record<keyof typeof typeVariant, string> = {
+  match: "bg-emerald-500",
+  training: "bg-neutral-400",
+  meeting: "bg-amber-500",
+};
+
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function buildMonthGrid(year: number, month: number) {
@@ -267,31 +277,65 @@ export default function CalendarPage() {
             <div key={d} className="py-1">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {cells.map((day, i) => {
-            if (day === null) return <div key={i} className="min-h-[92px]" />;
+            if (day === null) return <div key={i} className="min-h-[64px] sm:min-h-[92px]" />;
             const dateStr = toDateStr(year, month, day);
             const dayEvents = instancesByDate.get(dateStr) ?? [];
             const isSelected = dateStr === selectedDate;
             const isToday = dateStr === toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
             return (
-              <button
+              // A div (not a button) so the individual event links below can
+              // be nested inside it validly — still fully keyboard operable.
+              <div
                 key={i}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedDate(dateStr)}
-                className={`min-h-[92px] rounded-xl border p-2 text-left transition-colors ${
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(dateStr); } }}
+                className={`min-h-[64px] sm:min-h-[92px] cursor-pointer rounded-lg sm:rounded-xl border p-1 sm:p-2 text-left transition-colors ${
                   isSelected ? "border-club-primary bg-club-primary/10" : "border-white/10 hover:bg-navy-600/50 dark:hover:bg-navy-800/50"
                 }`}
               >
-                <p className={`text-xs font-medium ${isToday ? "text-club-primary" : "text-neutral-400"}`}>{day}</p>
-                <div className="mt-1 space-y-1">
-                  {dayEvents.slice(0, 3).map((e) => (
-                    <Badge key={e.key} variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight">
-                      {e.title}
-                    </Badge>
-                  ))}
+                <p className={`text-[11px] sm:text-xs font-medium ${isToday ? "text-club-primary" : "text-neutral-400"}`}>{day}</p>
+
+                {/* Phones: fixed-size colour dots — never wraps or overflows the column. */}
+                <div className="mt-1 flex flex-wrap items-center gap-1 sm:hidden">
+                  {dayEvents.slice(0, 6).map((e) =>
+                    e.href ? (
+                      <Link
+                        key={e.key}
+                        href={e.href}
+                        onClick={(ev) => ev.stopPropagation()}
+                        title={e.title}
+                        aria-label={e.title}
+                        className={`h-3 w-3 shrink-0 rounded-full ring-1 ring-white/20 ${dotColor[e.type]}`}
+                      />
+                    ) : (
+                      <span key={e.key} title={e.title} className={`h-3 w-3 shrink-0 rounded-full ring-1 ring-white/20 ${dotColor[e.type]}`} />
+                    )
+                  )}
+                  {dayEvents.length > 6 && <span className="text-[9px] leading-none text-neutral-500">+{dayEvents.length - 6}</span>}
+                </div>
+
+                {/* Tablet/desktop: room for a truncated title, still clickable straight to its destination. */}
+                <div className="mt-1 hidden space-y-1 sm:block">
+                  {dayEvents.slice(0, 3).map((e) =>
+                    e.href ? (
+                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="block">
+                        <Badge variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight hover:opacity-80 transition-opacity">
+                          {e.title}
+                        </Badge>
+                      </Link>
+                    ) : (
+                      <Badge key={e.key} variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight">
+                        {e.title}
+                      </Badge>
+                    )
+                  )}
                   {dayEvents.length > 3 && <p className="text-[10px] text-neutral-500">+{dayEvents.length - 3} more</p>}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

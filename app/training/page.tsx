@@ -462,13 +462,13 @@ function TrainingPageInner() {
           const drill = drills[drillId];
           if (!drill) return null;
           return (
-            <Card key={drillId} className="flex items-center gap-4">
+            <Card key={drillId} className="flex flex-wrap items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy-600 dark:bg-navy-800 text-sm font-semibold shrink-0">{i + 1}</span>
-              <div className="flex-1 min-w-0">
+              <div className="min-w-[9rem] flex-1">
                 <p className="font-medium truncate">{drill.name}</p>
                 <p className="text-xs text-neutral-400">{drill.durationMin} min · {drill.items.length} item{drill.items.length === 1 ? "" : "s"} on pitch</p>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="ml-auto flex items-center gap-1 shrink-0">
                 {canEdit && (
                   <>
                     <button onClick={() => moveDrill(activeSession.id, drillId, -1)} disabled={i === 0} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 disabled:opacity-30">

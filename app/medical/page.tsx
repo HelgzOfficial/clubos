@@ -189,8 +189,8 @@ export default function MedicalPage() {
                     <p className="font-medium truncate">{p.name}</p>
                     <p className="text-xs text-neutral-400">#{p.squad_number} · {p.position}</p>
                   </div>
-                  <Badge variant={statusVariant[p.availability]}>{p.availability_note}</Badge>
-                  <ChevronDown size={16} className={`text-neutral-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                  <Badge variant={statusVariant[p.availability]} className="max-w-[6rem] truncate sm:max-w-none">{p.availability_note}</Badge>
+                  <ChevronDown size={16} className={`shrink-0 text-neutral-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {isOpen && (

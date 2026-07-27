@@ -51,9 +51,24 @@ export async function POST(req: Request) {
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
+  const requesterEmailLower = requesterEmail.trim().toLowerCase();
+
   // Only an owner/manager may invite people — verified server-side against
-  // their own app_users row, not just trusted from the client.
-  const { data: requester } = await admin.from("app_users").select("role").ilike("email", requesterEmail).maybeSingle();
+  // their own app_users row, not just trusted from the client. Using
+  // order+limit(1) instead of maybeSingle() means a stray duplicate row
+  // (e.g. the same email saved with different capitalization at some point)
+  // can't turn this into a silent "not found" — we always just take the
+  // best match rather than erroring out on more than one row.
+  const { data: requesterRows, error: requesterLookupError } = await admin
+    .from("app_users")
+    .select("role")
+    .ilike("email", requesterEmailLower)
+    .order("role", { ascending: true })
+    .limit(1);
+  if (requesterLookupError) {
+    return NextResponse.json({ error: `Couldn't verify your account: ${requesterLookupError.message}` }, { status: 500 });
+  }
+  const requester = requesterRows?.[0];
   if (!requester || (requester.role !== "owner" && requester.role !== "manager")) {
     return NextResponse.json({ error: "Only an owner or manager can send invites." }, { status: 403 });
   }
@@ -62,8 +77,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "A player invite must be linked to a player profile." }, { status: 400 });
   }
 
-  const trimmedEmail = email.trim();
+  const trimmedEmail = email.trim().toLowerCase();
   const trimmedName = name.trim();
+
+  // Inviting your own email address would silently overwrite your own
+  // app_users row with whatever role is picked in the form — an easy way to
+  // accidentally downgrade or lock yourself out while testing. Block it
+  // outright instead.
+  if (trimmedEmail === requesterEmailLower) {
+    return NextResponse.json({ error: "You can't send an invite to your own email address — you already have access." }, { status: 400 });
+  }
 
   const { error: upsertError } = await admin
     .from("app_users")

@@ -168,17 +168,17 @@ export default function DocumentsPage() {
             {filtered.map((d) => {
               const Icon = fileIcon[d.file_type] ?? FileText;
               return (
-                <li key={d.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-navy-600/50 dark:hover:bg-navy-800/50 transition-colors">
-                  <Icon size={18} className="text-neutral-400 shrink-0" />
-                  <div className="min-w-0 flex-1">
+                <li key={d.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5 hover:bg-navy-600/50 dark:hover:bg-navy-800/50 transition-colors">
+                  <Icon size={18} className="shrink-0 text-neutral-400" />
+                  <div className="min-w-[9rem] flex-1">
                     <p className="text-sm font-medium truncate">{d.name}</p>
                     <p className="text-xs text-neutral-400">
                       {d.linked_to ? `${d.linked_to} · ` : ""}
                       {new Date(d.uploaded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </p>
                   </div>
-                  <Badge variant="neutral" className="hidden sm:inline-flex shrink-0">{d.category}</Badge>
-                  <span className="text-xs text-neutral-400 w-16 text-right shrink-0">{formatSize(d.size_kb)}</span>
+                  <Badge variant="neutral" className="hidden shrink-0 sm:inline-flex">{d.category}</Badge>
+                  <span className="hidden w-16 shrink-0 text-right text-xs text-neutral-400 sm:inline">{formatSize(d.size_kb)}</span>
                   <button
                     onClick={() => setViewing(d)}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white transition-colors shrink-0"

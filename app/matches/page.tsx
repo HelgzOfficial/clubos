@@ -206,7 +206,7 @@ export default function MatchesPage() {
             <div className="space-y-3">
               {upcoming.length === 0 && <p className="text-sm text-neutral-400">No upcoming matches yet.</p>}
               {upcoming.map((m) => (
-                <Card key={m.id} className="flex items-center justify-between gap-3">
+                <Card key={m.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
                     <div className="mt-1 mb-1"><CompetitionBadge competition={m.competition} /></div>

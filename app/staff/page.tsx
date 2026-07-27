@@ -144,9 +144,9 @@ export default function StaffPage() {
         ) : (
           <ul className="divide-y divide-white/10">
             {people.map((person) => (
-              <li key={person.id} className="flex items-center gap-3 px-5 py-3.5">
+              <li key={person.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
                 <StaffAvatar name={person.name} />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[10rem] flex-1">
                   <p className="text-sm font-medium truncate">{person.name}</p>
                   <p className="text-xs text-neutral-400 truncate">
                     {person.email}
