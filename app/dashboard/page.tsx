@@ -555,39 +555,43 @@ export default function DashboardPage() {
     ...(isVisible("clips") ? [{ key: "clips" as const, node: <ClipsCard clips={clips} onChange={loadAll} /> }] : []),
   ];
 
+  // On mobile/tablet these four stay directly visible (stacked, like
+  // desktop) instead of hiding behind the tab strip — they're the things
+  // people check first thing, so they shouldn't need an extra tap. Every
+  // other widget still lives under the tab strip below to keep the page
+  // from turning into one long scroll.
+  const ALWAYS_VISIBLE_MOBILE: DashboardWidgetKey[] = ["next-match", "schedule", "league-position", "form-guide"];
+  const mobileAlwaysEntries = useMemo(
+    () => widgetEntries.filter((w) => ALWAYS_VISIBLE_MOBILE.includes(w.key)),
+    [widgetEntries]
+  );
+  const mobileTabEntries = useMemo(
+    () => widgetEntries.filter((w) => !ALWAYS_VISIBLE_MOBILE.includes(w.key)),
+    [widgetEntries]
+  );
+
   // Keep the highlighted tab in sync if the current one gets hidden (e.g.
-  // via Customise Dashboard) — the content itself already falls back to the
-  // first entry, this just keeps the pill highlight consistent with that.
+  // via Customise Dashboard) or promoted into the always-visible section
+  // above — the content itself already falls back to the first entry, this
+  // just keeps the pill highlight consistent with that.
   useEffect(() => {
-    if (widgetEntries.length && !widgetEntries.some((w) => w.key === activeWidgetTab)) {
-      setActiveWidgetTab(widgetEntries[0].key);
+    if (mobileTabEntries.length && !mobileTabEntries.some((w) => w.key === activeWidgetTab)) {
+      setActiveWidgetTab(mobileTabEntries[0].key);
     }
-  }, [widgetEntries, activeWidgetTab]);
+  }, [mobileTabEntries, activeWidgetTab]);
 
   // A row of small "at a glance" stat tiles that sits above the mobile tab
   // strip, visible no matter which tab is open. The single-widget-per-tab
   // layout otherwise leaves a lot of blank space below a short card on a
   // tall phone screen — this fills that with live, tappable numbers instead
   // (tapping a tile jumps straight to its full widget below). Only built
-  // from widgets that are actually visible/have data, so it never shows an
-  // empty or dead tile.
+  // from tab-hidden widgets that are actually visible/have data — next
+  // match/league/form already show directly above, so they're left out
+  // here to avoid showing the same number twice.
   const glanceTiles = useMemo(() => {
-    const present = new Set(widgetEntries.map((w) => w.key));
+    const present = new Set(mobileTabEntries.map((w) => w.key));
     const tiles: { key: string; targetTab: DashboardWidgetKey; label: string; content: ReactNode }[] = [];
 
-    if (present.has("next-match") && nextMatch) {
-      tiles.push({
-        key: "glance-next-match",
-        targetTab: "next-match",
-        label: isMatchday ? "Kicks off today" : "Next match",
-        content: (
-          <>
-            <p className="text-2xl font-bold tabular-nums text-club-primary">{countdown}</p>
-            <p className="truncate text-xs text-neutral-400">{nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}</p>
-          </>
-        ),
-      });
-    }
     if (present.has("availability") && playerAvailabilitySummary.total > 0) {
       const pct = Math.round((playerAvailabilitySummary.available / playerAvailabilitySummary.total) * 100);
       tiles.push({
@@ -601,37 +605,6 @@ export default function DashboardPage() {
               {playerAvailabilitySummary.available}
               <span className="text-xs font-normal text-neutral-400">/{playerAvailabilitySummary.total}</span>
             </p>
-          </div>
-        ),
-      });
-    }
-    if (present.has("league-position") && ownRow) {
-      tiles.push({
-        key: "glance-league",
-        targetTab: "league-position",
-        label: "League position",
-        content: (
-          <p className="text-2xl font-bold">
-            {ownRow.position}
-            <span className="text-sm font-normal text-neutral-400">
-              {ownRow.position === 1 ? "st" : ownRow.position === 2 ? "nd" : ownRow.position === 3 ? "rd" : "th"}
-            </span>
-          </p>
-        ),
-      });
-    }
-    if (present.has("form-guide") && formGuide.length > 0) {
-      tiles.push({
-        key: "glance-form",
-        targetTab: "form-guide",
-        label: "Form",
-        content: (
-          <div className="flex gap-1">
-            {formGuide.slice(-5).map((f) => (
-              <span key={f.id} className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${resultColor[f.result]}`}>
-                {f.result}
-              </span>
-            ))}
           </div>
         ),
       });
@@ -664,7 +637,7 @@ export default function DashboardPage() {
     }
     return tiles;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetEntries, nextMatch, isMatchday, countdown, playerAvailabilitySummary, ownRow, formGuide, weather, injuries, activeWidgetTab]);
+  }, [mobileTabEntries, playerAvailabilitySummary, weather, injuries, activeWidgetTab]);
 
   return (
     <AppShell>
@@ -689,40 +662,52 @@ export default function DashboardPage() {
         <p className="text-sm text-neutral-400">No widgets to show — enable one from Customise Dashboard.</p>
       ) : isMobile ? (
         <div>
-          {glanceTiles.length > 0 && (
-            <div className="mb-4 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
-              {glanceTiles.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setActiveWidgetTab(t.targetTab)}
-                  className={`flex w-[136px] shrink-0 flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-colors ${
-                    activeWidgetTab === t.targetTab
-                      ? "border-club-primary/50 bg-navy-600 dark:bg-navy-800"
-                      : "border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
-                  }`}
-                >
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">{t.label}</span>
-                  {t.content}
-                </button>
+          {mobileAlwaysEntries.length > 0 && (
+            <div className="mb-5 space-y-5">
+              {mobileAlwaysEntries.map((w) => (
+                <Fragment key={w.key}>{w.node}</Fragment>
               ))}
             </div>
           )}
-          <div className="mb-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
-            {widgetEntries.map((w) => (
-              <button
-                key={w.key}
-                onClick={() => setActiveWidgetTab(w.key)}
-                className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  activeWidgetTab === w.key
-                    ? "bg-club-primary text-navy-950"
-                    : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
-                }`}
-              >
-                {TAB_LABELS[w.key]}
-              </button>
-            ))}
-          </div>
-          {(widgetEntries.find((w) => w.key === activeWidgetTab) ?? widgetEntries[0]).node}
+
+          {mobileTabEntries.length > 0 && (
+            <>
+              {glanceTiles.length > 0 && (
+                <div className="mb-4 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+                  {glanceTiles.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setActiveWidgetTab(t.targetTab)}
+                      className={`flex w-[136px] shrink-0 flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-colors ${
+                        activeWidgetTab === t.targetTab
+                          ? "border-club-primary/50 bg-navy-600 dark:bg-navy-800"
+                          : "border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800"
+                      }`}
+                    >
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">{t.label}</span>
+                      {t.content}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mb-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+                {mobileTabEntries.map((w) => (
+                  <button
+                    key={w.key}
+                    onClick={() => setActiveWidgetTab(w.key)}
+                    className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                      activeWidgetTab === w.key
+                        ? "bg-club-primary text-navy-950"
+                        : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
+                    }`}
+                  >
+                    {TAB_LABELS[w.key]}
+                  </button>
+                ))}
+              </div>
+              {(mobileTabEntries.find((w) => w.key === activeWidgetTab) ?? mobileTabEntries[0]).node}
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
