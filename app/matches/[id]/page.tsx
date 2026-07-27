@@ -29,7 +29,8 @@ import { loadClubSettings } from "@/lib/club-settings";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
-import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2 } from "lucide-react";
+import { PitchMapInput, type PitchPoint } from "@/components/analysis/pitch-map";
+import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -377,16 +378,23 @@ function GoalsCard({ matchId, goals, onAdded }: { matchId: string; goals: DbGoal
   const [scorer, setScorer] = useState("");
   const [assist, setAssist] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showPitch, setShowPitch] = useState(false);
+  const [location, setLocation] = useState<PitchPoint | null>(null);
 
   async function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!scorer.trim()) return;
     setSaving(true);
     try {
-      await addGoal(matchId, { minute, team, scorer: scorer.trim(), assist: assist.trim() });
+      await addGoal(matchId, {
+        minute, team, scorer: scorer.trim(), assist: assist.trim(),
+        x: location?.x ?? null, y: location?.y ?? null,
+      });
       setMinute("");
       setScorer("");
       setAssist("");
+      setLocation(null);
+      setShowPitch(false);
       onAdded();
     } finally {
       setSaving(false);
@@ -410,6 +418,7 @@ function GoalsCard({ matchId, goals, onAdded }: { matchId: string; goals: DbGoal
               <span className="w-10 text-xs text-neutral-400">{g.minute !== null ? `${g.minute}'` : "-"}</span>
               <span className="flex-1 truncate">
                 {g.scorer}{g.assist ? <span className="text-neutral-400"> (assist: {g.assist})</span> : ""}
+                {g.x !== null && g.y !== null && <MapPin size={11} className="ml-1.5 inline text-neutral-400" />}
               </span>
               <Badge variant={g.team === "us" ? "green" : "neutral"}>{g.team === "us" ? "Us" : "Them"}</Badge>
               <button onClick={() => handleDelete(g.id)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
@@ -427,9 +436,23 @@ function GoalsCard({ matchId, goals, onAdded }: { matchId: string; goals: DbGoal
         </select>
         <input value={scorer} onChange={(e) => setScorer(e.target.value)} placeholder="Scorer" className="min-w-[8rem] flex-1 rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
         <input value={assist} onChange={(e) => setAssist(e.target.value)} placeholder="Assist (optional)" className="min-w-[8rem] flex-1 rounded-lg border border-white/10 bg-navy-600 dark:bg-navy-800 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+        <button
+          type="button"
+          onClick={() => setShowPitch((v) => !v)}
+          className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition-colors ${
+            location ? "border-club-primary/50 text-club-primary" : "border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+          }`}
+        >
+          <MapPin size={13} /> {location ? "Location set" : "Mark location"}
+        </button>
         <button type="submit" disabled={saving} className="flex items-center gap-1 rounded-lg bg-club-primary text-navy-950 px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
           <Plus size={13} /> Add
         </button>
+        {showPitch && (
+          <div className="w-full pt-2">
+            <PitchMapInput value={location} onChange={setLocation} />
+          </div>
+        )}
       </form>
     </Card>
   );

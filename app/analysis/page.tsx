@@ -1,326 +1,333 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/analysis/video-player";
-import { nextAnalysisId, type Clip, type Playlist } from "@/lib/analysis-types";
-import { usePermissions } from "@/lib/permissions";
-import { Upload, Film, PlayCircle, ListPlus, Trash2, Plus, X, ListVideo } from "lucide-react";
+import { fetchMatches, type DbMatch } from "@/lib/matches-db";
+import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
+import { fetchAllMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
+import { fetchAllGoals } from "@/lib/match-details-db";
+import { fetchAllClips, getClipUrl, CLIP_CATEGORIES, type DbClip, type ClipCategory } from "@/lib/clips-db";
+import { fetchRecentMatchReports, type DbMatchReport } from "@/lib/match-reports-db";
+import { fetchMatchPacks, type DbMatchPack } from "@/lib/match-packs-db";
+import {
+  computeSeasonKpis, aggregateSeasonStats, goalsTimeline, topScorers, topAssists,
+} from "@/lib/season-analytics";
+import type { Clip } from "@/lib/analysis-types";
+import {
+  Film, MapPin, Package, FileText, PlayCircle, TrendingUp, Trophy, ShieldCheck, Target,
+} from "lucide-react";
 
-export default function AnalysisPage() {
-  const { canWrite } = usePermissions();
-  const canEdit = canWrite("analysis");
-  const [clips, setClips] = useState<Clip[]>([]);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [activeClip, setActiveClip] = useState<Clip | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [pendingTitle, setPendingTitle] = useState("");
-  const [pendingTags, setPendingTags] = useState("");
-  const [addingToClip, setAddingToClip] = useState<Clip | null>(null);
-  const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [showNewPlaylist, setShowNewPlaylist] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const CATEGORY_ICONS: Record<ClipCategory, string> = {
+  "Build Up Play": "⚙️", Pressing: "🔥", Transition: "🔁", "Set Pieces": "🎯",
+};
 
-  function handleFileChosen(file: File) {
-    setPendingFile(file);
-    setPendingTitle(file.name.replace(/\.[^.]+$/, ""));
-    setPendingTags("");
+export default function AnalysisDashboardPage() {
+  const [matches, setMatches] = useState<DbMatch[]>([]);
+  const [league, setLeague] = useState<DbLeagueRow[]>([]);
+  const [allStats, setAllStats] = useState<DbMatchStats[]>([]);
+  const [goals, setGoals] = useState<Awaited<ReturnType<typeof fetchAllGoals>>>([]);
+  const [clips, setClips] = useState<DbClip[]>([]);
+  const [reports, setReports] = useState<DbMatchReport[]>([]);
+  const [packs, setPacks] = useState<DbMatchPack[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [playing, setPlaying] = useState<Clip | null>(null);
+
+  async function loadAll() {
+    setLoading(true);
+    try {
+      const [m, lt, stats, g, c, r, p] = await Promise.all([
+        fetchMatches(), fetchLeagueTable(), fetchAllMatchStats(), fetchAllGoals(),
+        fetchAllClips(), fetchRecentMatchReports(5), fetchMatchPacks(),
+      ]);
+      setMatches(m);
+      setLeague(lt);
+      setAllStats(stats);
+      setGoals(g);
+      setClips(c);
+      setReports(r);
+      setPacks(p.slice(0, 5));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function confirmUpload() {
-    if (!pendingFile) return;
-    const clip: Clip = {
-      id: nextAnalysisId("clip"),
-      title: pendingTitle.trim() || pendingFile.name,
-      url: URL.createObjectURL(pendingFile),
-      tags: pendingTags.split(",").map((t) => t.trim()).filter(Boolean),
-      addedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-    };
-    setClips((prev) => [clip, ...prev]);
-    setPendingFile(null);
-    setPendingTitle("");
-    setPendingTags("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  const ownRow = league.find((r) => r.is_own_club) ?? null;
+  const kpis = useMemo(() => computeSeasonKpis(matches, ownRow), [matches, ownRow]);
+  const statCategories = useMemo(() => aggregateSeasonStats(allStats).slice(0, 3), [allStats]);
+  const timeline = useMemo(() => goalsTimeline(goals), [goals]);
+  const maxTimelineValue = Math.max(1, ...timeline.flatMap((b) => [b.scored, b.conceded]));
+  const scorers = useMemo(() => topScorers(goals, 3), [goals]);
+  const assists = useMemo(() => topAssists(goals, 3), [goals]);
+
+  const featuredClips = useMemo(() => {
+    return CLIP_CATEGORIES.map((cat) => ({
+      category: cat,
+      clip: clips.find((c) => c.category === cat) ?? null,
+    }));
+  }, [clips]);
+
+  async function playClip(c: DbClip) {
+    const url = await getClipUrl(c.file_path);
+    setPlaying({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
   }
 
-  function deleteClip(id: string) {
-    setClips((prev) => prev.filter((c) => c.id !== id));
-    setPlaylists((prev) => prev.map((p) => ({ ...p, clipIds: p.clipIds.filter((cid) => cid !== id) })));
+  function matchLabel(matchId: string | null) {
+    const m = matches.find((mm) => mm.id === matchId);
+    return m ? `${m.is_home ? "vs" : "@"} ${m.opponent}` : "Unlinked";
   }
 
-  function createPlaylist() {
-    if (!newPlaylistName.trim()) return;
-    setPlaylists((prev) => [...prev, { id: nextAnalysisId("pl"), name: newPlaylistName.trim(), clipIds: [] }]);
-    setNewPlaylistName("");
-    setShowNewPlaylist(false);
-  }
-
-  function addClipToPlaylist(playlistId: string) {
-    if (!addingToClip) return;
-    setPlaylists((prev) =>
-      prev.map((p) =>
-        p.id === playlistId && !p.clipIds.includes(addingToClip.id)
-          ? { ...p, clipIds: [...p.clipIds, addingToClip.id] }
-          : p
-      )
-    );
-    setAddingToClip(null);
-  }
-
-  function removeClipFromPlaylist(playlistId: string, clipId: string) {
-    setPlaylists((prev) =>
-      prev.map((p) => (p.id === playlistId ? { ...p, clipIds: p.clipIds.filter((id) => id !== clipId) } : p))
-    );
-  }
-
-  function deletePlaylist(id: string) {
-    setPlaylists((prev) => prev.filter((p) => p.id !== id));
-  }
+  const kpiTiles: { label: string; value: number | string }[] = [
+    { label: "Matches Played", value: kpis.played },
+    { label: "Wins", value: kpis.wins },
+    { label: "Draws", value: kpis.draws },
+    { label: "Losses", value: kpis.losses },
+    { label: "Goals Scored", value: kpis.goalsFor },
+    { label: "Goals Conceded", value: kpis.goalsAgainst },
+    { label: "Clean Sheets", value: kpis.cleanSheets },
+    { label: "Points", value: kpis.points },
+    { label: "League Points", value: kpis.leaguePoints ?? "—" },
+  ];
 
   return (
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Analysis</h1>
-          <p className="text-sm text-neutral-500">Clip library, telestration, and playlists.</p>
+          <h1 className="text-2xl font-semibold">Analyst Dashboard</h1>
+          <p className="text-sm text-neutral-500">Season performance, match reports, and video at a glance.</p>
         </div>
-        {canEdit && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <Upload size={15} /> Upload Clip
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,.mp4,.mov"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileChosen(e.target.files[0])}
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Link href="/analysis/library" className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+            <Film size={14} /> Clip Library
+          </Link>
+          <Link href="/analysis/maps" className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+            <MapPin size={14} /> Goals & Assist Maps
+          </Link>
+          <Link href="/analysis/match-packs" className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+            <Package size={14} /> Match Packs
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      {loading ? (
+        <p className="text-sm text-neutral-400">Loading…</p>
+      ) : (
+        <div className="space-y-5">
+          {/* KPI header bar */}
           <Card>
-            <CardHeader>
-              <CardTitle>Clip Library</CardTitle>
-              <span className="text-xs text-neutral-400">{clips.length} clip{clips.length === 1 ? "" : "s"}</span>
-            </CardHeader>
-
-            {clips.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Film size={28} className="mb-3 text-neutral-300 dark:text-neutral-600" />
-                <p className="font-medium">No clips yet</p>
-                <p className="mt-1 max-w-xs text-sm text-neutral-400">
-                  Upload match or training footage (MP4/MOV) to start building your clip library and analyse it with the drawing tools.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {clips.map((clip) => (
-                  <div key={clip.id} className="overflow-hidden rounded-xl border border-white/10">
-                    <div className="relative aspect-video bg-black">
-                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                      <video src={clip.url} className="h-full w-full object-cover opacity-80" muted preload="metadata" />
-                      <button
-                        onClick={() => setActiveClip(clip)}
-                        className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors"
-                      >
-                        <PlayCircle size={36} className="text-white" />
-                      </button>
-                    </div>
-                    <div className="p-3">
-                      <p className="truncate text-sm font-medium">{clip.title}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">Added {clip.addedAt}</p>
-                      {clip.tags.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {clip.tags.map((t) => (
-                            <Badge key={t} variant="neutral">{t}</Badge>
-                          ))}
-                        </div>
-                      )}
-                      {canEdit && (
-                        <div className="mt-3 flex items-center gap-2">
-                          <button
-                            onClick={() => setAddingToClip(clip)}
-                            className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-                          >
-                            <ListPlus size={12} /> Add to Playlist
-                          </button>
-                          <button
-                            onClick={() => deleteClip(clip.id)}
-                            className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-9">
+              {kpiTiles.map((k) => (
+                <div key={k.label} className="text-center">
+                  <p className="text-2xl font-bold tabular-nums">{k.value}</p>
+                  <p className="mt-0.5 text-[11px] text-neutral-400 leading-tight">{k.label}</p>
+                </div>
+              ))}
+            </div>
           </Card>
 
-          <p className="mt-4 text-xs text-neutral-400">
-            Uploaded clips are stored in this browser session only for now — they'll disappear on refresh until we connect permanent
-            storage (Supabase).
-          </p>
-        </div>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            {/* Goals timeline */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Goals Timeline — Scored / Conceded</CardTitle>
+                <TrendingUp size={18} className="text-neutral-400" />
+              </CardHeader>
+              {goals.length === 0 ? (
+                <p className="text-sm text-neutral-400">No goals logged yet — add them from a match's page in Match Centre.</p>
+              ) : (
+                <div className="flex items-end justify-between gap-3 pt-2" style={{ height: 140 }}>
+                  {timeline.map((b) => (
+                    <div key={b.label} className="flex flex-1 flex-col items-center gap-1">
+                      <div className="flex h-full items-end gap-1">
+                        <div
+                          className="w-3.5 rounded-t bg-emerald-500"
+                          style={{ height: `${(b.scored / maxTimelineValue) * 100}%`, minHeight: b.scored ? 3 : 0 }}
+                          title={`${b.scored} scored`}
+                        />
+                        <div
+                          className="w-3.5 rounded-t bg-red-500"
+                          style={{ height: `${(b.conceded / maxTimelineValue) * 100}%`, minHeight: b.conceded ? 3 : 0 }}
+                          title={`${b.conceded} conceded`}
+                        />
+                      </div>
+                      <p className="text-[10px] text-neutral-400">{b.label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2 flex gap-4 text-xs text-neutral-400">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Scored</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" /> Conceded</span>
+              </div>
+            </Card>
 
-        <div>
+            {/* Top scorers/assists */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Scorers &amp; Assists</CardTitle>
+                <Trophy size={18} className="text-neutral-400" />
+              </CardHeader>
+              {scorers.length === 0 && assists.length === 0 ? (
+                <p className="text-sm text-neutral-400">No goals logged yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-neutral-500">Goalscorers</p>
+                    <ul className="space-y-1 text-sm">
+                      {scorers.map((s) => (
+                        <li key={s.name} className="flex items-center justify-between">
+                          <span className="truncate">{s.name}</span>
+                          <span className="font-semibold text-club-primary">{s.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-neutral-500">Assists</p>
+                    <ul className="space-y-1 text-sm">
+                      {assists.map((s) => (
+                        <li key={s.name} className="flex items-center justify-between">
+                          <span className="truncate">{s.name}</span>
+                          <span className="font-semibold text-club-primary">{s.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              <Link href="/analysis/maps" className="mt-3 inline-block text-xs text-club-primary hover:underline">
+                See goal & assist locations on the pitch →
+              </Link>
+            </Card>
+          </div>
+
+          {/* Season stat panels — aggregated from match_stats (parsed reports + manual entry) */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            {statCategories.length === 0 ? (
+              <Card className="lg:col-span-3">
+                <CardHeader><CardTitle>Season Stats</CardTitle></CardHeader>
+                <p className="text-sm text-neutral-400">
+                  No match stats recorded yet — upload a Hudl/Wyscout report or enter stats manually from a match's page, and season averages
+                  will build up here automatically.
+                </p>
+              </Card>
+            ) : (
+              statCategories.map((cat) => (
+                <Card key={cat.key}>
+                  <CardHeader>
+                    <CardTitle>{cat.label}</CardTitle>
+                    <ShieldCheck size={18} className="text-neutral-400" />
+                  </CardHeader>
+                  <ul className="space-y-2 text-sm">
+                    {cat.rows.map((r) => (
+                      <li key={r.key} className="flex items-center justify-between">
+                        <span className="text-neutral-400">{r.label}</span>
+                        <span className="tabular-nums">
+                          <span className="font-semibold">{r.us ?? "—"}{r.unit}</span>
+                          <span className="text-neutral-500"> / {r.opponent ?? "—"}{r.unit}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[11px] text-neutral-500">Season average, us / opponent — across {Math.max(...cat.rows.map((r) => r.matchesCounted), 0)} match{cat.rows.length === 1 && cat.rows[0].matchesCounted === 1 ? "" : "es"} with stats on file.</p>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Categorised video reels */}
           <Card>
             <CardHeader>
-              <CardTitle>Playlists</CardTitle>
-              {canEdit && (
-                <button
-                  onClick={() => setShowNewPlaylist((v) => !v)}
-                  className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
-                >
-                  <Plus size={13} /> New
-                </button>
-              )}
+              <CardTitle>Video Reels by Phase of Play</CardTitle>
+              <Target size={18} className="text-neutral-400" />
             </CardHeader>
-
-            {canEdit && showNewPlaylist && (
-              <div className="mb-4 flex gap-2">
-                <input
-                  value={newPlaylistName}
-                  onChange={(e) => setNewPlaylistName(e.target.value)}
-                  placeholder="Playlist name"
-                  className="flex-1 rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                  onKeyDown={(e) => e.key === "Enter" && createPlaylist()}
-                />
-                <button
-                  onClick={createPlaylist}
-                  className="rounded-xl bg-club-primary text-navy-950 px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-                >
-                  Add
-                </button>
-              </div>
-            )}
-
-            {playlists.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <ListVideo size={24} className="mb-2 text-neutral-300 dark:text-neutral-600" />
-                <p className="text-sm text-neutral-400">No playlists yet. Group clips together for a session or opposition review.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {playlists.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-white/10 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-medium">{p.name}</p>
-                      {canEdit && (
-                        <button
-                          onClick={() => deletePlaylist(p.id)}
-                          className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
-                    {p.clipIds.length === 0 ? (
-                      <p className="text-xs text-neutral-400">No clips added yet.</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredClips.map(({ category, clip }) => (
+                <div key={category} className="overflow-hidden rounded-xl border border-white/10">
+                  <div className="relative flex aspect-video items-center justify-center bg-navy-800">
+                    {clip ? (
+                      <button onClick={() => playClip(clip)} className="flex h-full w-full items-center justify-center hover:bg-black/20 transition-colors">
+                        <PlayCircle size={32} className="text-white" />
+                      </button>
                     ) : (
-                      <ul className="space-y-1.5">
-                        {p.clipIds.map((cid) => {
-                          const clip = clips.find((c) => c.id === cid);
-                          if (!clip) return null;
-                          return (
-                            <li key={cid} className="flex items-center gap-2 text-xs">
-                              <button onClick={() => setActiveClip(clip)} className="flex-1 truncate text-left hover:text-club-primary">
-                                {clip.title}
-                              </button>
-                              {canEdit && (
-                                <button
-                                  onClick={() => removeClipFromPlaylist(p.id, cid)}
-                                  className="text-neutral-400 hover:text-red-400"
-                                >
-                                  <X size={12} />
-                                </button>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      <span className="text-2xl">{CATEGORY_ICONS[category]}</span>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-
-      {activeClip && <VideoPlayer clip={activeClip} onClose={() => setActiveClip(null)} />}
-
-      {pendingFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="font-medium">Upload clip</p>
-              <button onClick={() => setPendingFile(null)} className="text-neutral-400 hover:text-white">
-                <X size={18} />
-              </button>
+                  <div className="p-2.5">
+                    <p className="text-sm font-medium">{category}</p>
+                    <p className="truncate text-xs text-neutral-400">{clip ? clip.title : "No clip tagged yet"}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Title</label>
-            <input
-              value={pendingTitle}
-              onChange={(e) => setPendingTitle(e.target.value)}
-              className="mb-4 w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-            />
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Tags (comma separated)</label>
-            <input
-              value={pendingTags}
-              onChange={(e) => setPendingTags(e.target.value)}
-              placeholder="e.g. set-piece, opposition, first-half"
-              className="mb-5 w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-            />
-            <button
-              onClick={confirmUpload}
-              className="w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Add to Library
-            </button>
+            <Link href="/analysis/library" className="mt-3 inline-block text-xs text-club-primary hover:underline">
+              Open the full clip library →
+            </Link>
           </Card>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {/* Recent match reports */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Match Reports</CardTitle>
+                <FileText size={18} className="text-neutral-400" />
+              </CardHeader>
+              {reports.length === 0 ? (
+                <p className="text-sm text-neutral-400">
+                  No reports uploaded yet — open any fixture in Match Centre to upload a Hudl/Wyscout/PDF match report.
+                </p>
+              ) : (
+                <ul className="divide-y divide-white/10">
+                  {reports.map((r) => (
+                    <li key={r.id}>
+                      <Link href={`/matches/${r.match_id}`} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:text-club-primary transition-colors">
+                        <span className="truncate">{matchLabel(r.match_id)} — {r.file_name}</span>
+                        <Badge variant={r.parse_status === "parsed" ? "green" : r.parse_status === "failed" ? "red" : "neutral"}>
+                          {r.source.toUpperCase()}
+                        </Badge>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            {/* Recent match packs */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Match Packs</CardTitle>
+                <Package size={18} className="text-neutral-400" />
+              </CardHeader>
+              {packs.length === 0 ? (
+                <p className="text-sm text-neutral-400">No match packs yet.</p>
+              ) : (
+                <ul className="divide-y divide-white/10">
+                  {packs.map((p) => (
+                    <li key={p.id}>
+                      <Link href={`/analysis/match-packs/${p.id}`} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:text-club-primary transition-colors">
+                        <span className="truncate">{p.title}</span>
+                        <span className="text-xs text-neutral-400">{matchLabel(p.match_id)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link href="/analysis/match-packs" className="mt-3 inline-block text-xs text-club-primary hover:underline">
+                Manage match packs →
+              </Link>
+            </Card>
+          </div>
         </div>
       )}
 
-      {addingToClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="font-medium truncate">Add "{addingToClip.title}" to…</p>
-              <button onClick={() => setAddingToClip(null)} className="text-neutral-400 hover:text-white shrink-0">
-                <X size={18} />
-              </button>
-            </div>
-            {playlists.length === 0 ? (
-              <p className="text-sm text-neutral-400">You don't have any playlists yet. Create one first.</p>
-            ) : (
-              <ul className="space-y-2">
-                {playlists.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      onClick={() => addClipToPlaylist(p.id)}
-                      className="w-full rounded-xl border border-white/10 px-3 py-2 text-left text-sm hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-                    >
-                      {p.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
-      )}
+      {playing && <VideoPlayer clip={playing} onClose={() => setPlaying(null)} sourceClipId={playing.id} />}
     </AppShell>
   );
 }
