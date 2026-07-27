@@ -142,7 +142,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${resendKey}` },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || "ClubOS <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM_EMAIL || "ClubOS <noreply@clubosapp.co>",
         to: [trimmedEmail],
         subject: "You're invited to ClubOS",
         html: `<p>Hi ${trimmedName},</p>
