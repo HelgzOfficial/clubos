@@ -127,7 +127,7 @@ export async function POST(req: Request) {
         authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || "ClubOS <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM_EMAIL || "ClubOS <noreply@clubosapp.co>",
         to: recipients,
         subject: `Treatment booked: ${summary}`,
         html: `<p>A treatment session has been booked.</p>
