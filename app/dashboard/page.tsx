@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { useIsMobileOrTablet } from "@/lib/use-media-query";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DirectionsLinks } from "@/components/directions-links";
@@ -77,6 +78,14 @@ type ScheduleItem = {
 
 const statusVariant: Record<string, "green" | "amber" | "red"> = { green: "green", amber: "amber", red: "red" };
 
+// Shorter labels than WIDGET_LABELS for the mobile tab strip — the full
+// labels (e.g. "Match Pack / Training Upload") are too long to fit as tabs.
+const TAB_LABELS: Record<DashboardWidgetKey, string> = {
+  "next-match": "Next Match", weather: "Weather", schedule: "Schedule", availability: "Availability",
+  "league-position": "League", "form-guide": "Form", uploads: "Uploads", injuries: "Injuries",
+  "top-scorers": "Scorers", "top-assists": "Assists", clips: "Clips",
+};
+
 const blankScheduleForm = {
   title: "", type: "training" as CalendarEventType, startTime: "18:30", endTime: "20:00", venue: "", notes: "",
 };
@@ -105,6 +114,12 @@ export default function DashboardPage() {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [scheduleForm, setScheduleForm] = useState(blankScheduleForm);
   const [showLeagueEditor, setShowLeagueEditor] = useState(false);
+
+  // Below `lg` (phones/tablets), widgets switch from one long vertical stack
+  // to a tab strip so the page doesn't turn into an endless scroll — this
+  // mirrors the same `lg` cutoff the desktop grid already switches on.
+  const isMobile = useIsMobileOrTablet();
+  const [activeWidgetTab, setActiveWidgetTab] = useState<DashboardWidgetKey>(DEFAULT_WIDGET_ORDER[0]);
 
   async function loadAll() {
     setLoading(true);
@@ -260,29 +275,15 @@ export default function DashboardPage() {
     W: "bg-emerald-500 text-white", D: "bg-amber-400 text-navy-950", L: "bg-red-500 text-white",
   };
 
-  return (
-    <AppShell>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Good afternoon, Helge</h1>
-          <p className="text-sm text-neutral-500">Here's what's happening at the club today.</p>
-        </div>
-        {canEditDashboard && (
-          <button
-            onClick={() => setShowWidgetEditor(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
-          >
-            <Settings size={14} /> Customise Dashboard
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
-      ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {/* Next match / matchday countdown */}
-          {isVisible("next-match") && (
+  // Same widgets, same content, as a flat list instead of inline JSX — this
+  // lets the desktop grid and the mobile tab strip below both render off of
+  // one source of truth instead of maintaining two separate copies of each
+  // widget's markup.
+  const widgetEntries: { key: DashboardWidgetKey; node: ReactNode }[] = [
+    ...(isVisible("next-match")
+      ? [{
+          key: "next-match" as const,
+          node: (
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>{isMatchday ? "Matchday" : "Next Match"}</CardTitle>
@@ -306,10 +307,13 @@ export default function DashboardPage() {
                 </div>
               )}
             </Card>
-          )}
-
-          {/* Weather */}
-          {isVisible("weather") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("weather")
+      ? [{
+          key: "weather" as const,
+          node: (
             <Card>
               <CardHeader>
                 <CardTitle>Weather</CardTitle>
@@ -328,10 +332,13 @@ export default function DashboardPage() {
                 </>
               )}
             </Card>
-          )}
-
-          {/* Today's schedule */}
-          {isVisible("schedule") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("schedule")
+      ? [{
+          key: "schedule" as const,
+          node: (
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>Today's Schedule</CardTitle>
@@ -365,11 +372,13 @@ export default function DashboardPage() {
                 </ul>
               )}
             </Card>
-          )}
-
-          {/* Player availability — driven by the real registered squad plus
-              any approved absences active today, not a fixed sample count. */}
-          {isVisible("availability") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("availability")
+      ? [{
+          key: "availability" as const,
+          node: (
             <Link href="/players" className="block">
             <Card className="h-full transition-colors hover:border-club-primary/40">
               <CardHeader><CardTitle>Player Availability</CardTitle></CardHeader>
@@ -396,10 +405,13 @@ export default function DashboardPage() {
               )}
             </Card>
             </Link>
-          )}
-
-          {/* League position — replaces Club KPIs */}
-          {isVisible("league-position") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("league-position")
+      ? [{
+          key: "league-position" as const,
+          node: (
             <Card>
               <CardHeader>
                 <CardTitle>League Position</CardTitle>
@@ -437,10 +449,13 @@ export default function DashboardPage() {
                 </>
               )}
             </Card>
-          )}
-
-          {/* Form guide */}
-          {isVisible("form-guide") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("form-guide")
+      ? [{
+          key: "form-guide" as const,
+          node: (
             <Link href="/matches" className="block">
               <Card className="h-full transition-colors hover:border-club-primary/40">
                 <CardHeader>
@@ -472,10 +487,13 @@ export default function DashboardPage() {
                 )}
               </Card>
             </Link>
-          )}
-
-          {/* Match pack / training upload */}
-          {isVisible("uploads") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("uploads")
+      ? [{
+          key: "uploads" as const,
+          node: (
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>Uploads</CardTitle>
@@ -489,10 +507,13 @@ export default function DashboardPage() {
                 )}
               </div>
             </Card>
-          )}
-
-          {/* Injury list — pulled live from the Medical module */}
-          {isVisible("injuries") && (
+          ),
+        }]
+      : []),
+    ...(isVisible("injuries")
+      ? [{
+          key: "injuries" as const,
+          node: (
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>Injury List</CardTitle>
@@ -522,16 +543,72 @@ export default function DashboardPage() {
                 </ul>
               )}
             </Card>
-          )}
+          ),
+        }]
+      : []),
+    ...(isVisible("top-scorers")
+      ? [{ key: "top-scorers" as const, node: <TopStatCard title="Top Goalscorers" icon={Goal} players={players} statKey="goals" /> }]
+      : []),
+    ...(isVisible("top-assists")
+      ? [{ key: "top-assists" as const, node: <TopStatCard title="Top Assist Makers" icon={Target} players={players} statKey="assists" /> }]
+      : []),
+    ...(isVisible("clips") ? [{ key: "clips" as const, node: <ClipsCard clips={clips} onChange={loadAll} /> }] : []),
+  ];
 
-          {/* Top goalscorers */}
-          {isVisible("top-scorers") && <TopStatCard title="Top Goalscorers" icon={Goal} players={players} statKey="goals" />}
+  // Keep the highlighted tab in sync if the current one gets hidden (e.g.
+  // via Customise Dashboard) — the content itself already falls back to the
+  // first entry, this just keeps the pill highlight consistent with that.
+  useEffect(() => {
+    if (widgetEntries.length && !widgetEntries.some((w) => w.key === activeWidgetTab)) {
+      setActiveWidgetTab(widgetEntries[0].key);
+    }
+  }, [widgetEntries, activeWidgetTab]);
 
-          {/* Top assist makers */}
-          {isVisible("top-assists") && <TopStatCard title="Top Assist Makers" icon={Target} players={players} statKey="assists" />}
+  return (
+    <AppShell>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Good afternoon, Helge</h1>
+          <p className="text-sm text-neutral-500">Here's what's happening at the club today.</p>
+        </div>
+        {canEditDashboard && (
+          <button
+            onClick={() => setShowWidgetEditor(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+          >
+            <Settings size={14} /> Customise Dashboard
+          </button>
+        )}
+      </div>
 
-          {/* Latest clips */}
-          {isVisible("clips") && <ClipsCard clips={clips} onChange={loadAll} />}
+      {loading ? (
+        <p className="text-sm text-neutral-400">Loading…</p>
+      ) : widgetEntries.length === 0 ? (
+        <p className="text-sm text-neutral-400">No widgets to show — enable one from Customise Dashboard.</p>
+      ) : isMobile ? (
+        <div>
+          <div className="mb-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+            {widgetEntries.map((w) => (
+              <button
+                key={w.key}
+                onClick={() => setActiveWidgetTab(w.key)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  activeWidgetTab === w.key
+                    ? "bg-club-primary text-navy-950"
+                    : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
+                }`}
+              >
+                {TAB_LABELS[w.key]}
+              </button>
+            ))}
+          </div>
+          {(widgetEntries.find((w) => w.key === activeWidgetTab) ?? widgetEntries[0]).node}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          {widgetEntries.map((w) => (
+            <Fragment key={w.key}>{w.node}</Fragment>
+          ))}
         </div>
       )}
 
