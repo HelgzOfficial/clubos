@@ -102,7 +102,12 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       }
       setLoading(true);
       const email = session.user.email.toLowerCase();
-      const { data } = await supabase.from("app_users").select("*").ilike("email", email).maybeSingle();
+      // order+limit(1) rather than maybeSingle(): if this email somehow
+      // exists as more than one row (e.g. saved with different
+      // capitalization at different times), maybeSingle() would error and
+      // silently drop the user's own access instead of just picking one.
+      const { data: rows } = await supabase.from("app_users").select("*").ilike("email", email).order("id", { ascending: true }).limit(1);
+      const data = rows?.[0] ?? null;
       if (cancelled) return;
       if (data) {
         setAppUser(data as AppUserRecord);
