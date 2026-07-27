@@ -73,28 +73,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That request's password is no longer available — ask them to submit a new request." }, { status: 400 });
   }
 
-  const { error: createError } = await admin.auth.admin.createUser({
-    email: reqRow.email,
-    password: reqRow.password,
-    email_confirm: true,
-    user_metadata: { name: reqRow.name, role },
-  });
-  if (createError) {
-    const alreadyExists = /already been registered|already registered|already exists/i.test(createError.message);
-    if (!alreadyExists) {
-      return NextResponse.json({ error: createError.message }, { status: 500 });
-    }
-    // A Supabase Auth account already exists for this email — most likely
-    // from an earlier invite that was sent before they went and requested
-    // access separately. Rather than dead-ending the approval, find that
-    // existing account and set its password to the one they just chose, so
-    // approving here still leaves them able to sign in immediately.
-    let existingUserId: string | null = null;
+  // Look up whether a Supabase Auth account already exists for this email
+  // *before* trying to create one — this is the same email the request row
+  // came in on, and it's common for someone to have already been invited
+  // the normal way (Staff → Invite Person) before also asking for access
+  // separately. Checking up front, rather than firing createUser and trying
+  // to pattern-match its error message afterwards, means this doesn't
+  // depend on the exact wording Supabase happens to use for a duplicate —
+  // it works the same way regardless.
+  let existingUserId: string | null = null;
+  {
     let page = 1;
-    while (!existingUserId) {
+    while (true) {
       const { data: pageData, error: listError } = await admin.auth.admin.listUsers({ page, perPage: 200 });
       if (listError) {
-        return NextResponse.json({ error: `Couldn't reconcile the existing account: ${listError.message}` }, { status: 500 });
+        return NextResponse.json({ error: `Couldn't check for an existing account: ${listError.message}` }, { status: 500 });
       }
       const match = pageData.users.find((u) => (u.email ?? "").toLowerCase() === reqRow.email.toLowerCase());
       if (match) {
@@ -104,12 +97,12 @@ export async function POST(req: Request) {
       if (pageData.users.length < 200) break;
       page += 1;
     }
-    if (!existingUserId) {
-      return NextResponse.json(
-        { error: "An account already exists for this email, but it couldn't be found to update — use \"Resend\" on their entry in Staff & Access instead." },
-        { status: 409 }
-      );
-    }
+  }
+
+  if (existingUserId) {
+    // Already has an auth account (e.g. from an earlier Staff invite) — set
+    // its password to the one just chosen in the request, rather than
+    // failing the approval outright.
     const { error: updateError } = await admin.auth.admin.updateUserById(existingUserId, {
       password: reqRow.password,
       email_confirm: true,
@@ -117,6 +110,16 @@ export async function POST(req: Request) {
     });
     if (updateError) {
       return NextResponse.json({ error: `Couldn't update the existing account: ${updateError.message}` }, { status: 500 });
+    }
+  } else {
+    const { error: createError } = await admin.auth.admin.createUser({
+      email: reqRow.email,
+      password: reqRow.password,
+      email_confirm: true,
+      user_metadata: { name: reqRow.name, role },
+    });
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 500 });
     }
   }
 

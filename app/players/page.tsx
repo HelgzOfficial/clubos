@@ -312,7 +312,7 @@ export default function PlayersPage() {
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm">
+          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-medium">Add Player</p>
               <button onClick={() => setShowAdd(false)} className="text-neutral-400 hover:text-white">
@@ -413,7 +413,7 @@ export default function PlayersPage() {
 
       {showAddAbsence && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm">
+          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-medium">Log Absence</p>
               <button onClick={() => setShowAddAbsence(false)} className="text-neutral-400 hover:text-white">

@@ -235,7 +235,7 @@ export default function AnalysisLibraryPage() {
 
       {pendingClipFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm">
+          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-medium">Upload clip</p>
               <button onClick={() => setPendingClipFile(null)} className="text-neutral-400 hover:text-white">

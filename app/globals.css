@@ -16,9 +16,17 @@
   --foreground: 245 247 250;
 }
 
+html,
 body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
+  /* Safety net for mobile browsers: a single stray wide element anywhere in
+     the app (an un-wrapped table, a fixed-width canvas, etc.) can otherwise
+     make the whole page rubber-band scroll sideways on a phone. Vertical
+     scrolling still works fine everywhere since this only clips overflow on
+     the horizontal axis. */
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 * {

@@ -149,7 +149,7 @@ export default function MatchPacksPage() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm">
+          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-medium">New Match Pack</p>
               <button onClick={() => setShowCreate(false)} className="text-neutral-400 hover:text-white"><X size={18} /></button>
