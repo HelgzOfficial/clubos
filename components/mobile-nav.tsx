@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -22,6 +22,25 @@ export function MobileNav() {
   const [branding, setBranding] = useState(club);
   const { can, role } = usePermissions();
 
+  // Android Chrome (and some other mobile browsers) can fire a synthetic
+  // "ghost click" a moment after a real tap, landing on whatever now sits
+  // under that same spot on screen — which here is the backdrop that just
+  // appeared under the user's finger the instant the menu opened. Without
+  // this guard that ghost click immediately closes the menu again, so it
+  // looks like it "flashes open" and never stays open. Ignoring clicks on
+  // the backdrop for a brief window right after opening avoids that.
+  const openedAtRef = useRef(0);
+
+  function openMenu() {
+    openedAtRef.current = Date.now();
+    setOpen(true);
+  }
+
+  function handleBackdropClick() {
+    if (Date.now() - openedAtRef.current < 400) return;
+    setOpen(false);
+  }
+
   useEffect(() => {
     setBranding(loadClubSettings(club));
   }, []);
@@ -36,7 +55,7 @@ export function MobileNav() {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={openMenu}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors md:hidden"
         aria-label="Open menu"
       >
@@ -45,7 +64,7 @@ export function MobileNav() {
 
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={handleBackdropClick} />
           <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col bg-navy-700 dark:bg-navy-950 shadow-softDark">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-5">
               <div className="flex min-w-0 items-center gap-3">
