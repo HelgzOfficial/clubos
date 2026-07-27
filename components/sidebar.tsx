@@ -7,36 +7,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings } from "@/lib/club-settings";
-import { usePermissions, type AppModule } from "@/lib/permissions";
-import {
-  LayoutDashboard,
-  Swords,
-  Shield,
-  Film,
-  Dumbbell,
-  Users,
-  Stethoscope,
-  UserSearch,
-  FolderOpen,
-  CalendarDays,
-  Settings,
-  ShieldCheck,
-  HeartPulse,
-} from "lucide-react";
-
-const navItems: { href: string; label: string; icon: typeof LayoutDashboard; module: AppModule }[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" },
-  { href: "/matches", label: "Matches", icon: Swords, module: "matches" },
-  { href: "/opposition", label: "Opposition", icon: Shield, module: "opposition" },
-  { href: "/analysis", label: "Analysis", icon: Film, module: "analysis" },
-  { href: "/training", label: "Training", icon: Dumbbell, module: "training" },
-  { href: "/players", label: "Players", icon: Users, module: "players" },
-  { href: "/medical", label: "Medical", icon: Stethoscope, module: "medical" },
-  { href: "/recruitment", label: "Recruitment", icon: UserSearch, module: "recruitment" },
-  { href: "/documents", label: "Documents", icon: FolderOpen, module: "documents" },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays, module: "calendar" },
-  { href: "/staff", label: "Staff", icon: ShieldCheck, module: "staff" },
-];
+import { usePermissions } from "@/lib/permissions";
+import { getNavItems } from "@/lib/nav-items";
+import { Settings } from "lucide-react";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -47,13 +20,7 @@ export function Sidebar() {
     setBranding(loadClubSettings(club));
   }, []);
 
-  // "Book Treatment" only makes sense as its own nav entry for players —
-  // everyone else who can reach it (doctor/physio, owner, manager) already
-  // has the full Medical module for that.
-  const items = role === "player"
-    ? [...navItems, { href: "/treatment", label: "Book Treatment", icon: HeartPulse, module: "treatment" as AppModule }]
-    : navItems;
-  const visibleItems = items.filter((item) => can(item.module));
+  const visibleItems = getNavItems(role).filter((item) => can(item.module));
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col border-r border-white/10 bg-navy-700 dark:bg-navy-950 shrink-0">
