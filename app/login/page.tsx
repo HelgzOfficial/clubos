@@ -21,10 +21,36 @@ export default function LoginPage() {
   const [passwordSaved, setPasswordSaved] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !supabase) return;
+
     const hash = window.location.hash;
-    if (hash.includes("type=invite") || hash.includes("type=recovery")) {
+    const params = new URLSearchParams(window.location.search);
+
+    // Supabase's invite/reset link can arrive in two shapes depending on
+    // project auth settings: the classic hash-fragment token
+    // (#access_token=...&type=invite) or a PKCE "?code=..." link. Handling
+    // both means an invite works regardless of that setting.
+    if (hash.includes("type=invite") || hash.includes("type=recovery") || hash.includes("type=signup")) {
       setSettingPassword(true);
+      return;
+    }
+
+    const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+    const hashError = hashParams.get("error_description") || params.get("error_description");
+    if (hashError) {
+      setError(decodeURIComponent(hashError.replace(/\+/g, " ")));
+      return;
+    }
+
+    const code = params.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setError(error.message);
+        } else {
+          setSettingPassword(true);
+        }
+      });
     }
   }, []);
 

@@ -181,6 +181,16 @@ function TrainingPageInner() {
   useEffect(() => { if (ready) saveSessions(sessions); }, [sessions, ready]);
   useEffect(() => { if (ready) saveDrills(drills); }, [drills, ready]);
 
+  // Coming from a Calendar click (?date=...) should land straight on that
+  // day's session — past or future — the same way clicking a match lands
+  // straight on the match centre, instead of stopping on the archive list.
+  useEffect(() => {
+    if (!ready || !dateParam || view.kind !== "archive") return;
+    const existing = sessions.find((s) => s.date.slice(0, 10) === dateParam);
+    if (existing) setView({ kind: "session", sessionId: existing.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, dateParam, sessions]);
+
   function createSession(forDate?: string) {
     const d = forDate ? new Date(`${forDate}T00:00:00`) : new Date();
     const s: TrainingSession = {
@@ -289,13 +299,15 @@ function TrainingPageInner() {
               <ArrowLeft size={14} /> Back to full archive
             </button>
             <TrainingDayCard date={dateParam} canEdit={canEdit} />
-            {canEdit && (
+            {canEdit ? (
               <button
                 onClick={() => openOrCreateSessionForDate(dateParam)}
                 className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 py-4 text-sm font-medium text-neutral-500 hover:border-club-primary hover:text-club-primary transition-colors"
               >
                 <Plus size={16} /> Open/Create Drill Session for This Day
               </button>
+            ) : (
+              <p className="mb-6 text-center text-sm text-neutral-400">No drill session has been planned for this day yet.</p>
             )}
           </>
         )}
@@ -416,7 +428,10 @@ function TrainingPageInner() {
   return (
     <AppShell>
       <button
-        onClick={() => setView({ kind: "archive" })}
+        onClick={() => {
+          setView({ kind: "archive" });
+          if (dateParam) router.push("/training");
+        }}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white"
       >
         <ArrowLeft size={14} /> Back to Archive

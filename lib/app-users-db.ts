@@ -39,12 +39,24 @@ export async function inviteAppUser(input: {
   role: AppRole;
   playerId?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch("/api/send-staff-invite", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) return { ok: false, error: data.error || "Couldn't send the invite." };
+  let res: Response;
+  try {
+    res = await fetch("/api/send-staff-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    return { ok: false, error: "Couldn't reach the server — check your connection and try again." };
+  }
+
+  let data: { error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    return { ok: false, error: `The server returned an unexpected response (status ${res.status}). Check the Vercel function logs for /api/send-staff-invite.` };
+  }
+
+  if (!res.ok) return { ok: false, error: data.error || `Couldn't send the invite (status ${res.status}).` };
   return { ok: true };
 }

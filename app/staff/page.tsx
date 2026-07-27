@@ -71,22 +71,31 @@ export default function StaffPage() {
       setFormError("Pick which player profile this invite links to.");
       return;
     }
-    setSaving(true);
-    setFormError("");
-    const result = await inviteAppUser({
-      requesterEmail: appUser?.email ?? "",
-      name, email, role, playerId: role === "player" ? playerId : null,
-    });
-    setSaving(false);
-    if (!result.ok) {
-      setFormError(result.error ?? "Couldn't send the invite.");
+    if (!appUser?.email) {
+      setFormError("Your own account isn't fully loaded yet — refresh the page and try again.");
       return;
     }
-    setSuccess(`Invite sent to ${email}.`);
-    setTimeout(() => setSuccess(""), 4000);
-    setShowInvite(false);
-    setName(""); setEmail(""); setRole("head_coach"); setPlayerId("");
-    await load();
+    setSaving(true);
+    setFormError("");
+    try {
+      const result = await inviteAppUser({
+        requesterEmail: appUser.email,
+        name, email, role, playerId: role === "player" ? playerId : null,
+      });
+      if (!result.ok) {
+        setFormError(result.error ?? "Couldn't send the invite.");
+        return;
+      }
+      setSuccess(`Invite sent to ${email}.`);
+      setTimeout(() => setSuccess(""), 4000);
+      setShowInvite(false);
+      setName(""); setEmail(""); setRole("head_coach"); setPlayerId("");
+      await load();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Something went wrong sending the invite.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRoleChange(person: AppUserRecord, newRole: AppRole) {
