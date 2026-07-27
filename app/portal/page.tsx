@@ -6,9 +6,10 @@ import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club } from "@/lib/sample-data";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { fetchPlayerByEmail, type DbPlayer } from "@/lib/players-db";
-import { fetchMatchDocuments, getMatchDocumentUrl, recordDocumentView, type DbMatchDocument } from "@/lib/match-documents-db";
+import { fetchMatchDocuments, getMatchDocumentUrl, getMatchDocumentDownloadUrl, recordDocumentView, type DbMatchDocument } from "@/lib/match-documents-db";
 import { DirectionsLinks } from "@/components/directions-links";
-import { LogOut, FileText, AlertCircle } from "lucide-react";
+import { DocumentViewerModal } from "@/components/document-viewer-modal";
+import { LogOut, FileText, AlertCircle, Download } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -26,6 +27,7 @@ export default function PortalPage() {
   const [docsByMatch, setDocsByMatch] = useState<Record<string, DbMatchDocument[]>>({});
   const [openedIds, setOpenedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
+  const [viewing, setViewing] = useState<DbMatchDocument | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -65,13 +67,21 @@ export default function PortalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleOpenDoc(doc: DbMatchDocument) {
-    const url = await getMatchDocumentUrl(doc.file_path);
+  async function markOpened(doc: DbMatchDocument) {
+    if (!player) return;
+    await recordDocumentView(doc.id, player.id);
+    setOpenedIds((prev) => new Set(prev).add(doc.id));
+  }
+
+  function handleOpenDoc(doc: DbMatchDocument) {
+    setViewing(doc);
+    markOpened(doc);
+  }
+
+  async function handleDownloadDoc(doc: DbMatchDocument) {
+    const url = await getMatchDocumentDownloadUrl(doc.file_path, doc.file_name);
     window.open(url, "_blank");
-    if (player) {
-      await recordDocumentView(doc.id, player.id);
-      setOpenedIds((prev) => new Set(prev).add(doc.id));
-    }
+    markOpened(doc);
   }
 
   async function handleSignOut() {
@@ -146,15 +156,26 @@ export default function PortalPage() {
                   {docs.length > 0 && (
                     <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
                       {docs.map((d) => (
-                        <button
+                        <div
                           key={d.id}
-                          onClick={() => handleOpenDoc(d)}
-                          className="flex w-full items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-left text-sm hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+                          className="flex w-full items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-left text-sm"
                         >
-                          <FileText size={14} className="shrink-0 text-neutral-400" />
-                          <span className="flex-1 truncate">{d.file_name}</span>
-                          {openedIds.has(d.id) && <span className="text-[10px] text-emerald-400">Opened</span>}
-                        </button>
+                          <button
+                            onClick={() => handleOpenDoc(d)}
+                            className="flex min-w-0 flex-1 items-center gap-2 hover:text-white transition-colors"
+                          >
+                            <FileText size={14} className="shrink-0 text-neutral-400" />
+                            <span className="flex-1 truncate">{d.file_name}</span>
+                          </button>
+                          {openedIds.has(d.id) && <span className="shrink-0 text-[10px] text-emerald-400">Opened</span>}
+                          <button
+                            onClick={() => handleDownloadDoc(d)}
+                            title="Download to this device"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white transition-colors"
+                          >
+                            <Download size={14} />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -164,6 +185,16 @@ export default function PortalPage() {
           </div>
         )}
       </div>
+
+      {viewing && (
+        <DocumentViewerModal
+          fileName={viewing.file_name}
+          fileType={viewing.file_type}
+          getViewUrl={() => getMatchDocumentUrl(viewing.file_path)}
+          getDownloadUrl={() => getMatchDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </div>
   );
 }

@@ -45,9 +45,20 @@ export async function uploadMatchDocument(matchId: string, file: File): Promise<
   return data as DbMatchDocument;
 }
 
+// A "view" URL — safe to render inline (e.g. a PDF in an iframe).
 export async function getMatchDocumentUrl(filePath: string): Promise<string> {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.storage.from("match-documents").createSignedUrl(filePath, 60);
+  const { data, error } = await supabase.storage.from("match-documents").createSignedUrl(filePath, 120);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+// A "download" URL — forces the browser to save the file to whatever
+// device it's opened on (Content-Disposition: attachment), rather than
+// navigating to or rendering it inline.
+export async function getMatchDocumentDownloadUrl(filePath: string, fileName: string): Promise<string> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.storage.from("match-documents").createSignedUrl(filePath, 120, { download: fileName });
   if (error) throw error;
   return data.signedUrl;
 }

@@ -18,9 +18,10 @@ import {
 } from "@/lib/match-reports-db";
 import { fetchMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
 import {
-  fetchMatchDocuments, uploadMatchDocument, deleteMatchDocument, getMatchDocumentUrl, fetchDocumentViewers,
+  fetchMatchDocuments, uploadMatchDocument, deleteMatchDocument, getMatchDocumentUrl, getMatchDocumentDownloadUrl, fetchDocumentViewers,
   type DbMatchDocument, type DocumentViewer,
 } from "@/lib/match-documents-db";
+import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { StatDashboard } from "@/components/matches/stat-dashboard";
 import { club } from "@/lib/sample-data";
@@ -28,7 +29,7 @@ import { loadClubSettings } from "@/lib/club-settings";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
-import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2 } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -500,6 +501,7 @@ function MatchDocumentsCard({ matchId }: { matchId: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [viewing, setViewing] = useState<DbMatchDocument | null>(null);
 
   async function load() {
     setError("");
@@ -542,7 +544,7 @@ function MatchDocumentsCard({ matchId }: { matchId: string }) {
   }
 
   async function handleDownload(d: DbMatchDocument) {
-    const url = await getMatchDocumentUrl(d.file_path);
+    const url = await getMatchDocumentDownloadUrl(d.file_path, d.file_name);
     window.open(url, "_blank");
   }
 
@@ -582,6 +584,9 @@ function MatchDocumentsCard({ matchId }: { matchId: string }) {
                     title="See who's opened this"
                   >
                     <Eye size={12} /> {expanded ? seenCount : "Seen by"}{expanded ? ` / ${squadSize}` : ""}
+                  </button>
+                  <button onClick={() => setViewing(d)} title="View" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                    <Maximize2 size={13} />
                   </button>
                   <button onClick={() => handleDownload(d)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
                     <Download size={13} />
@@ -628,6 +633,16 @@ function MatchDocumentsCard({ matchId }: { matchId: string }) {
           }}
         />
       </label>
+
+      {viewing && (
+        <DocumentViewerModal
+          fileName={viewing.file_name}
+          fileType={viewing.file_type}
+          getViewUrl={() => getMatchDocumentUrl(viewing.file_path)}
+          getDownloadUrl={() => getMatchDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </Card>
   );
 }

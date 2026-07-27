@@ -56,9 +56,21 @@ export async function uploadClubDocument(
   return data as DbClubDocument;
 }
 
+// A "view" URL — the browser is free to render this inline (e.g. a PDF in
+// an iframe), so no Content-Disposition override is set.
 export async function getClubDocumentUrl(filePath: string): Promise<string> {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.storage.from("club-documents").createSignedUrl(filePath, 60);
+  const { data, error } = await supabase.storage.from("club-documents").createSignedUrl(filePath, 120);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+// A "download" URL — Supabase sets Content-Disposition: attachment on the
+// response for this one, so opening it always saves the file to the
+// device it's opened on instead of navigating to it or rendering it inline.
+export async function getClubDocumentDownloadUrl(filePath: string, fileName: string): Promise<string> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.storage.from("club-documents").createSignedUrl(filePath, 120, { download: fileName });
   if (error) throw error;
   return data.signedUrl;
 }

@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import {
-  fetchClubDocuments, uploadClubDocument, deleteClubDocument, getClubDocumentUrl,
+  fetchClubDocuments, uploadClubDocument, deleteClubDocument, getClubDocumentUrl, getClubDocumentDownloadUrl,
   type DbClubDocument, type DocumentCategory,
 } from "@/lib/club-documents-db";
-import { FileText, FileVideo, Search, Upload, Download, Trash2, X } from "lucide-react";
+import { FileText, FileVideo, Search, Upload, Download, Eye, Trash2, X } from "lucide-react";
 
 const categories: ("All" | DocumentCategory)[] = ["All", "Match Packs", "Match Reports", "Policies"];
 
@@ -34,6 +35,7 @@ export default function DocumentsPage() {
   const [pendingCategory, setPendingCategory] = useState<DocumentCategory>("Match Reports");
   const [pendingLinkedTo, setPendingLinkedTo] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState<DbClubDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -86,9 +88,9 @@ export default function DocumentsPage() {
 
   async function handleDownload(d: DbClubDocument) {
     try {
-      window.open(await getClubDocumentUrl(d.file_path), "_blank");
+      window.open(await getClubDocumentDownloadUrl(d.file_path, d.file_name), "_blank");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't open that file.");
+      setError(e instanceof Error ? e.message : "Couldn't download that file.");
     }
   }
 
@@ -178,6 +180,13 @@ export default function DocumentsPage() {
                   <Badge variant="neutral" className="hidden sm:inline-flex shrink-0">{d.category}</Badge>
                   <span className="text-xs text-neutral-400 w-16 text-right shrink-0">{formatSize(d.size_kb)}</span>
                   <button
+                    onClick={() => setViewing(d)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white transition-colors shrink-0"
+                    title="View"
+                  >
+                    <Eye size={16} />
+                  </button>
+                  <button
                     onClick={() => handleDownload(d)}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white transition-colors shrink-0"
                     title="Download"
@@ -234,6 +243,16 @@ export default function DocumentsPage() {
             </button>
           </Card>
         </div>
+      )}
+
+      {viewing && (
+        <DocumentViewerModal
+          fileName={viewing.file_name}
+          fileType={viewing.file_type}
+          getViewUrl={() => getClubDocumentUrl(viewing.file_path)}
+          getDownloadUrl={() => getClubDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
+          onClose={() => setViewing(null)}
+        />
       )}
     </AppShell>
   );

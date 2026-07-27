@@ -25,15 +25,16 @@ import {
 } from "@/lib/dashboard-settings-db";
 import { fetchLiveWeather, type LiveWeather } from "@/lib/weather";
 import {
-  fetchMatchDocuments, uploadMatchDocument, deleteMatchDocument, getMatchDocumentUrl, type DbMatchDocument,
+  fetchMatchDocuments, uploadMatchDocument, deleteMatchDocument, getMatchDocumentUrl, getMatchDocumentDownloadUrl, type DbMatchDocument,
 } from "@/lib/match-documents-db";
 import {
   fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl, type DbTrainingPlan,
 } from "@/lib/training-plans-db";
 import { playerAvailability } from "@/lib/sample-data";
 import { usePermissions } from "@/lib/permissions";
+import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import {
-  CloudSun, Clock, ShieldAlert, Trophy, TrendingUp, Upload, FileText, Download, Trash2, X,
+  CloudSun, Clock, ShieldAlert, Trophy, TrendingUp, Upload, FileText, Download, Eye, Trash2, X,
   Pencil, Plus, Settings, Loader2, Film, Play, Target, Goal,
 } from "lucide-react";
 
@@ -587,6 +588,7 @@ export default function DashboardPage() {
 function MatchPackUpload({ match, canEdit }: { match: DbMatch; canEdit: boolean }) {
   const [docs, setDocs] = useState<DbMatchDocument[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState<DbMatchDocument | null>(null);
 
   const load = useCallback(async () => setDocs(await fetchMatchDocuments(match.id)), [match.id]);
   useEffect(() => { load(); }, [load]);
@@ -595,7 +597,7 @@ function MatchPackUpload({ match, canEdit }: { match: DbMatch; canEdit: boolean 
     setUploading(true);
     try { await uploadMatchDocument(match.id, file); await load(); } finally { setUploading(false); }
   }
-  async function handleDownload(d: DbMatchDocument) { window.open(await getMatchDocumentUrl(d.file_path), "_blank"); }
+  async function handleDownload(d: DbMatchDocument) { window.open(await getMatchDocumentDownloadUrl(d.file_path, d.file_name), "_blank"); }
   async function handleDelete(d: DbMatchDocument) {
     if (!window.confirm(`Remove "${d.file_name}"?`)) return;
     await deleteMatchDocument(d.id, d.file_path);
@@ -613,7 +615,8 @@ function MatchPackUpload({ match, canEdit }: { match: DbMatch; canEdit: boolean 
             <li key={d.id} className="flex items-center gap-2 py-2 text-xs">
               <FileText size={13} className="shrink-0 text-neutral-400" />
               <span className="flex-1 truncate">{d.file_name}</span>
-              <button onClick={() => handleDownload(d)} className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800"><Download size={12} /></button>
+              <button onClick={() => setViewing(d)} title="View" className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800"><Eye size={12} /></button>
+              <button onClick={() => handleDownload(d)} title="Download" className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800"><Download size={12} /></button>
               {canEdit && (
                 <button onClick={() => handleDelete(d)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
               )}
@@ -628,6 +631,15 @@ function MatchPackUpload({ match, canEdit }: { match: DbMatch; canEdit: boolean 
           <input type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" className="hidden" disabled={uploading}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
         </label>
+      )}
+      {viewing && (
+        <DocumentViewerModal
+          fileName={viewing.file_name}
+          fileType={viewing.file_type}
+          getViewUrl={() => getMatchDocumentUrl(viewing.file_path)}
+          getDownloadUrl={() => getMatchDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
+          onClose={() => setViewing(null)}
+        />
       )}
     </div>
   );
