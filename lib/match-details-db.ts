@@ -85,6 +85,16 @@ export async function addGoal(
   if (error) throw error;
 }
 
+// Sets (or corrects) just the pitch location on an existing goal — used by
+// the Goals/Assist Maps page to backfill goals that were logged before this
+// existed, or where the location was skipped originally, without touching
+// its minute/scorer/assist.
+export async function updateGoalLocation(id: string, x: number, y: number) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.from("match_goals").update({ x, y }).eq("id", id);
+  if (error) throw error;
+}
+
 // Every goal across every match, for the Analyst Dashboard's season-wide
 // Goals Scored/Conceded/Assist maps and timeline — as opposed to
 // fetchMatchDetails() above, which is scoped to one fixture.
