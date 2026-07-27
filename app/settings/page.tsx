@@ -9,7 +9,9 @@ import { club } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings, type ClubSettings } from "@/lib/club-settings";
 import { applyClubColors } from "@/components/club-color-provider";
 import { extractCrestColors } from "@/lib/extract-crest-colors";
-import { Check, PlugZap, ArrowRight, Upload, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { Check, PlugZap, ArrowRight, Upload, Loader2, KeyRound, AlertCircle } from "lucide-react";
 
 const COLOR_FIELDS: { key: keyof ClubSettings; label: string; hint: string }[] = [
   { key: "primaryColor", label: "Primary", hint: "Buttons, highlights, active nav" },
@@ -18,12 +20,66 @@ const COLOR_FIELDS: { key: keyof ClubSettings; label: string; hint: string }[] =
 ];
 
 export default function SettingsPage() {
+  const { session } = useAuth();
   const [ready, setReady] = useState(false);
   const [branding, setBranding] = useState<ClubSettings>(club);
   const [saved, setSaved] = useState(false);
   const [crestSwatches, setCrestSwatches] = useState<string[]>([]);
   const [extracting, setExtracting] = useState(false);
   const crestInputRef = useRef<HTMLInputElement>(null);
+
+  // Change-password form — for a user who's already signed in and just
+  // wants to update their password, as opposed to the "forgot password"
+  // email-link flow on the sign-in page for people who are locked out.
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || !session?.user?.email) return;
+    setPasswordError("");
+    setPasswordSaved(false);
+
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirmation don't match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    // Re-verify the current password first, rather than trusting that
+    // whoever is sitting at an already-unlocked session is really the
+    // account owner — this re-authenticates against Supabase before we'll
+    // let the password be changed.
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: session.user.email,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      setPasswordSaving(false);
+      setPasswordError("Current password is incorrect.");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordSaved(true);
+    setTimeout(() => setPasswordSaved(false), 2500);
+  }
 
   useEffect(() => {
     setBranding(loadClubSettings(club));
@@ -171,6 +227,64 @@ export default function SettingsPage() {
           >
             {saved ? <><Check size={15} /> Saved</> : "Save Branding & Appearance"}
           </button>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Account & Security</CardTitle></CardHeader>
+          <p className="mb-4 text-sm text-neutral-400">
+            Signed in as <span className="text-neutral-200">{session?.user?.email ?? "—"}</span>
+          </p>
+          <form onSubmit={handleChangePassword} className="space-y-3 max-w-sm">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">Current password</label>
+              <input
+                type="password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                placeholder="••••••••"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">New password</label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                placeholder="At least 8 characters"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500">Confirm new password</label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                placeholder="Repeat new password"
+              />
+            </div>
+            {passwordError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                <p>{passwordError}</p>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={passwordSaving}
+              className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              <KeyRound size={15} />
+              {passwordSaving ? "Updating…" : passwordSaved ? "Password Updated" : "Change Password"}
+            </button>
+          </form>
         </Card>
 
         <Card>
