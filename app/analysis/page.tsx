@@ -19,7 +19,7 @@ import {
 } from "@/lib/season-analytics";
 import type { Clip } from "@/lib/analysis-types";
 import {
-  Film, MapPin, Package, FileText, PlayCircle, TrendingUp, Trophy, ShieldCheck, Target,
+  Film, MapPin, Package, FileText, PlayCircle, TrendingUp, Trophy, ShieldCheck, Target, Activity,
 } from "lucide-react";
 
 const CATEGORY_ICONS: Record<ClipCategory, string> = {
@@ -114,6 +114,9 @@ export default function AnalysisDashboardPage() {
           </Link>
           <Link href="/analysis/maps" className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
             <MapPin size={14} /> Goals & Assist Maps
+          </Link>
+          <Link href="/analysis/stats" className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+            <Activity size={14} /> Player Stats &amp; Rankings
           </Link>
           <Link href="/analysis/match-packs" className="flex items-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
             <Package size={14} /> Match Packs
