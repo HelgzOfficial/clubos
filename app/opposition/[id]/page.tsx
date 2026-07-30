@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { MatchPackButton } from "@/components/analysis/match-pack-button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { opposition, club, type Opposition } from "@/lib/sample-data";
@@ -98,6 +99,17 @@ export default function OppositionDetailPage() {
               </>
             )}
           </p>
+          {/* Straight into the pack builder for this fixture — the scouting
+              detail on this page is exactly what feeds a pack. */}
+          {match && (
+            <MatchPackButton
+              matchId={match.id}
+              opponent={opponentName}
+              kickoff={match.kickoff}
+              variant={isUpcoming ? "primary" : "subtle"}
+              className="mt-3"
+            />
+          )}
         </div>
         {team && <Badge variant={statusVariant[team.reportStatus]}>{team.reportStatus}</Badge>}
         {match && (

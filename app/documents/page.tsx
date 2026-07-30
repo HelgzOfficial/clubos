@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { MatchPackList } from "@/components/analysis/match-pack-list";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
@@ -137,6 +138,10 @@ export default function DocumentsPage() {
           />
         </div>
       </div>
+
+      {/* Packs built in the Analysis pack builder, shown alongside uploaded
+          files so Documents is one place to find everything. */}
+      <MatchPackList />
 
       <div className="mb-5 flex flex-wrap gap-2">
         {categories.map((c) => (

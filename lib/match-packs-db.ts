@@ -1,8 +1,64 @@
 import { supabase } from "./supabase";
 
+import type { PitchItem, PitchLine } from "./training-storage";
+
+// A match pack is an ordered list of blocks. Clip and image came first; the
+// rest turn it from a media list into something an analyst can actually build
+// a briefing out of — headings, written points, tactical diagrams, stat
+// comparisons.
+//
+// `id` is optional on the wire because packs created before blocks had ids are
+// still in the database; normaliseBlocks() below fills them in on load so the
+// editor always has a stable key to reorder and delete against.
+export type MatchPackTone = "neutral" | "strength" | "weakness" | "threat";
+
 export type MatchPackItem =
-  | { type: "clip"; clipId: string; caption: string }
-  | { type: "image"; imageId: string; caption: string };
+  | { type: "clip"; id?: string; clipId: string; caption: string; timestamp?: string }
+  | { type: "image"; id?: string; imageId: string; caption: string }
+  | { type: "heading"; id?: string; text: string }
+  | { type: "text"; id?: string; title?: string; body: string }
+  | { type: "points"; id?: string; title: string; tone: MatchPackTone; points: string[] }
+  | { type: "pitch"; id?: string; title: string; caption: string; items: PitchItem[]; lines: PitchLine[] }
+  | { type: "stats"; id?: string; title: string; rows: { label: string; us: string; them: string }[] };
+
+export type MatchPackBlockType = MatchPackItem["type"];
+
+// Every block carries an id once loaded, so the editor can key off it.
+export type NormalisedBlock = MatchPackItem & { id: string };
+
+let blockIdCounter = 0;
+export function newBlockId(): string {
+  blockIdCounter += 1;
+  return `block-${Date.now().toString(36)}-${blockIdCounter}`;
+}
+
+export function normaliseBlocks(items: MatchPackItem[] | null | undefined): NormalisedBlock[] {
+  return (items ?? []).map((item, i) => ({
+    ...item,
+    id: item.id ?? `legacy-${i}-${item.type}`,
+  })) as NormalisedBlock[];
+}
+
+// A ready-to-edit empty block of the requested kind.
+export function blankBlock(type: MatchPackBlockType): NormalisedBlock {
+  const id = newBlockId();
+  switch (type) {
+    case "heading":
+      return { id, type: "heading", text: "New section" };
+    case "text":
+      return { id, type: "text", title: "", body: "" };
+    case "points":
+      return { id, type: "points", title: "Key points", tone: "neutral", points: [""] };
+    case "pitch":
+      return { id, type: "pitch", title: "Tactical diagram", caption: "", items: [], lines: [] };
+    case "stats":
+      return { id, type: "stats", title: "Head to head", rows: [{ label: "", us: "", them: "" }] };
+    case "clip":
+      return { id, type: "clip", clipId: "", caption: "" };
+    default:
+      return { id, type: "image", imageId: "", caption: "" };
+  }
+}
 
 export type DbMatchPack = {
   id: string;
