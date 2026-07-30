@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Upload, Loader2, Trash2, Search } from "lucide-react";
+import { X, Upload, Loader2, Trash2, Search, Wand2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
-  fetchTeamCrests, uploadCrest, deleteCrest, buildCrestLookup, crestFor, canonKey,
+  fetchTeamCrests, uploadCrest, deleteCrest, saveCrestAlias, buildCrestLookup, crestFor, canonKey,
   type DbTeamCrest, type CrestKind,
 } from "@/lib/team-crests-db";
 import { TeamCrest, invalidateCrestCache } from "@/components/team-crest";
@@ -41,6 +41,8 @@ export function CrestManager({
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [clubName, setClubName] = useState(clubFallback.name);
+  const [repairing, setRepairing] = useState(false);
+  const [repairNote, setRepairNote] = useState("");
   const pending = useRef<{ kind: CrestKind; name: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,31 +68,33 @@ export function CrestManager({
 
   // Our own club pinned first, then distinct competitions and opponents from
   // the real fixture list.
-  const rows = useMemo(() => {
+  const allRows = useMemo(() => {
     const own = clubName.trim();
-    // Fixture opponents and league-table clubs are typed separately, so the
-    // same club can appear as "Carshalton Athletic FC" in one and "Carshalton
-    // Athletic" in the other. Dedupe on the loose key to keep one row per
-    // club, and keep the longer spelling as the label since it's the more
-    // complete one.
-    const byClub = new Map<string, string>();
+    // Every distinct spelling gets its own row rather than being merged away.
+    // The fixture list and the league table are typed separately, so the same
+    // club really can be stored two ways — hiding that made it impossible to
+    // see why a badge showed in one place and not another. Uploading against
+    // any one spelling fills in the rest (see handleFile).
+    const names = new Set<string>();
     for (const raw of [...matches.map((m) => m.opponent), ...extraTeams]) {
       const name = raw?.trim();
       if (!name || name.toLowerCase() === own.toLowerCase()) continue;
-      const key = canonKey(name);
-      const existing = byClub.get(key);
-      if (!existing || name.length > existing.length) byClub.set(key, name);
+      names.add(name);
     }
-    const teams = [...byClub.values()].sort((a, b) => a.localeCompare(b));
+    const teams = [...names].sort((a, b) => a.localeCompare(b));
     const comps = [...new Set(matches.map((m) => m.competition.trim()).filter(Boolean))].sort();
     const all: CrestRow[] = [
       ...(own ? [{ kind: "team" as CrestKind, name: own, own: true }] : []),
       ...comps.map((name) => ({ kind: "competition" as CrestKind, name })),
       ...teams.map((name) => ({ kind: "team" as CrestKind, name })),
     ];
+    return all;
+  }, [matches, extraTeams, clubName]);
+
+  const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? all.filter((r) => r.name.toLowerCase().includes(q)) : all;
-  }, [matches, extraTeams, query, clubName]);
+    return q ? allRows.filter((r) => r.name.toLowerCase().includes(q)) : allRows;
+  }, [allRows, query]);
 
   const missing = rows.filter((r) => crestFor(lookup, r.kind, r.name) === null).length;
 
@@ -106,7 +110,19 @@ export function CrestManager({
     setBusyKey(key);
     setError("");
     try {
-      await uploadCrest(target.kind, target.name, file);
+      const saved = await uploadCrest(target.kind, target.name, file);
+      // Fill in every other spelling of the same club at the same time. This
+      // is what stops a badge showing in Match Centre but not the league
+      // table: both spellings now resolve by exact name, so it no longer
+      // depends on any clever matching at read time.
+      const group = allRows.filter(
+        (r) => r.kind === target.kind
+          && r.name !== target.name
+          && canonKey(r.name) === canonKey(target.name)
+      );
+      for (const alias of group) {
+        await saveCrestAlias(alias.kind, alias.name, saved.crest_url);
+      }
       invalidateCrestCache();
       await load();
       onChanged?.();
@@ -119,12 +135,41 @@ export function CrestManager({
     }
   }
 
+  // One-click repair for badges uploaded before aliasing existed: for any row
+  // with no crest stored under its exact name, find one stored under another
+  // spelling of the same club and point this name at it too.
+  async function repairSpellings() {
+    setRepairing(true);
+    setError("");
+    try {
+      const exact = new Set(crests.map((c) => `${c.kind}:${c.name.trim().toLowerCase()}`));
+      let fixed = 0;
+      for (const row of allRows) {
+        if (exact.has(`${row.kind}:${row.name.trim().toLowerCase()}`)) continue;
+        const source = crests.find((c) => c.kind === row.kind && canonKey(c.name) === canonKey(row.name));
+        if (!source) continue;
+        await saveCrestAlias(row.kind, row.name, source.crest_url);
+        fixed++;
+      }
+      setRepairNote(fixed === 0 ? "Nothing to fix — every badge already matches its team name." : `Filled in ${fixed} name${fixed === 1 ? "" : "s"}.`);
+      invalidateCrestCache();
+      await load();
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't fill in the missing names.");
+    } finally {
+      setRepairing(false);
+    }
+  }
+
   async function handleRemove(kind: CrestKind, name: string) {
-    const crest = crests.find((c) => c.kind === kind && c.name.toLowerCase() === name.toLowerCase());
-    if (!crest) return;
+    // Remove the alias rows alongside the real one, otherwise deleting a badge
+    // from one spelling would leave it showing under another.
+    const group = crests.filter((c) => c.kind === kind && canonKey(c.name) === canonKey(name));
+    if (group.length === 0) return;
     setBusyKey(`${kind}:${name}`);
     try {
-      await deleteCrest(crest);
+      for (const crest of group) await deleteCrest(crest);
       invalidateCrestCache();
       await load();
       onChanged?.();
@@ -163,10 +208,19 @@ export function CrestManager({
         {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
 
         {!loading && missing > 0 && (
-          <p className="mb-2 text-xs text-amber-300">
-            {missing} of {rows.length} still using initials.
-          </p>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <p className="text-xs text-amber-300">{missing} of {rows.length} still using initials.</p>
+            <button
+              onClick={repairSpellings}
+              disabled={repairing}
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-300 hover:bg-navy-600 disabled:opacity-60 dark:hover:bg-navy-800"
+            >
+              {repairing ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+              Fill in alternative spellings
+            </button>
+          </div>
         )}
+        {repairNote && <p className="mb-2 text-xs text-emerald-300">{repairNote}</p>}
 
         <input
           ref={inputRef}
