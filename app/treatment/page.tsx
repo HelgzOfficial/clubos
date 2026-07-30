@@ -11,7 +11,8 @@ import {
   fetchBookings, createBooking, deleteBooking, sendTreatmentInvite,
   TREATMENT_TYPE_OPTIONS, type DbTreatmentBooking, type BookingStatus,
 } from "@/lib/treatment-bookings-db";
-import { HeartPulse, Plus, X, CalendarClock, Trash2, AlertCircle, Check } from "lucide-react";
+import { HeartPulse, Plus, X, CalendarClock, Trash2, AlertCircle, Check, MessageCircle } from "lucide-react";
+import { MessageThread } from "@/components/medical/message-thread";
 
 const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral"> = {
   scheduled: "amber",
@@ -191,7 +192,7 @@ export default function TreatmentPage() {
       </Card>
 
       {history.length > 0 && (
-        <Card>
+        <Card className="mb-5">
           <CardHeader><CardTitle>History</CardTitle></CardHeader>
           <ul className="divide-y divide-white/10">
             {history.map((b) => (
@@ -206,6 +207,14 @@ export default function TreatmentPage() {
           </ul>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Message the Medical Team</CardTitle>
+          <MessageCircle size={18} className="text-neutral-400" />
+        </CardHeader>
+        <MessageThread playerId={playerId} viewerRole="player" viewerName={player?.name ?? "Player"} viewerEmail={player?.email ?? null} />
+      </Card>
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

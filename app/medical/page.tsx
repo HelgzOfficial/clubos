@@ -16,8 +16,10 @@ import { TreatmentBookings } from "@/components/medical/treatment-bookings";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { AiInjurySearch } from "@/components/medical/ai-injury-search";
 import { VoiceNoteButton } from "@/components/voice-note-button";
+import { MessageThread } from "@/components/medical/message-thread";
+import { fetchUnreadCountsForDoctor } from "@/lib/medical-messages-db";
 import { usePermissions } from "@/lib/permissions";
-import { Plus, Pencil, Check, X, Trash2, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Check, X, Trash2, AlertCircle, MessageCircle } from "lucide-react";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
 
@@ -45,7 +47,7 @@ const emptyForm = {
 };
 
 export default function MedicalPage() {
-  const { canWrite } = usePermissions();
+  const { canWrite, appUser } = usePermissions();
   const canEdit = canWrite("medical");
   const [players, setPlayers] = useState<DbPlayer[]>([]);
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
@@ -56,6 +58,7 @@ export default function MedicalPage() {
   const [editingInjuryId, setEditingInjuryId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   async function load() {
     setLoading(true);
@@ -71,9 +74,24 @@ export default function MedicalPage() {
     }
   }
 
+  async function loadUnread() {
+    try {
+      setUnreadCounts(await fetchUnreadCountsForDoctor());
+    } catch {
+      // Non-fatal — the message badges just won't show counts.
+    }
+  }
+
   useEffect(() => {
     load();
+    loadUnread();
   }, []);
+
+  // Refresh the unread badges once a thread is closed, since opening it
+  // marks those messages read.
+  useEffect(() => {
+    if (openId === null) loadUnread();
+  }, [openId]);
 
   const counts = {
     green: players.filter((p) => p.availability === "green").length,
@@ -196,6 +214,11 @@ export default function MedicalPage() {
                     <span className="absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-lg bg-black/50 px-1.5 text-sm font-bold text-white backdrop-blur-sm">
                       {p.squad_number}
                     </span>
+                    {!!unreadCounts[p.id] && (
+                      <span className="absolute left-2 top-2 flex h-6 min-w-6 items-center justify-center gap-1 rounded-full bg-club-primary px-1.5 text-xs font-bold text-navy-950">
+                        <MessageCircle size={11} /> {unreadCounts[p.id]}
+                      </span>
+                    )}
                   </div>
                   <div className="p-3.5">
                     <p className="font-medium truncate">{p.name}</p>
@@ -357,6 +380,19 @@ export default function MedicalPage() {
                         </div>
                       </form>
                     )}
+
+                    <div className="mt-6 border-t border-white/10 pt-5">
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        <MessageCircle size={13} /> Message {p.name.split(" ")[0]}
+                      </p>
+                      <MessageThread
+                        playerId={p.id}
+                        viewerRole="doctor"
+                        viewerName={appUser?.name ?? "Medical team"}
+                        viewerEmail={appUser?.email ?? null}
+                        className="max-w-md"
+                      />
+                    </div>
               </div>
             </Card>
           </div>
