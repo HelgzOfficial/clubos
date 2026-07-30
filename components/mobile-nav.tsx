@@ -61,15 +61,15 @@ export function MobileNav() {
     <>
       <button
         onClick={openMenu}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors md:hidden"
+        className="touch-manipulation flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors md:hidden"
         aria-label="Open menu"
       >
         <Menu size={18} />
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={handleBackdropClick} />
+        <div className="fixed inset-0 z-[100] md:hidden" style={{ height: "100dvh" }}>
+          <div className="absolute inset-0 bg-black/50 touch-none" onClick={handleBackdropClick} />
           <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col bg-navy-700 dark:bg-navy-950 shadow-softDark">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-5">
               <div className="flex min-w-0 items-center gap-3">
@@ -105,7 +105,7 @@ export function MobileNav() {
                     key={href}
                     href={href}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors",
+                      "touch-manipulation flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors",
                       active
                         ? "bg-navy-600 dark:bg-navy-800 text-club-primary"
                         : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
@@ -123,7 +123,7 @@ export function MobileNav() {
                 <Link
                   href="/settings"
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors",
+                    "touch-manipulation flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors",
                     pathname === "/settings"
                       ? "bg-navy-600 dark:bg-navy-800 text-white"
                       : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"

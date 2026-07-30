@@ -89,8 +89,8 @@ export function ImageAnnotator({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-3xl rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4">
+      <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-y-auto rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
         <div className="mb-3 flex items-center justify-between">
           <p className="truncate font-medium">{title}</p>
           <button onClick={onClose} className="text-neutral-400 hover:text-white shrink-0">
@@ -98,7 +98,7 @@ export function ImageAnnotator({
           </button>
         </div>
 
-        <div ref={wrapRef} className="relative w-full overflow-hidden rounded-xl bg-black" style={{ aspectRatio: "16/9" }}>
+        <div ref={wrapRef} className="relative w-full shrink-0 overflow-hidden rounded-xl bg-black" style={{ aspectRatio: "16/9" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={imgRef}
