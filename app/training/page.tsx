@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { SessionPlanLibrary } from "@/components/training/session-plan-library";
 import { Badge } from "@/components/ui/badge";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PitchCanvas } from "@/components/training/pitch-canvas";
@@ -415,6 +416,22 @@ function TrainingPageInner() {
             })}
           </div>
         )}
+
+        {/* Every uploaded plan in one place. Before this, a plan was only
+            reachable from its own date — so unless you remembered which day it
+            was for, it may as well not have been there. Players see the same
+            list in the companion app. */}
+        <Card className="mt-6">
+          <CardHeader><CardTitle>Uploaded Session Plans</CardTitle></CardHeader>
+          <p className="mb-3 text-xs text-neutral-400">
+            Every plan uploaded against a training day, newest first. Players can view and download these in the
+            companion app as soon as they're uploaded.
+          </p>
+          <SessionPlanLibrary
+            canDelete={canEdit}
+            onOpenDate={(d) => router.push(`/training?date=${d}`)}
+          />
+        </Card>
 
         <p className="mt-4 text-xs text-neutral-400">
           Sessions are saved in this browser, so they'll be here next time you visit on this device. Connecting Supabase later will make them available from any device and to your whole staff.
