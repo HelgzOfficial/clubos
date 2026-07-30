@@ -117,6 +117,24 @@ export async function uploadCrest(kind: CrestKind, name: string, file: File): Pr
   return data as DbTeamCrest;
 }
 
+// Points a second spelling of the same club at an already-uploaded badge, so
+// "Carshalton Athletic" in the league table resolves even though the file was
+// uploaded against "Carshalton Athletic FC" from the fixture list. file_path is
+// left null deliberately: the alias shares the stored file, so removing the
+// alias must never delete it out from under the original.
+export async function saveCrestAlias(kind: CrestKind, name: string, crestUrl: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const existing = await supabase.from("team_crests").select("id").eq("kind", kind).ilike("name", name.trim()).limit(1);
+  if (existing.data?.[0]) {
+    await supabase
+      .from("team_crests")
+      .update({ crest_url: crestUrl, updated_at: new Date().toISOString() })
+      .eq("id", existing.data[0].id);
+    return;
+  }
+  await supabase.from("team_crests").insert({ kind, name: name.trim(), crest_url: crestUrl, file_path: null });
+}
+
 export async function deleteCrest(crest: DbTeamCrest): Promise<void> {
   if (!supabase) throw new Error("Supabase is not configured.");
   if (crest.file_path) await supabase.storage.from("team-crests").remove([crest.file_path]);
