@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { Drill, PitchItem, PitchLine, TrainingSession } from "./training-storage";
+import type { Drill, PitchItem, PitchLine, PitchView, TrainingSession } from "./training-storage";
 
 // Shared storage for training sessions and drills, replacing the per-browser
 // localStorage that meant a session planned on one device was invisible on
@@ -20,6 +20,7 @@ type DbDrillRow = {
   notes: string | null;
   items: PitchItem[] | null;
   lines: PitchLine[] | null;
+  view: PitchView | null;
 };
 
 export type TrainingData = { sessions: TrainingSession[]; drills: Record<string, Drill> };
@@ -50,6 +51,7 @@ export async function fetchTrainingData(): Promise<TrainingData> {
       notes: r.notes ?? "",
       items: r.items ?? [],
       lines: r.lines ?? [],
+      view: r.view ?? "full",
     };
   }
 
@@ -86,6 +88,7 @@ export async function saveTrainingState(sessions: TrainingSession[], drills: Rec
       notes: d.notes ?? "",
       items: d.items ?? [],
       lines: d.lines ?? [],
+      view: d.view ?? "full",
       updated_at: now,
     }));
     const { error } = await supabase.from("training_drills").upsert(rows, { onConflict: "id" });

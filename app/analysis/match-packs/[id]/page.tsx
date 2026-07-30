@@ -617,6 +617,10 @@ function BlockBody({
           <PitchCanvas
             items={block.items}
             lines={block.lines}
+            view={block.view ?? "full"}
+            onViewChange={(view) => onPatch({ view })}
+            title={block.title || "diagram"}
+            description={block.caption}
             readOnly={preview}
             onChange={(next) => onPatch({ items: next.items, lines: next.lines })}
           />

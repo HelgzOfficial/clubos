@@ -506,6 +506,10 @@ function TrainingPageInner() {
             <PitchCanvas
               items={drill.items}
               lines={drill.lines}
+              view={drill.view ?? "full"}
+              onViewChange={(view) => updateDrill(drill.id, { view })}
+              title={drill.name}
+              description={drill.notes}
               onChange={({ items, lines }) => updateDrill(drill.id, { items, lines })}
               readOnly={!canEdit}
             />

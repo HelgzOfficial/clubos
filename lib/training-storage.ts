@@ -1,8 +1,48 @@
-export type ItemType = "player" | "opponent" | "cone" | "goal" | "mini-goal" | "mannequin" | "zone" | "football";
-export type LineStyle = "solid" | "dashed";
+export type ItemType =
+  | "player" | "opponent" | "cone" | "goal" | "mini-goal" | "mannequin" | "zone" | "football"
+  | "neutral" | "keeper" | "flat-marker" | "ladder" | "hurdle" | "text"
+  // Shape markers — the same object in different outlines, which is how coaches
+  // separate teams, bibs and roles without needing more colours.
+  | "triangle" | "square" | "octagon" | "dot" | "number" | "hatch";
 
-export type PitchItem = { id: string; type: ItemType; x: number; y: number };
-export type PitchLine = { id: string; x1: number; y1: number; x2: number; y2: number; style: LineStyle };
+// solid = pass, dashed = run, wavy = dribble, block = a barrier/pressing line,
+// free = a freehand brush stroke (uses `points` rather than the endpoints).
+export type LineStyle = "solid" | "dashed" | "wavy" | "block" | "free";
+
+// Which template the diagram is drawn on. Most drills happen in a third, a box
+// or a plain grid, and forcing them onto a full pitch made everything tiny.
+export type PitchView =
+  | "full" | "half" | "third" | "box"
+  | "split2" | "split3" | "square" | "blank"
+  // Kept so drills saved against the earlier five-view build still open.
+  | "grid";
+
+// Everything added after the original four fields is optional, so drills saved
+// before this existed still parse — old rows simply fall back to the defaults.
+export type PitchItem = {
+  id: string;
+  type: ItemType;
+  x: number;
+  y: number;
+  color?: string;   // hex; defaults per item type
+  label?: string;   // shirt number, or the words for a "text" item
+  size?: number;    // 0.5–2 scale multiplier
+  rotation?: number; // degrees, for goals and ladders
+};
+
+export type PitchLine = {
+  id: string;
+  x1: number; y1: number;
+  x2: number; y2: number;
+  style: LineStyle;
+  color?: string;
+  // Quadratic control point, as a percentage like the ends. Absent means a
+  // straight line, which is what every pre-existing line is.
+  cx?: number;
+  cy?: number;
+  // Freehand strokes only: the sampled path, as percentages like everything else.
+  points?: { x: number; y: number }[];
+};
 
 export type Drill = {
   id: string;
@@ -11,6 +51,7 @@ export type Drill = {
   notes: string;
   items: PitchItem[];
   lines: PitchLine[];
+  view?: PitchView;
 };
 
 export type TrainingSession = {

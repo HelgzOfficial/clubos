@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-import type { PitchItem, PitchLine } from "./training-storage";
+import type { PitchItem, PitchLine, PitchView } from "./training-storage";
 
 // A match pack is an ordered list of blocks. Clip and image came first; the
 // rest turn it from a media list into something an analyst can actually build
@@ -18,7 +18,7 @@ export type MatchPackItem =
   | { type: "heading"; id?: string; text: string }
   | { type: "text"; id?: string; title?: string; body: string }
   | { type: "points"; id?: string; title: string; tone: MatchPackTone; points: string[] }
-  | { type: "pitch"; id?: string; title: string; caption: string; items: PitchItem[]; lines: PitchLine[] }
+  | { type: "pitch"; id?: string; title: string; caption: string; items: PitchItem[]; lines: PitchLine[]; view?: PitchView }
   | { type: "stats"; id?: string; title: string; rows: { label: string; us: string; them: string }[] };
 
 export type MatchPackBlockType = MatchPackItem["type"];
