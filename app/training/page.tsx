@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
+import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { Badge } from "@/components/ui/badge";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PitchCanvas } from "@/components/training/pitch-canvas";
@@ -17,14 +18,15 @@ import {
 import { fetchCalendarEvents, expandEvent, type DbCalendarEvent } from "@/lib/calendar-events-db";
 import { fetchMatches } from "@/lib/matches-db";
 import {
-  fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl,
+  fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan,
+  getTrainingPlanDownloadUrl, getTrainingPlanViewUrl,
   type DbTrainingPlan,
 } from "@/lib/training-plans-db";
 import { usePermissions } from "@/lib/permissions";
 import {
   fetchTrainingData, saveTrainingState, deleteSessionRemote, deleteDrillRemote, remoteTrainingIsEmpty,
 } from "@/lib/training-db";
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Eye, Loader2, AlertCircle } from "lucide-react";
 
 type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kind: "drill"; sessionId: string; drillId: string };
 
@@ -38,6 +40,7 @@ function TrainingDayCard({ date, canEdit }: { date: string; canEdit: boolean }) 
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [viewingPlan, setViewingPlan] = useState<DbTrainingPlan | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,7 +122,10 @@ function TrainingDayCard({ date, canEdit }: { date: string; canEdit: boolean }) 
                 <li key={p.id} className="flex items-center gap-2.5 py-2.5 text-sm">
                   <FileText size={14} className="shrink-0 text-neutral-400" />
                   <span className="flex-1 truncate">{p.file_name}</span>
-                  <button onClick={() => handleDownload(p)} title="Download" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                  <button onClick={() => setViewingPlan(p)} title="View" aria-label={`View ${p.file_name}`} className="touch-manipulation flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                    <Eye size={13} />
+                  </button>
+                  <button onClick={() => handleDownload(p)} title="Download" className="touch-manipulation flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
                     <Download size={13} />
                   </button>
                   {canEdit && (
@@ -152,6 +158,16 @@ function TrainingDayCard({ date, canEdit }: { date: string; canEdit: boolean }) 
             </label>
           )}
         </>
+      )}
+
+      {viewingPlan && (
+        <DocumentViewerModal
+          fileName={viewingPlan.file_name}
+          fileType={viewingPlan.file_type}
+          getViewUrl={() => getTrainingPlanViewUrl(viewingPlan.file_path)}
+          getDownloadUrl={() => getTrainingPlanDownloadUrl(viewingPlan.file_path)}
+          onClose={() => setViewingPlan(null)}
+        />
       )}
     </Card>
   );
