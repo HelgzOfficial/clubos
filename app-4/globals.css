@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 20 31 61;
+  --foreground: 245 247 250;
+  /* Club colours — overridden at runtime by ClubColorProvider from Settings > Appearance. */
+  --club-primary-rgb: 212 175 55;
+  --club-secondary-rgb: 230 199 102;
+  --club-accent-rgb: 212 175 55;
+}
+
+.dark {
+  --background: 6 11 26;
+  --foreground: 245 247 250;
+}
+
+html,
+body {
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  /* Safety net for mobile browsers: a single stray wide element anywhere in
+     the app (an un-wrapped table, a fixed-width canvas, etc.) can otherwise
+     make the whole page rubber-band scroll sideways on a phone. Vertical
+     scrolling still works fine everywhere since this only clips overflow on
+     the horizontal axis. */
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
