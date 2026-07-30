@@ -348,7 +348,7 @@ export default function PortalPage() {
                 const ga = m.is_home ? m.away_score! : m.home_score!;
                 const result: "W" | "D" | "L" = gf > ga ? "W" : gf < ga ? "L" : "D";
                 return (
-                  <Link key={m.id} href={`/matches/${m.id}`} className="flex items-center gap-3 py-2.5 text-sm hover:text-club-primary transition-colors">
+                  <Link key={m.id} href={`/portal/matches/${m.id}`} className="flex items-center gap-3 py-2.5 text-sm hover:text-club-primary transition-colors">
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${resultColor[result]}`}>{result}</span>
                     <span className="min-w-0 flex-1 truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
                     <span className="shrink-0 tabular-nums text-neutral-400">{gf}-{ga}</span>
@@ -366,7 +366,7 @@ export default function PortalPage() {
               {formGuide.map((f) => (
                 <Link
                   key={f.id}
-                  href={`/matches/${f.id}`}
+                  href={`/portal/matches/${f.id}`}
                   title={`${f.opponent} ${f.score} — view match`}
                   className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-transform hover:scale-110 ${resultColor[f.result]}`}
                 >
