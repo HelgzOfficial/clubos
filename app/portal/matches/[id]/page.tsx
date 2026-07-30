@@ -93,7 +93,10 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
 
   const starting = lineup.filter((l) => l.is_starting);
   const bench = lineup.filter((l) => !l.is_starting);
-  const played = match?.status === "completed" && match.home_score !== null && match.away_score !== null;
+  // Show the scoreline whenever both scores exist, rather than requiring
+  // status to have been flipped to 'completed' as well — fixtures often get a
+  // score recorded without the status being changed.
+  const played = !!match && match.home_score !== null && match.away_score !== null;
   const gf = played && match ? (match.is_home ? match.home_score! : match.away_score!) : null;
   const ga = played && match ? (match.is_home ? match.away_score! : match.home_score!) : null;
   const result = gf !== null && ga !== null ? (gf > ga ? "Won" : gf < ga ? "Lost" : "Drew") : null;
