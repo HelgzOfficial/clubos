@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
-import { club } from "@/lib/sample-data";
+import { club as clubFallback } from "@/lib/sample-data";
+import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { Mail, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export default function PortalLoginPage() {
@@ -10,6 +12,12 @@ export default function PortalLoginPage() {
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [club, setClub] = useState(clubFallback);
+
+  useEffect(() => {
+    setClub(loadClubSettings(clubFallback));
+    fetchClubSettings(clubFallback).then((settings) => { setClub(settings); saveClubSettings(settings); });
+  }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
