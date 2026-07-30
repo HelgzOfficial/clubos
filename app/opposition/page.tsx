@@ -9,6 +9,7 @@ import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
+import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 
 const formColor: Record<string, string> = {
   W: "bg-emerald-500", D: "bg-amber-400", L: "bg-red-500",
@@ -27,6 +28,8 @@ function formatDate(iso: string) {
 export default function OppositionPage() {
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  // One fetch shared by every card, rather than one per crest.
+  const crestLookup = useCrestLookup();
 
   useEffect(() => {
     fetchMatches()
@@ -83,13 +86,16 @@ export default function OppositionPage() {
             const card = (
               <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{match.opponent}</p>
-                    <p className="text-xs text-neutral-400 truncate">
-                      {match.competition}{report ? ` · ${report.formation} · ${report.leaguePosition}${ordinal(report.leaguePosition)} in league` : ""}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <TeamCrest name={match.opponent} size="md" lookup={crestLookup} />
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{match.opponent}</p>
+                      <p className="text-xs text-neutral-400 truncate">
+                        {match.competition}{report ? ` · ${report.formation} · ${report.leaguePosition}${ordinal(report.leaguePosition)} in league` : ""}
+                      </p>
+                    </div>
                   </div>
-                  <Badge variant={report ? statusVariant[report.reportStatus] : "neutral"}>
+                  <Badge variant={report ? statusVariant[report.reportStatus] : "neutral"} className="shrink-0">
                     {report ? report.reportStatus : "Add scouting report"}
                   </Badge>
                 </div>
