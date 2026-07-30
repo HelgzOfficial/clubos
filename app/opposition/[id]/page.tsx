@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { MatchPackButton } from "@/components/analysis/match-pack-button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { TeamCrest } from "@/components/team-crest";
 import { Badge } from "@/components/ui/badge";
 import { opposition, club, type Opposition } from "@/lib/sample-data";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
@@ -78,9 +79,10 @@ export default function OppositionDetailPage() {
       </Link>
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-navy-600 dark:bg-navy-800 text-sm font-semibold shrink-0">
-          {opponentName.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-        </div>
+        {/* The uploaded badge when there is one, and otherwise the shared
+            initials fallback — the same one the rest of the app uses, rather
+            than this page's own slightly different version. */}
+        <TeamCrest name={opponentName} size="lg" />
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-semibold">{opponentName}</h1>
           <p className="text-sm text-neutral-500">
