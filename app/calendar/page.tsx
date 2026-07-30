@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DirectionsLinks } from "@/components/directions-links";
@@ -57,6 +58,9 @@ type Instance = {
   venue: string | null;
   href: string | null;
   eventId: string | null; // set for calendar_events, so it can be edited/deleted
+  // Matches only — used to draw the opponent's badge beside the fixture.
+  crestName?: string;
+  competition?: string;
 };
 
 const blankForm = {
@@ -109,6 +113,7 @@ export default function CalendarPage() {
 
   // Widen the expansion range slightly beyond the visible month so a
   // recurring event whose weekday lands right at the grid's edge still shows.
+  const crestLookup = useCrestLookup();
   const rangeStart = toDateStr(year, month, 1);
   const rangeEnd = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
 
@@ -123,6 +128,8 @@ export default function CalendarPage() {
       venue: m.venue,
       href: `/matches/${m.id}`,
       eventId: null,
+      crestName: m.opponent,
+      competition: m.competition,
     }));
 
     const matchDates = new Set(matchInstances.map((m) => m.date));
@@ -322,8 +329,9 @@ export default function CalendarPage() {
                 <div className="mt-1 hidden space-y-1 sm:block">
                   {dayEvents.slice(0, 3).map((e) =>
                     e.href ? (
-                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="block">
-                        <Badge variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight hover:opacity-80 transition-opacity">
+                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-1">
+                        {e.crestName && <TeamCrest name={e.crestName} size="xxs" lookup={crestLookup} />}
+                        <Badge variant={typeVariant[e.type]} className="block min-w-0 flex-1 truncate text-[10px] leading-tight hover:opacity-80 transition-opacity">
                           {e.title}
                         </Badge>
                       </Link>

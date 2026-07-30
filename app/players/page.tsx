@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { fetchPlayers, createPlayer, POSITION_OPTIONS, type DbPlayer, type PositionGroup } from "@/lib/players-db";
 import { COUNTRIES, flagEmoji } from "@/lib/countries";
+import { Search } from "lucide-react";
 import {
   fetchPlayerAbsences, createPlayerAbsence, deletePlayerAbsence, isAbsentOn, todayStr,
   type DbPlayerAbsence, type AbsenceReason,
@@ -40,6 +41,7 @@ export default function PlayersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [query, setQuery] = useState("");
 
   const [showAddAbsence, setShowAddAbsence] = useState(false);
   const [absencePlayerId, setAbsencePlayerId] = useState("");
@@ -161,15 +163,48 @@ export default function PlayersPage() {
     }
   }
 
+  // Matches on name, squad number, position and nationality, so "9", "keeper"
+  // and "Wales" all find someone — quicker than scanning four position groups.
+  const q = query.trim().toLowerCase();
+  const visiblePlayers = q
+    ? players.filter((p) =>
+        p.name.toLowerCase().includes(q) ||
+        String(p.squad_number) === q ||
+        String(p.squad_number).includes(q) ||
+        p.position.toLowerCase().includes(q) ||
+        (p.nationality ?? "").toLowerCase().includes(q)
+      )
+    : players;
+
   return (
     <AppShell>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Players</h1>
           <p className="text-sm text-neutral-500">
-            {tab === "squad" ? `${players.length} players in the first-team squad.` : "Approved holidays and other pre-agreed time away — syncs with the Dashboard's Player Availability widget."}
+            {tab === "squad" ? (q ? `${visiblePlayers.length} of ${players.length} players match "${query.trim()}".` : `${players.length} players in the first-team squad.`) : "Approved holidays and other pre-agreed time away — syncs with the Dashboard's Player Availability widget."}
           </p>
         </div>
+        {tab === "squad" && (
+          <div className="relative w-full max-w-xs">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, number, position…"
+              className="w-full rounded-xl border border-white/10 bg-navy-600 py-2 pl-9 pr-8 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:text-white"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        )}
         {canEdit && tab === "squad" && (
           <button
             onClick={() => setShowAdd(true)}
@@ -224,10 +259,18 @@ export default function PlayersPage() {
           <p className="font-medium">No players yet</p>
           <p className="mt-1 max-w-sm text-sm text-neutral-400">Add your first player to start building the squad.</p>
         </Card>
+      ) : visiblePlayers.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center py-14 text-center">
+          <Search size={24} className="mb-3 text-neutral-400" />
+          <p className="font-medium">No players match &ldquo;{query.trim()}&rdquo;</p>
+          <button onClick={() => setQuery("")} className="mt-2 text-sm text-club-primary hover:underline">
+            Clear search
+          </button>
+        </Card>
       ) : (
         <div className="space-y-8">
           {groupOrder.map((group) => {
-            const groupPlayers = players.filter((p) => p.position_group === group);
+            const groupPlayers = visiblePlayers.filter((p) => p.position_group === group);
             if (groupPlayers.length === 0) return null;
             return (
               <div key={group}>

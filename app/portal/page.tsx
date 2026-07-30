@@ -22,6 +22,7 @@ import { fetchHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-hea
 import { fetchCalendarEvents, expandEvent, type EventOccurrence, type DbCalendarEvent } from "@/lib/calendar-events-db";
 import { fetchClips, getClipUrl, type DbClip } from "@/lib/clips-db";
 import { getCountryFlag } from "@/lib/countries";
+import { personalGreeting } from "@/lib/greeting";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
@@ -369,7 +370,7 @@ export default function PortalPage() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight">{branding.name}</p>
-              <p className="text-[11px] text-club-primary">Hi {player?.name?.split(" ")[0]}</p>
+              <p className="text-[11px] text-club-primary">{personalGreeting(player?.name)}</p>
             </div>
           </div>
           <button onClick={handleSignOut} className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-400 hover:text-white">

@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { useIsMobileOrTablet } from "@/lib/use-media-query";
+import { TeamCrest, useCrestLookup, invalidateCrestCache } from "@/components/team-crest";
+import { CrestManager } from "@/components/crest-manager";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
@@ -12,7 +14,7 @@ import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
 import { usePermissions } from "@/lib/permissions";
-import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload } from "lucide-react";
+import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload, Shield } from "lucide-react";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -92,6 +94,9 @@ export default function MatchesPage() {
   const canEdit = canWrite("matches");
   const isMobile = useIsMobileOrTablet();
   const [matchesTab, setMatchesTab] = useState<"upcoming" | "results">("upcoming");
+  const crestLookup = useCrestLookup();
+  const [showCrests, setShowCrests] = useState(false);
+  const [crestNonce, setCrestNonce] = useState(0);
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -225,6 +230,12 @@ export default function MatchesPage() {
               <RefreshCw size={14} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync Fixtures"}
             </button>
             <button
+              onClick={() => setShowCrests(true)}
+              className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+            >
+              <Shield size={14} /> Crests
+            </button>
+            <button
               onClick={() => setShowAdd(true)}
               className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
             >
@@ -273,8 +284,14 @@ export default function MatchesPage() {
               {upcoming.map((m) => (
                 <Card key={m.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                    <div className="mt-1 mb-1"><CompetitionBadge competition={m.competition} /></div>
+                    <p className="flex items-center gap-2 font-medium">
+                      <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
+                      <span className="truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
+                    </p>
+                    <div className="mt-1 mb-1 flex items-center gap-1.5">
+                      <TeamCrest name={m.competition} kind="competition" size="xs" lookup={crestLookup} />
+                      <CompetitionBadge competition={m.competition} />
+                    </div>
                     <p className="text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
                     <DirectionsLinks venue={m.venue} className="mt-1.5" />
                   </div>
@@ -312,8 +329,14 @@ export default function MatchesPage() {
                   <Card key={m.id} className="gap-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                        <div className="mt-1 mb-1"><CompetitionBadge competition={m.competition} /></div>
+                        <p className="flex items-center gap-2 font-medium">
+                          <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
+                          <span className="truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
+                        </p>
+                        <div className="mt-1 mb-1 flex items-center gap-1.5">
+                          <TeamCrest name={m.competition} kind="competition" size="xs" lookup={crestLookup} />
+                          <CompetitionBadge competition={m.competition} />
+                        </div>
                         <p className="text-xs text-neutral-400">{formatDate(m.kickoff)}</p>
                       </div>
                       {!editing && (
@@ -390,6 +413,14 @@ export default function MatchesPage() {
               })}
             </div>
           }
+        />
+      )}
+
+      {showCrests && (
+        <CrestManager
+          matches={matches}
+          onClose={() => setShowCrests(false)}
+          onChanged={() => setCrestNonce((n) => n + 1)}
         />
       )}
 

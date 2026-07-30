@@ -35,6 +35,8 @@ import {
   fetchTrainingPlans, uploadTrainingPlan, deleteTrainingPlan, getTrainingPlanDownloadUrl, type DbTrainingPlan,
 } from "@/lib/training-plans-db";
 import { usePermissions } from "@/lib/permissions";
+import { personalGreeting } from "@/lib/greeting";
+import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import {
   CloudSun, Clock, ShieldAlert, Trophy, TrendingUp, Upload, FileText, Download, Eye, Trash2, X,
@@ -104,8 +106,9 @@ const blankScheduleForm = {
 
 export default function DashboardPage() {
   const today = todayStr();
-  const { canWrite } = usePermissions();
+  const { canWrite, appUser } = usePermissions();
   const canEditDashboard = canWrite("dashboard");
+  const crestLookup = useCrestLookup();
   const canEditDocuments = canWrite("documents");
   const canEditTraining = canWrite("training");
 
@@ -307,7 +310,10 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
-                    <p className="text-xl font-semibold">{nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}</p>
+                    <p className="flex items-center gap-2 text-xl font-semibold">
+                      <TeamCrest name={nextMatch.opponent} size="md" lookup={crestLookup} />
+                      {nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}
+                    </p>
                     <p className="text-sm text-neutral-500">{nextMatch.competition}</p>
                     <p className="text-sm text-neutral-500">{formatDateTime(nextMatch.kickoff)}{nextMatch.venue ? ` — ${nextMatch.venue}` : ""}</p>
                     {isMatchday && nextMatch.venue && <DirectionsLinks venue={nextMatch.venue} className="mt-1.5" />}
@@ -674,7 +680,7 @@ export default function DashboardPage() {
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Good afternoon, Helge</h1>
+          <h1 className="text-2xl font-semibold">{personalGreeting(appUser?.name)}</h1>
           <p className="text-sm text-neutral-500">Here's what's happening at the club today.</p>
         </div>
         {canEditDashboard && (
