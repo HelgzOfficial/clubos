@@ -6,25 +6,16 @@ import { AuthGate } from "@/components/auth-gate";
 import { PermissionsProvider } from "@/lib/permissions";
 import { ModuleGate } from "@/components/module-gate";
 import { ClubColorProvider } from "@/components/club-color-provider";
-import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 export const metadata: Metadata = {
   title: "ClubOS",
   description: "The operating system for your football club.",
-  manifest: "/manifest.json",
   appleWebApp: {
     // Lets someone add ClubOS to their iPhone/iPad home screen and have it
     // open full-screen like a native app instead of inside Safari's chrome.
     capable: true,
     statusBarStyle: "black-translucent",
     title: "ClubOS",
-  },
-  icons: {
-    icon: [
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
-    ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -45,7 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        <ServiceWorkerRegister />
         <ThemeProvider>
           <ClubColorProvider>
             <AuthProvider>
