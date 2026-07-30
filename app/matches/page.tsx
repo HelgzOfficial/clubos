@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { useIsMobileOrTablet } from "@/lib/use-media-query";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
+import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
@@ -98,6 +99,7 @@ export default function MatchesPage() {
   const [showCrests, setShowCrests] = useState(false);
   const [crestNonce, setCrestNonce] = useState(0);
   const [matches, setMatches] = useState<DbMatch[]>([]);
+  const [league, setLeague] = useState<DbLeagueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -132,7 +134,12 @@ export default function MatchesPage() {
 
   useEffect(() => {
     load();
+    // Only used to widen the crest list to the whole division — a failure here
+    // shouldn't stop the fixture list rendering.
+    fetchLeagueTable().then(setLeague).catch(() => {});
   }, []);
+
+  const leagueTeams = useMemo(() => league.map((r) => r.team), [league]);
 
   async function handleSync() {
     setSyncing(true);
@@ -427,6 +434,7 @@ export default function MatchesPage() {
       {showCrests && (
         <CrestManager
           matches={matches}
+          extraTeams={leagueTeams}
           onClose={() => setShowCrests(false)}
           onChanged={() => setCrestNonce((n) => n + 1)}
         />
