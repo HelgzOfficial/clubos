@@ -22,6 +22,12 @@ const typeVariant = {
   meeting: "amber" as const,
 };
 
+const chipTone: Record<keyof typeof typeVariant, string> = {
+  match: "bg-emerald-500/15 text-emerald-300",
+  training: "bg-white/10 text-neutral-200",
+  meeting: "bg-amber-500/15 text-amber-300",
+};
+
 // Compact colour dots used on narrow screens instead of full text badges —
 // a phone-width grid column has no room to render even a truncated word
 // legibly, so each event becomes a small tappable dot instead. Still one
@@ -327,7 +333,7 @@ export default function CalendarPage() {
                 tabIndex={0}
                 onClick={() => setSelectedDate(dateStr)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(dateStr); } }}
-                className={`min-h-[64px] sm:min-h-[92px] cursor-pointer rounded-lg sm:rounded-xl border p-1 sm:p-2 text-left transition-colors ${
+                className={`min-h-[64px] min-w-0 overflow-hidden sm:min-h-[92px] cursor-pointer rounded-lg sm:rounded-xl border p-1 sm:p-2 text-left transition-colors ${
                   isSelected ? "border-club-primary bg-club-primary/10" : "border-white/10 hover:bg-navy-600/50 dark:hover:bg-navy-800/50"
                 }`}
               >
@@ -359,7 +365,7 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Tablet/desktop: room for a truncated title, still clickable straight to its destination. */}
-                <div className="mt-1 hidden space-y-1 sm:block">
+                <div className="mt-1 hidden min-w-0 space-y-1 overflow-hidden sm:block">
                   {dayEvents.slice(0, 3).map((e) =>
                     e.crestName && e.href ? (
                       // A fixture is the most important thing that can happen on
@@ -392,15 +398,22 @@ export default function CalendarPage() {
                         ) : null}
                       </Link>
                     ) : e.href ? (
-                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="block">
-                        <Badge variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight hover:opacity-80 transition-opacity">
+                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="block min-w-0">
+                        <span
+                          title={e.title}
+                          className={`block w-full truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight transition-opacity hover:opacity-80 ${chipTone[e.type]}`}
+                        >
                           {e.title}
-                        </Badge>
+                        </span>
                       </Link>
                     ) : (
-                      <Badge key={e.key} variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight">
+                      <span
+                        key={e.key}
+                        title={e.title}
+                        className={`block w-full truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${chipTone[e.type]}`}
+                      >
                         {e.title}
-                      </Badge>
+                      </span>
                     )
                   )}
                   {dayEvents.length > 3 && <p className="text-[10px] text-neutral-500">+{dayEvents.length - 3} more</p>}
