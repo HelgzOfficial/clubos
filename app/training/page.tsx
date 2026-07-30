@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,9 @@ import {
   type DbTrainingPlan,
 } from "@/lib/training-plans-db";
 import { usePermissions } from "@/lib/permissions";
+import {
+  fetchTrainingData, saveTrainingState, deleteSessionRemote, deleteDrillRemote, remoteTrainingIsEmpty,
+} from "@/lib/training-db";
 import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Upload, FileText, Download, Loader2, AlertCircle } from "lucide-react";
 
 type View = { kind: "archive" } | { kind: "session"; sessionId: string } | { kind: "drill"; sessionId: string; drillId: string };
@@ -172,14 +175,70 @@ function TrainingPageInner() {
   const router = useRouter();
   const dateParam = searchParams.get("date");
 
+  const [syncError, setSyncError] = useState("");
+
+  // Paint instantly from this device's cache, then replace it with the shared
+  // Supabase copy so sessions planned anywhere show up here.
   useEffect(() => {
-    setSessions(loadSessions());
-    setDrills(loadDrills());
-    setReady(true);
+    const cachedSessions = loadSessions();
+    const cachedDrills = loadDrills();
+    setSessions(cachedSessions);
+    setDrills(cachedDrills);
+
+    (async () => {
+      try {
+        // First run after the migration: this device has sessions but the
+        // shared store is still empty, so push them up rather than losing them.
+        if (cachedSessions.length > 0 && (await remoteTrainingIsEmpty())) {
+          await saveTrainingState(cachedSessions, cachedDrills);
+        }
+        const remote = await fetchTrainingData();
+        setSessions(remote.sessions);
+        setDrills(remote.drills);
+        saveSessions(remote.sessions);
+        saveDrills(remote.drills);
+        syncedRef.current = {
+          sessions: Object.fromEntries(remote.sessions.map((s) => [s.id, JSON.stringify(s)])),
+          drills: Object.fromEntries(Object.entries(remote.drills).map(([id, d]) => [id, JSON.stringify(d)])),
+        };
+      } catch (e) {
+        setSyncError(e instanceof Error ? e.message : "Couldn't sync training sessions.");
+      } finally {
+        setReady(true);
+      }
+    })();
   }, []);
 
-  useEffect(() => { if (ready) saveSessions(sessions); }, [sessions, ready]);
-  useEffect(() => { if (ready) saveDrills(drills); }, [drills, ready]);
+  // Cache locally on every change for instant reloads, and push to Supabase
+  // debounced — drill notes and drag-and-drop fire a lot of state updates, and
+  // one write per keystroke would be wasteful.
+  // Remembers what's already been written so only genuinely changed rows get
+  // sent — editing one drill's notes shouldn't re-upload the whole archive.
+  const syncedRef = useRef<{ sessions: Record<string, string>; drills: Record<string, string> }>({ sessions: {}, drills: {} });
+
+  useEffect(() => {
+    if (!ready) return;
+    saveSessions(sessions);
+    saveDrills(drills);
+
+    const t = setTimeout(() => {
+      const changedSessions = sessions.filter((s) => JSON.stringify(s) !== syncedRef.current.sessions[s.id]);
+      const changedDrills: Record<string, Drill> = {};
+      for (const [id, d] of Object.entries(drills) as [string, Drill][]) {
+        if (JSON.stringify(d) !== syncedRef.current.drills[id]) changedDrills[id] = d;
+      }
+      if (changedSessions.length === 0 && Object.keys(changedDrills).length === 0) return;
+
+      saveTrainingState(changedSessions, changedDrills)
+        .then(() => {
+          for (const s of changedSessions) syncedRef.current.sessions[s.id] = JSON.stringify(s);
+          for (const [id, d] of Object.entries(changedDrills) as [string, Drill][]) syncedRef.current.drills[id] = JSON.stringify(d);
+          setSyncError("");
+        })
+        .catch((e) => setSyncError(e instanceof Error ? e.message : "Couldn't save to the shared store."));
+    }, 800);
+    return () => clearTimeout(t);
+  }, [sessions, drills, ready]);
 
   // Coming from a Calendar click (?date=...) should land straight on that
   // day's session — past or future — the same way clicking a match lands
@@ -221,6 +280,11 @@ function TrainingPageInner() {
         s.drillIds.forEach((did) => delete next[did]);
         return next;
       });
+      // Removals are sent explicitly rather than inferred from the debounced
+      // save, which only ever upserts.
+      deleteSessionRemote(id, s.drillIds).catch((e) =>
+        setSyncError(e instanceof Error ? e.message : "Couldn't delete that session everywhere.")
+      );
     }
     setView({ kind: "archive" });
   }
@@ -239,6 +303,9 @@ function TrainingPageInner() {
       delete next[drillId];
       return next;
     });
+    deleteDrillRemote(drillId).catch((e) =>
+      setSyncError(e instanceof Error ? e.message : "Couldn't delete that drill everywhere.")
+    );
   }
 
   function moveDrill(sessionId: string, drillId: string, dir: -1 | 1) {
@@ -278,7 +345,9 @@ function TrainingPageInner() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Training Planner</h1>
-            <p className="text-sm text-neutral-500">{sessions.length} saved session{sessions.length === 1 ? "" : "s"} in your archive.</p>
+            <p className="text-sm text-neutral-500">
+              {sessions.length} saved session{sessions.length === 1 ? "" : "s"} · shared across every signed-in device
+            </p>
           </div>
           {canEdit && (
             <button
@@ -289,6 +358,14 @@ function TrainingPageInner() {
             </button>
           )}
         </div>
+
+        {syncError && (
+          <Card className="mb-4 border-amber-500/30 bg-amber-500/10">
+            <p className="text-sm text-amber-200">
+              {syncError} Your changes are still saved on this device and will sync once the connection recovers.
+            </p>
+          </Card>
+        )}
 
         {dateParam && (
           <>

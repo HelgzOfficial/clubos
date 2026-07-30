@@ -20,6 +20,9 @@ export type TrainingSession = {
   drillIds: string[];
 };
 
+// NOTE: these localStorage helpers are now only a fast local cache so the
+// page can paint immediately on load. Supabase is the source of truth for
+// training sessions and drills — see lib/training-db.ts.
 const SESSIONS_KEY = "clubos_training_sessions_v1";
 const DRILLS_KEY = "clubos_training_drills_v1";
 
