@@ -242,7 +242,10 @@ export default function PortalPage() {
       });
     }
     for (const e of weekEvents) {
-      push(e.date, { key: e.key, time: e.startTime, title: e.title, kind: e.type, venue: e.venue });
+      push(e.date, {
+        key: e.key, time: e.startTime, title: e.title, kind: e.type, venue: e.venue,
+        href: e.type === "training" ? `/portal/training/${e.date}` : undefined,
+      });
     }
 
     return [...byDate.entries()]
@@ -833,15 +836,26 @@ export default function PortalPage() {
             <p className="text-sm text-neutral-400">Nothing on the calendar this week.</p>
           ) : (
             <ul className="space-y-2">
-              {weekEvents.map((e) => (
-                <li key={e.key} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-2.5 py-2 text-xs">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{e.title}</p>
-                    <p className="text-neutral-400">{new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}{e.startTime ? ` · ${e.startTime}` : ""}{e.venue ? ` · ${e.venue}` : ""}</p>
+              {weekEvents.map((e) => {
+                const row = (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-2.5 py-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{e.title}</p>
+                      <p className="text-neutral-400">{new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}{e.startTime ? ` · ${e.startTime}` : ""}{e.venue ? ` · ${e.venue}` : ""}</p>
+                    </div>
+                    <Badge variant={e.type === "training" ? "green" : "blue"} className="shrink-0">{e.type}</Badge>
                   </div>
-                  <Badge variant={e.type === "training" ? "green" : "blue"} className="shrink-0">{e.type}</Badge>
-                </li>
-              ))}
+                );
+                // Training opens that day's plan; meetings have nothing behind
+                // them, so they stay as plain rows rather than dead links.
+                return e.type === "training" ? (
+                  <li key={e.key}>
+                    <Link href={`/portal/training/${e.date}`} className="block transition-colors hover:brightness-125">{row}</Link>
+                  </li>
+                ) : (
+                  <li key={e.key}>{row}</li>
+                );
+              })}
             </ul>
           )}
         </Collapsible>
