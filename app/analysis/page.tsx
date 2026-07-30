@@ -11,6 +11,7 @@ import { VideoPlayer } from "@/components/analysis/video-player";
 import { youTubeWatchUrl } from "@/lib/youtube";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
+import { seasonMatchIdSet, SEASON_START_LABEL } from "@/lib/season";
 import { fetchAllMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
 import { fetchAllGoals } from "@/lib/match-details-db";
 import { fetchAllClips, getClipUrl, CLIP_CATEGORIES, type DbClip, type ClipCategory } from "@/lib/clips-db";
@@ -70,12 +71,21 @@ export default function AnalysisDashboardPage() {
   }, []);
 
   const ownRow = league.find((r) => r.is_own_club) ?? null;
+
+  // Everything on this dashboard counts from the season opener only — see
+  // lib/season.ts. Stats, goals and clips all reference a match, so they're
+  // filtered through the same set of qualifying fixtures rather than each
+  // having its own idea of what "this season" means.
+  const seasonIds = useMemo(() => seasonMatchIdSet(matches), [matches]);
+  const seasonStats = useMemo(() => allStats.filter((s) => seasonIds.has(s.match_id)), [allStats, seasonIds]);
+  const seasonGoals = useMemo(() => goals.filter((g) => seasonIds.has(g.match_id)), [goals, seasonIds]);
+
   const kpis = useMemo(() => computeSeasonKpis(matches, ownRow), [matches, ownRow]);
-  const statCategories = useMemo(() => aggregateSeasonStats(allStats).slice(0, 3), [allStats]);
-  const timeline = useMemo(() => goalsTimeline(goals), [goals]);
+  const statCategories = useMemo(() => aggregateSeasonStats(seasonStats).slice(0, 3), [seasonStats]);
+  const timeline = useMemo(() => goalsTimeline(seasonGoals), [seasonGoals]);
   const maxTimelineValue = Math.max(1, ...timeline.flatMap((b) => [b.scored, b.conceded]));
-  const scorers = useMemo(() => topScorers(goals, 3), [goals]);
-  const assists = useMemo(() => topAssists(goals, 3), [goals]);
+  const scorers = useMemo(() => topScorers(seasonGoals, 3), [seasonGoals]);
+  const assists = useMemo(() => topAssists(seasonGoals, 3), [seasonGoals]);
 
   const featuredClips = useMemo(() => {
     return CLIP_CATEGORIES.map((cat) => ({
@@ -169,6 +179,12 @@ export default function AnalysisDashboardPage() {
                 </div>
               ))}
             </div>
+            {/* Stated rather than silent — a coach seeing zeroes should know
+                why, not assume the data is missing. */}
+            <p className="mt-3 border-t border-white/10 pt-2.5 text-[11px] text-neutral-500">
+              Season totals count competitive fixtures from {SEASON_START_LABEL} onwards. Pre-season friendlies are
+              excluded here but still appear in the form guide.
+            </p>
           </Card>
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

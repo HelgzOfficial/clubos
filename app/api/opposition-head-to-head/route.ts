@@ -8,16 +8,28 @@ export const dynamic = "force-dynamic";
 // honest about uncertainty rather than inventing plausible-looking numbers.
 
 function buildPrompt(clubName: string, opponentName: string) {
-  return `Search the web for the head-to-head football match record between "${clubName}" and "${opponentName}" —
-both are English non-league football clubs, so results may only be findable on lower-tier league sites, local news,
-or club websites rather than major football databases. Try to find:
-- How many times these two teams have played each other, and the record from ${clubName}'s perspective (played/won/drawn/lost)
-- The single most recent meeting between them: its date, venue, competition, and final score/result
+  return `Search the web for the head-to-head football match record between "${clubName}" and "${opponentName}".
+Both are English non-league clubs, so the big football databases usually have nothing useful. Search these first,
+by name, because this is where non-league results actually live:
+- The Isthmian League official site (isthmian.co.uk) — results, archived season tables and match reports
+- Football Web Pages (footballwebpages.co.uk) — fixtures, results and head-to-head pages for non-league divisions
+- The FA Full-Time results service (fulltime.thefa.com)
+- Both clubs' own websites and their Pitchero pages, which often keep a full results archive
+- Non-League Matters, the Football Club History Database (fchd.info), and local newspaper match reports
 
-Be honest about uncertainty — non-league match history is often sparse, outdated, or hard to verify online. If you
-can't find reliable information, say so rather than guessing or inventing a result.
+Search several different ways rather than once — try "${clubName} v ${opponentName} result", the reverse fixture,
+and each club's name plus "results archive" — because one phrasing often misses what another finds.
 
-After researching, reply with ONLY a single JSON object, no other text, in exactly this shape:
+Find:
+- Total meetings and the record from ${clubName}'s perspective (played / won / drawn / lost)
+- The most recent meeting: date, venue, competition, final score
+- Up to the last 6 meetings, most recent first, each with date, competition, venue and score
+
+Be honest about uncertainty. Non-league history online is patchy, and a partial answer clearly labelled as partial
+is far more useful than a confident guess. If you can only find some meetings, return those and say so in the note.
+Never invent a result, a date or a score.
+
+Reply with ONLY a single JSON object, no other text, in exactly this shape:
 {
   "found": boolean,
   "played": number|null,
@@ -25,11 +37,14 @@ After researching, reply with ONLY a single JSON object, no other text, in exact
   "drawn": number|null,
   "lost": number|null,
   "lastMeeting": { "date": string|null, "venue": string|null, "competition": string|null, "result": string|null } | null,
+  "recentMeetings": [ { "date": string, "competition": string, "venue": string, "result": string } ],
+  "sources": [ string ],
   "confidence": "low"|"medium"|"high",
   "note": string
 }
-Set "found": false, all numeric fields null, and "lastMeeting": null if you couldn't find real information. Never
-invent a result. Keep "note" to one short sentence on what you found (or didn't) and your source(s).`;
+"recentMeetings" and "sources" may be empty arrays. Put the actual URLs you relied on in "sources". Set "found":
+false, all numeric fields null and "lastMeeting": null if you couldn't find real information. Keep "note" to one or
+two short sentences on what you found or couldn't find.`;
 }
 
 export async function POST(req: Request) {
@@ -64,8 +79,10 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 1024,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
+        max_tokens: 2048,
+        // Raised from 4: several differently-phrased searches across league,
+        // club and archive sites is what actually finds non-league results.
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 10 }],
         messages: [{ role: "user", content: buildPrompt(clubName, opponentName) }],
       }),
     });
@@ -92,6 +109,8 @@ export async function POST(req: Request) {
       drawn?: number | null;
       lost?: number | null;
       lastMeeting?: { date: string | null; venue: string | null; competition: string | null; result: string | null } | null;
+      recentMeetings?: { date: string; competition: string; venue: string; result: string }[];
+      sources?: string[];
       confidence?: "low" | "medium" | "high";
       note?: string;
     };
@@ -107,6 +126,8 @@ export async function POST(req: Request) {
       drawn: parsed.drawn ?? null,
       lost: parsed.lost ?? null,
       lastMeeting: parsed.lastMeeting ?? null,
+      recentMeetings: Array.isArray(parsed.recentMeetings) ? parsed.recentMeetings.slice(0, 6) : [],
+      sources: Array.isArray(parsed.sources) ? parsed.sources.filter((u) => typeof u === "string").slice(0, 8) : [],
       confidence: parsed.confidence ?? "low",
       note: parsed.note || (parsed.found ? "" : "No reliable head-to-head record found online for this fixture."),
     });

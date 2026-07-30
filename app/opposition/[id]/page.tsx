@@ -294,6 +294,26 @@ function HeadToHeadCard({
               {lastResult ? ` — ${lastResult}` : ""}
             </p>
           )}
+
+          {/* The individual results behind the record, so the summary above can
+              be sanity-checked instead of taken on trust. */}
+          {(h2h?.recent_meetings?.length ?? 0) > 0 && (
+            <div className="mt-3 border-t border-white/10 pt-2.5">
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Previous meetings</p>
+              <ul className="space-y-1">
+                {h2h!.recent_meetings!.map((m, i) => (
+                  <li key={`${m.date}-${i}`} className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate text-neutral-300">
+                      {m.date}
+                      {m.competition ? <span className="text-neutral-500"> · {m.competition}</span> : null}
+                      {m.venue ? <span className="text-neutral-500"> · {m.venue}</span> : null}
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">{m.result}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       ) : (
         <p className="text-sm text-neutral-400">No reliable head-to-head record found online yet for this opponent.</p>
@@ -306,10 +326,25 @@ function HeadToHeadCard({
           {" "}· auto-updated {h2h ? new Date(h2h.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}
         </p>
       )}
+      {(h2h?.sources?.length ?? 0) > 0 && (
+        <div className="mt-2">
+          <p className="text-[11px] text-neutral-500">
+            Sources:{" "}
+            {h2h!.sources!.map((url, i) => (
+              <span key={url}>
+                {i > 0 && ", "}
+                <a href={url} target="_blank" rel="noreferrer" className="text-club-primary hover:underline">
+                  {(() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } })()}
+                </a>
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
       <p className="mt-2 text-xs text-neutral-500">
-        Researched automatically from the web (non-league records can be patchy) — refreshes itself periodically, or use
-        the refresh button any time.
+        Researched automatically from the Isthmian League site, Football Web Pages, FA Full-Time and both clubs&apos; own
+        sites. Non-league records are patchy, so check the sources before relying on it.
       </p>
     </Card>
   );
