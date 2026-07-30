@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { useIsMobileOrTablet } from "@/lib/use-media-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
@@ -26,9 +27,71 @@ function CompetitionBadge({ competition }: { competition: string }) {
   return <Badge variant={competitionVariant[kind]}>{competition}</Badge>;
 }
 
+// Upcoming and played fixtures, laid out to suit the screen: side-by-side
+// columns on desktop, or a tab switcher on mobile/tablet so one long stacked
+// scroll doesn't bury the results. Same tab pattern as the player companion
+// app, so the two feel consistent. Both layouts render the *same* list nodes
+// passed in, rather than a second copy of the markup.
+function MatchLists({
+  isMobile, activeTab, onTabChange, upcomingCount, pastCount, upcomingList, pastList,
+}: {
+  isMobile: boolean;
+  activeTab: "upcoming" | "results";
+  onTabChange: (tab: "upcoming" | "results") => void;
+  upcomingCount: number;
+  pastCount: number;
+  upcomingList: ReactNode;
+  pastList: ReactNode;
+}) {
+  if (isMobile) {
+    return (
+      <div>
+        <div className="mb-4 flex gap-2">
+          {([
+            { key: "upcoming" as const, label: `Upcoming (${upcomingCount})` },
+            { key: "results" as const, label: `Results (${pastCount})` },
+          ]).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => onTabChange(t.key)}
+              className={`touch-manipulation flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === t.key
+                  ? "bg-club-primary text-navy-950"
+                  : "bg-navy-600 dark:bg-navy-800 text-neutral-400 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {activeTab === "upcoming" ? upcomingList : pastList}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+          Upcoming ({upcomingCount})
+        </h2>
+        {upcomingList}
+      </div>
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+          Played ({pastCount})
+        </h2>
+        {pastList}
+      </div>
+    </div>
+  );
+}
+
 export default function MatchesPage() {
   const { canWrite } = usePermissions();
   const canEdit = canWrite("matches");
+  const isMobile = useIsMobileOrTablet();
+  const [matchesTab, setMatchesTab] = useState<"upcoming" | "results">("upcoming");
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -198,11 +261,13 @@ export default function MatchesPage() {
           <p className="text-sm text-red-300">{error}</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-              Upcoming ({upcoming.length})
-            </h2>
+        <MatchLists
+          isMobile={isMobile}
+          activeTab={matchesTab}
+          onTabChange={setMatchesTab}
+          upcomingCount={upcoming.length}
+          pastCount={past.length}
+          upcomingList={
             <div className="space-y-3">
               {upcoming.length === 0 && <p className="text-sm text-neutral-400">No upcoming matches yet.</p>}
               {upcoming.map((m) => (
@@ -234,12 +299,8 @@ export default function MatchesPage() {
                 </Card>
               ))}
             </div>
-          </div>
-
-          <div>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-              Played ({past.length})
-            </h2>
+          }
+          pastList={
             <div className="space-y-3">
               {past.length === 0 && <p className="text-sm text-neutral-400">No results yet.</p>}
               {past.map((m) => {
@@ -328,8 +389,8 @@ export default function MatchesPage() {
                 );
               })}
             </div>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {showAdd && (
