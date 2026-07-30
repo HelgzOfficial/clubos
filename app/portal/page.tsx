@@ -532,7 +532,7 @@ export default function PortalPage() {
                       <td className="py-1 pr-2">
                         <span className="flex items-center gap-1.5">
                           <span className="min-w-0 truncate">{r.team}</span>
-                          <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
+                          <TeamCrest name={r.team} size="sm" lookup={crestLookup} />
                         </span>
                       </td>
                       <td className="py-1 pr-2 text-center tabular-nums">{r.played}</td>
@@ -737,28 +737,39 @@ export default function PortalPage() {
           {league.length === 0 ? (
             <p className="text-sm text-neutral-400">League table hasn&apos;t been set up yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[280px] text-xs">
+            // Expanded means the whole division, not the same five rows the
+            // card above already shows.
+            <div className="overflow-x-auto touch-pan-x">
+              <table className="w-full min-w-[300px] text-xs">
                 <thead>
-                  <tr className="text-left text-neutral-500">
+                  <tr className="border-b border-white/10 text-left text-neutral-500">
                     <th className="pb-1.5 pr-2 font-medium">#</th>
                     <th className="pb-1.5 pr-2 font-medium">Team</th>
-                    <th className="pb-1.5 pr-2 text-center font-medium">P</th>
+                    <th className="pb-1.5 px-1.5 text-center font-medium">P</th>
+                    <th className="pb-1.5 px-1.5 text-center font-medium">GD</th>
                     <th className="pb-1.5 text-center font-medium">Pts</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {miniTable.map((r) => (
-                    <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : ""}>
-                      <td className="py-1 pr-2">{r.position}</td>
-                      <td className="py-1 pr-2">
+                  {league.map((r) => (
+                    <tr
+                      key={r.id}
+                      className={`border-b border-white/5 last:border-0 ${
+                        r.is_own_club ? "bg-club-primary/10 font-semibold text-club-primary" : ""
+                      }`}
+                    >
+                      <td className="py-1.5 pr-2 tabular-nums">{r.position}</td>
+                      <td className="py-1.5 pr-2">
                         <span className="flex items-center gap-1.5">
                           <span className="min-w-0 truncate">{r.team}</span>
-                          <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
+                          <TeamCrest name={r.team} size="sm" lookup={crestLookup} />
                         </span>
                       </td>
-                      <td className="py-1 pr-2 text-center">{r.played}</td>
-                      <td className="py-1 text-center">{r.points}</td>
+                      <td className="px-1.5 py-1.5 text-center tabular-nums">{r.played}</td>
+                      <td className="px-1.5 py-1.5 text-center tabular-nums">
+                        {r.goals_for - r.goals_against > 0 ? `+${r.goals_for - r.goals_against}` : r.goals_for - r.goals_against}
+                      </td>
+                      <td className="py-1.5 text-center font-semibold tabular-nums">{r.points}</td>
                     </tr>
                   ))}
                 </tbody>
