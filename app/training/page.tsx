@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
+import { AttendanceRegister } from "@/components/training/attendance-register";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { Badge } from "@/components/ui/badge";
 import { DirectionsLinks } from "@/components/directions-links";
@@ -141,7 +142,7 @@ function TrainingDayCard({ date, canEdit }: { date: string; canEdit: boolean }) 
           {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
 
           {canEdit && (
-            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
+            <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors">
               {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
               {uploading ? "Uploading…" : "Upload Session Plan"}
               <input
@@ -157,6 +158,14 @@ function TrainingDayCard({ date, canEdit }: { date: string; canEdit: boolean }) 
               />
             </label>
           )}
+
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <p className="mb-1 text-sm font-medium">Attendance Register</p>
+            <p className="mb-3 text-xs text-neutral-400">
+              Who&apos;s confirmed for this session. Players reply in the companion app; you can override any answer.
+            </p>
+            <AttendanceRegister date={date} canEdit={canEdit} />
+          </div>
         </>
       )}
 

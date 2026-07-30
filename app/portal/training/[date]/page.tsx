@@ -11,6 +11,12 @@ import {
 } from "@/lib/training-plans-db";
 import { fetchCalendarEvents, expandEvent, type DbCalendarEvent } from "@/lib/calendar-events-db";
 import { fetchMatches } from "@/lib/matches-db";
+import { fetchPlayerByEmail, type DbPlayer } from "@/lib/players-db";
+import { supabase } from "@/lib/supabase";
+import {
+  fetchMyAttendance, setPlayerResponse, effectiveStatus, isOverridden,
+  STATUS_LABEL, STATUS_TONE, type DbTrainingAttendance,
+} from "@/lib/training-attendance-db";
 
 // A player-facing version of the staff Training Planner's day card. It exists
 // for the same reason /portal/matches/[id] does: the staff pages are
@@ -29,6 +35,9 @@ export default function PortalTrainingDayPage() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<DbTrainingPlan | null>(null);
+  const [player, setPlayer] = useState<DbPlayer | null>(null);
+  const [attendance, setAttendance] = useState<DbTrainingAttendance | null>(null);
+  const [savingReply, setSavingReply] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +64,40 @@ export default function PortalTrainingDayPage() {
   }, [date]);
 
   useEffect(() => { load(); }, [load]);
+
+  // The player's own attendance row, so they can see and change their answer.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase || !date) return;
+      const { data } = await supabase.auth.getUser();
+      const email = data.user?.email;
+      if (!email) return;
+      try {
+        const p = await fetchPlayerByEmail(email);
+        if (cancelled || !p) return;
+        setPlayer(p);
+        setAttendance(await fetchMyAttendance(date, p.id));
+      } catch {
+        // Attendance is a bonus on this page — a failure here shouldn't stop
+        // the session plan showing.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [date]);
+
+  async function reply(response: "yes" | "no") {
+    if (!player) return;
+    setSavingReply(true);
+    setError("");
+    try {
+      setAttendance(await setPlayerResponse(date, player.id, response));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save your answer.");
+    } finally {
+      setSavingReply(false);
+    }
+  }
 
   async function handleDownload(p: DbTrainingPlan) {
     setBusyId(p.id);
@@ -100,6 +143,51 @@ export default function PortalTrainingDayPage() {
                   <span>{venue}</span>
                 </p>
                 <DirectionsLinks venue={venue} className="mt-2" />
+              </div>
+            )}
+
+            {player && (
+              <div className="mt-4 rounded-card border border-white/10 bg-navy-700 p-4 dark:bg-navy-900">
+                <p className="mb-1 text-sm font-medium">Are you training?</p>
+                <p className="mb-3 text-xs text-neutral-400">
+                  Let the coaches know so they can plan the session. You can change your answer any time.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => reply("yes")}
+                    disabled={savingReply}
+                    className={`touch-manipulation flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-60 ${
+                      attendance?.player_response === "yes"
+                        ? "bg-emerald-500 text-navy-950"
+                        : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+                    }`}
+                  >
+                    {savingReply && attendance?.player_response !== "yes" ? <Loader2 size={15} className="mx-auto animate-spin" /> : "I'll be there"}
+                  </button>
+                  <button
+                    onClick={() => reply("no")}
+                    disabled={savingReply}
+                    className={`touch-manipulation flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-60 ${
+                      attendance?.player_response === "no"
+                        ? "bg-red-500 text-white"
+                        : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+                    }`}
+                  >
+                    Can&apos;t make it
+                  </button>
+                </div>
+
+                {/* If a coach has recorded something different, say so plainly
+                    rather than letting the player think their answer stuck. */}
+                {attendance?.coach_status && (
+                  <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-neutral-400">
+                    Marked by the coaching staff as
+                    <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_TONE[effectiveStatus(attendance)]}`}>
+                      {STATUS_LABEL[effectiveStatus(attendance)]}
+                    </span>
+                    {isOverridden(attendance) && <span className="text-amber-400">— this overrides your answer</span>}
+                  </p>
+                )}
               </div>
             )}
 
