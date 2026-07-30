@@ -82,12 +82,21 @@ const statusVariant: Record<string, "green" | "amber" | "red"> = { green: "green
 
 // Shorter labels than WIDGET_LABELS for the mobile tab strip — the full
 // labels (e.g. "Match Pack / Training Upload") are too long to fit as tabs.
-const TAB_LABELS: Record<DashboardWidgetKey, string> = {
+//
+// Deliberately Partial rather than an exhaustive Record: this map lives in a
+// different file from the DashboardWidgetKey type, so an exhaustive Record
+// meant adding a widget key broke the build here until this file was updated
+// in lockstep. Anything not listed falls back to its full WIDGET_LABELS name.
+const TAB_LABELS: Partial<Record<DashboardWidgetKey, string>> = {
   "next-match": "Next Match", weather: "Weather", schedule: "Schedule", availability: "Availability",
   "league-position": "League", "form-guide": "Form", uploads: "Uploads",
   "recent-uploads": "Recent", injuries: "Injuries",
   "top-scorers": "Scorers", "top-assists": "Assists", clips: "Clips",
 };
+
+function tabLabel(key: DashboardWidgetKey): string {
+  return TAB_LABELS[key] ?? WIDGET_LABELS[key] ?? key;
+}
 
 const blankScheduleForm = {
   title: "", type: "training" as CalendarEventType, startTime: "18:30", endTime: "20:00", venue: "", notes: "",
@@ -729,7 +738,7 @@ export default function DashboardPage() {
                         : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
                     }`}
                   >
-                    {TAB_LABELS[w.key]}
+                    {tabLabel(w.key)}
                   </button>
                 ))}
               </div>
