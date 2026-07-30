@@ -101,6 +101,9 @@ export function PortalCalendarModal({
           title: occ.title,
           kind: occ.type,
           venue: occ.venue,
+          // Training taps through to that day's plan, the same way a fixture
+          // taps through to the match. Meetings have nothing to open.
+          href: occ.type === "training" ? `/portal/training/${occ.date}` : undefined,
         });
       }
     }
