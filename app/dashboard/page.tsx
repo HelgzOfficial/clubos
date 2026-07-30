@@ -310,9 +310,9 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
-                    <p className="flex items-center gap-2 text-xl font-semibold">
+                    <p className="flex items-center gap-2.5 text-xl font-semibold">
+                      <span><span className="text-neutral-500">{nextMatch.is_home ? "vs" : "@"}</span> {nextMatch.opponent}</span>
                       <TeamCrest name={nextMatch.opponent} size="md" lookup={crestLookup} />
-                      {nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}
                     </p>
                     <p className="text-sm text-neutral-500">{nextMatch.competition}</p>
                     <p className="text-sm text-neutral-500">{formatDateTime(nextMatch.kickoff)}{nextMatch.venue ? ` — ${nextMatch.venue}` : ""}</p>
@@ -460,8 +460,8 @@ export default function DashboardPage() {
                           <td className="py-0.5 pr-2">{r.position}</td>
                           <td className="py-0.5">
                             <span className="flex items-center gap-1.5">
+                              <span className="min-w-0 truncate">{r.team}</span>
                               <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
-                              <span className="truncate">{r.team}</span>
                             </span>
                           </td>
                           <td className="py-0.5 pl-2 text-right tabular-nums">{r.points}</td>
@@ -505,8 +505,8 @@ export default function DashboardPage() {
                       <li key={`row-${f.id}`}>
                         <Link href={`/matches/${f.id}`} className="flex items-center justify-between py-1.5 text-xs hover:text-club-primary transition-colors">
                           <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
-                          <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} className="ml-2" />
-                          <span className="flex-1 truncate px-2 text-neutral-300">{f.opponent}</span>
+                          <span className="min-w-0 flex-1 truncate px-2 text-neutral-300">{f.opponent}</span>
+                          <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} className="mr-2" />
                           <span className="tabular-nums text-neutral-400">{f.score}</span>
                         </Link>
                       </li>

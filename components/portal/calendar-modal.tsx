@@ -10,6 +10,8 @@ import type { DbMatch } from "@/lib/matches-db";
 type DayItem = {
   key: string;
   crestName?: string;
+  score?: string;
+  result?: "W" | "D" | "L";
   time: string | null;
   title: string;
   kind: "match" | "training" | "meeting";
@@ -25,6 +27,12 @@ const kindDot: Record<DayItem["kind"], string> = {
   match: "bg-club-primary",
   training: "bg-emerald-400",
   meeting: "bg-blue-400",
+};
+
+const resultBadge: Record<"W" | "D" | "L", string> = {
+  W: "bg-emerald-500 text-white",
+  D: "bg-amber-400 text-navy-950",
+  L: "bg-red-500 text-white",
 };
 
 // A real month grid rather than a flat agenda, so a player can see the shape
@@ -68,6 +76,11 @@ export function PortalCalendarModal({
       const d = new Date(m.kickoff);
       const date = isoDate(d);
       if (date < rangeStart || date > rangeEnd) continue;
+      // The score lives on the match record, so a result entered in Match
+      // Centre appears here immediately — no separate sync.
+      const scored = m.home_score !== null && m.away_score !== null;
+      const gf = m.is_home ? m.home_score : m.away_score;
+      const ga = m.is_home ? m.away_score : m.home_score;
       push(date, {
         crestName: m.opponent,
         key: `match-${m.id}`,
@@ -76,6 +89,8 @@ export function PortalCalendarModal({
         kind: "match",
         venue: m.venue,
         href: `/portal/matches/${m.id}`,
+        score: scored ? `${gf}-${ga}` : undefined,
+        result: scored ? (gf! > ga! ? "W" : gf! < ga! ? "L" : "D") as "W" | "D" | "L" : undefined,
       });
     }
     for (const e of events) {
@@ -196,7 +211,16 @@ export function PortalCalendarModal({
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${kindDot[item.kind]}`} />
                         )}
                         <p className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</p>
-                        {item.time && <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">{item.time}</span>}
+                        {item.score ? (
+                          <span className="flex shrink-0 items-center gap-1">
+                            <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold ${resultBadge[item.result!]}`}>
+                              {item.result}
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums">{item.score}</span>
+                          </span>
+                        ) : item.time ? (
+                          <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">{item.time}</span>
+                        ) : null}
                       </div>
                       {item.venue && <p className="mt-0.5 truncate pl-3.5 text-[11px] text-neutral-500">{item.venue}</p>}
                     </div>

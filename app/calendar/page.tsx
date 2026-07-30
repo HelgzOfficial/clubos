@@ -61,6 +61,22 @@ type Instance = {
   // Matches only — used to draw the opponent's badge beside the fixture.
   crestName?: string;
   competition?: string;
+  // Set once a played fixture has a score, so the calendar shows the result
+  // rather than a kick-off time that's already been and gone.
+  score?: string;
+  result?: "W" | "D" | "L";
+};
+
+// Played fixtures are tinted by outcome so a month reads at a glance.
+const resultTint: Record<"W" | "D" | "L", string> = {
+  W: "border-emerald-500/40 bg-emerald-500/10",
+  D: "border-amber-400/40 bg-amber-400/10",
+  L: "border-red-500/40 bg-red-500/10",
+};
+const resultBadge: Record<"W" | "D" | "L", string> = {
+  W: "bg-emerald-500 text-white",
+  D: "bg-amber-400 text-navy-950",
+  L: "bg-red-500 text-white",
 };
 
 const blankForm = {
@@ -118,19 +134,30 @@ export default function CalendarPage() {
   const rangeEnd = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
 
   const instances: Instance[] = useMemo(() => {
-    const matchInstances: Instance[] = matches.map((m) => ({
-      key: `match-${m.id}`,
-      date: m.kickoff.slice(0, 10),
-      title: `${m.is_home ? "vs" : "@"} ${m.opponent}`,
-      type: "match",
-      startTime: new Date(m.kickoff).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-      endTime: null,
-      venue: m.venue,
-      href: `/matches/${m.id}`,
-      eventId: null,
-      crestName: m.opponent,
-      competition: m.competition,
-    }));
+    const matchInstances: Instance[] = matches.map((m) => {
+      // Scores come straight from the match record, so entering a result in
+      // Match Centre shows up here with no separate sync step. Deliberately
+      // keyed off the scores existing rather than status === 'completed',
+      // since fixtures often get a score without the status being flipped.
+      const scored = m.home_score !== null && m.away_score !== null;
+      const gf = m.is_home ? m.home_score : m.away_score;
+      const ga = m.is_home ? m.away_score : m.home_score;
+      return {
+        key: `match-${m.id}`,
+        date: m.kickoff.slice(0, 10),
+        title: `${m.is_home ? "vs" : "@"} ${m.opponent}`,
+        type: "match" as const,
+        startTime: new Date(m.kickoff).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        endTime: null,
+        venue: m.venue,
+        href: `/matches/${m.id}`,
+        eventId: null,
+        crestName: m.opponent,
+        competition: m.competition,
+        score: scored ? `${gf}-${ga}` : undefined,
+        result: scored ? (gf! > ga! ? "W" : gf! < ga! ? "L" : "D") as "W" | "D" | "L" : undefined,
+      };
+    });
 
     const matchDates = new Set(matchInstances.map((m) => m.date));
 
@@ -343,15 +370,26 @@ export default function CalendarPage() {
                         href={e.href}
                         onClick={(ev) => ev.stopPropagation()}
                         title={`${e.title}${e.startTime ? ` · ${e.startTime}` : ""}`}
-                        className="flex flex-col items-center gap-0.5 rounded-lg border border-club-primary/30 bg-club-primary/10 px-1 py-1.5 transition-colors hover:border-club-primary/60 hover:bg-club-primary/20"
+                        className={`flex flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 transition-colors ${
+                          e.result
+                            ? `${resultTint[e.result]} hover:brightness-125`
+                            : "border-club-primary/30 bg-club-primary/10 hover:border-club-primary/60 hover:bg-club-primary/20"
+                        }`}
                       >
                         <TeamCrest name={e.crestName} size="md" lookup={crestLookup} plain />
                         <span className="w-full truncate text-center text-[9px] font-medium leading-tight text-neutral-200">
                           {e.title}
                         </span>
-                        {e.startTime && (
+                        {e.score ? (
+                          <span className="flex items-center gap-1 leading-none">
+                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold ${resultBadge[e.result!]}`}>
+                              {e.result}
+                            </span>
+                            <span className="text-[10px] font-semibold tabular-nums text-white">{e.score}</span>
+                          </span>
+                        ) : e.startTime ? (
                           <span className="text-[9px] leading-none text-club-primary">{e.startTime}</span>
-                        )}
+                        ) : null}
                       </Link>
                     ) : e.href ? (
                       <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="block">

@@ -449,8 +449,10 @@ export default function PortalPage() {
           ) : (
             <>
               <p className="flex items-center gap-2.5 text-lg font-semibold">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-neutral-500">{nextMatch.is_home ? "vs" : "@"}</span> {nextMatch.opponent}
+                </span>
                 <TeamCrest name={nextMatch.opponent} size="md" lookup={crestLookup} />
-                <span className="min-w-0 truncate">{nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}</span>
               </p>
               <p className="mt-0.5 text-sm text-neutral-400">{formatDate(nextMatch.kickoff)} · {formatTime(nextMatch.kickoff)}{nextMatch.venue ? ` · ${nextMatch.venue}` : ""}</p>
               <DirectionsLinks venue={nextMatch.venue} className="mt-2" />
@@ -482,8 +484,8 @@ export default function PortalPage() {
                     className="flex items-center gap-2.5 py-2 text-sm transition-colors hover:text-club-primary"
                   >
                     <Badge variant={m.is_home ? "green" : "neutral"} className="shrink-0">{m.is_home ? "H" : "A"}</Badge>
-                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
                     <span className="min-w-0 flex-1 truncate font-medium">{m.opponent}</span>
+                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
                     <span className="shrink-0 text-[11px] text-neutral-400">{formatDate(m.kickoff)}</span>
                     <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">{formatTime(m.kickoff)}</span>
                   </Link>
@@ -529,8 +531,8 @@ export default function PortalPage() {
                       <td className="py-1 pr-2">{r.position}</td>
                       <td className="py-1 pr-2">
                         <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate">{r.team}</span>
                           <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
-                          <span className="truncate">{r.team}</span>
                         </span>
                       </td>
                       <td className="py-1 pr-2 text-center tabular-nums">{r.played}</td>
@@ -563,8 +565,8 @@ export default function PortalPage() {
                   <li key={`fg-${f.id}`}>
                     <Link href={`/portal/matches/${f.id}`} className="flex items-center gap-2.5 py-1.5 text-xs hover:text-club-primary transition-colors">
                       <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
-                      <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} />
                       <span className="min-w-0 flex-1 truncate text-neutral-300">{f.opponent}</span>
+                      <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} />
                       <span className="shrink-0 tabular-nums text-neutral-400">{f.score}</span>
                     </Link>
                   </li>
@@ -702,8 +704,8 @@ export default function PortalPage() {
                     ) : (
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-neutral-400">–</span>
                     )}
-                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
                     <span className="min-w-0 flex-1 truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
+                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
                     {scored ? (
                       <span className="shrink-0 tabular-nums text-neutral-400">{gf}-{ga}</span>
                     ) : (
@@ -751,8 +753,8 @@ export default function PortalPage() {
                       <td className="py-1 pr-2">{r.position}</td>
                       <td className="py-1 pr-2">
                         <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate">{r.team}</span>
                           <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
-                          <span className="truncate">{r.team}</span>
                         </span>
                       </td>
                       <td className="py-1 pr-2 text-center">{r.played}</td>
