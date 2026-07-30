@@ -19,12 +19,15 @@ import {
 } from "@/lib/treatment-bookings-db";
 import { fetchOppositionReports, getOppositionReportDownloadUrl, type DbOppositionReport } from "@/lib/opposition-reports-db";
 import { fetchHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-head-db";
-import { fetchCalendarEvents, expandEvent, type EventOccurrence } from "@/lib/calendar-events-db";
+import { fetchCalendarEvents, expandEvent, type EventOccurrence, type DbCalendarEvent } from "@/lib/calendar-events-db";
 import { fetchClips, getClipUrl, type DbClip } from "@/lib/clips-db";
 import { getCountryFlag } from "@/lib/countries";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
+import { PortalCalendarModal } from "@/components/portal/calendar-modal";
+import { PhotoLightbox } from "@/components/portal/photo-lightbox";
+import { EditDetailsModal } from "@/components/portal/edit-details-modal";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { MessageThread } from "@/components/medical/message-thread";
 import { VideoPlayer } from "@/components/analysis/video-player";
@@ -34,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Clip } from "@/lib/analysis-types";
 import {
   LogOut, FileText, AlertCircle, Download, CalendarDays, Trophy, User, HeartPulse,
-  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload,
+  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2,
 } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -89,9 +92,20 @@ export default function PortalPage() {
   const [h2h, setH2h] = useState<DbHeadToHead | null>(null);
 
   const [weekEvents, setWeekEvents] = useState<EventOccurrence[]>([]);
-  // A wider window than weekEvents, for the always-visible dashboard calendar.
-  const [agendaEvents, setAgendaEvents] = useState<EventOccurrence[]>([]);
   const [dashTab, setDashTab] = useState<"league" | "form">("league");
+
+  // Raw rows kept alongside the expanded occurrences so the full-calendar
+  // modal can expand any month the player pages to, not just a fixed window.
+  const [allMatches, setAllMatches] = useState<DbMatch[]>([]);
+  const [allEvents, setAllEvents] = useState<DbCalendarEvent[]>([]);
+  const [showFullCalendar, setShowFullCalendar] = useState(false);
+
+  // The Matches section below is controlled so "See all" on the dashboard can
+  // open it and jump to it.
+  const [matchesOpen, setMatchesOpen] = useState(false);
+
+  const [showEditDetails, setShowEditDetails] = useState(false);
+  const [showPhotoFull, setShowPhotoFull] = useState(false);
 
   const [clips, setClips] = useState<DbClip[]>([]);
   const [playingClip, setPlayingClip] = useState<Clip | null>(null);
@@ -116,6 +130,9 @@ export default function PortalPage() {
         const [allMatches, lt, allBookings, events, recentClips] = await Promise.all([
           fetchMatches(), fetchLeagueTable(), fetchBookings(), fetchCalendarEvents(), fetchClips(6),
         ]);
+
+        setAllMatches(allMatches);
+        setAllEvents(events);
 
         const upcoming = allMatches
           .filter((m) => new Date(m.kickoff).getTime() >= now && m.status !== "cancelled")
@@ -145,11 +162,9 @@ export default function PortalPage() {
 
         const todayStr = new Date().toISOString().slice(0, 10);
         const weekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const monthEnd = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const byDateThenTime = (a: EventOccurrence, b: EventOccurrence) =>
           a.date.localeCompare(b.date) || (a.startTime ?? "").localeCompare(b.startTime ?? "");
         setWeekEvents(events.flatMap((e) => expandEvent(e, todayStr, weekEnd)).sort(byDateThenTime));
-        setAgendaEvents(events.flatMap((e) => expandEvent(e, todayStr, monthEnd)).sort(byDateThenTime));
 
         if (upcoming[0]) {
           const [reports, headToHead] = await Promise.all([
@@ -200,6 +215,7 @@ export default function PortalPage() {
   // the dashboard calendar, grouped by day so a date heading isn't repeated
   // for every item on it.
   const calendarDays = useMemo(() => {
+    const weekEndMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
     type AgendaItem = { key: string; time: string | null; title: string; kind: "match" | "training" | "meeting"; venue: string | null; href?: string };
     const byDate = new Map<string, AgendaItem[]>();
 
@@ -211,6 +227,7 @@ export default function PortalPage() {
 
     for (const m of matches) {
       const d = new Date(m.kickoff);
+      if (d.getTime() > weekEndMs) continue;
       push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, {
         key: `match-${m.id}`,
         time: formatTime(m.kickoff),
@@ -220,7 +237,7 @@ export default function PortalPage() {
         href: `/portal/matches/${m.id}`,
       });
     }
-    for (const e of agendaEvents) {
+    for (const e of weekEvents) {
       push(e.date, { key: e.key, time: e.startTime, title: e.title, kind: e.type, venue: e.venue });
     }
 
@@ -230,7 +247,7 @@ export default function PortalPage() {
         date,
         items: items.sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")),
       }));
-  }, [matches, agendaEvents]);
+  }, [matches, weekEvents]);
 
   const playerStats = useMemo(() => {
     if (!player) return [];
@@ -371,14 +388,24 @@ export default function PortalPage() {
         {player && (
           <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
             <div className="flex gap-3.5">
-              <div className="relative w-[84px] shrink-0 overflow-hidden rounded-xl">
+              <button
+                onClick={() => player.photo_url && setShowPhotoFull(true)}
+                disabled={!player.photo_url}
+                title={player.photo_url ? "View photo full screen" : undefined}
+                className="relative w-[84px] shrink-0 overflow-hidden rounded-xl disabled:cursor-default"
+              >
                 <div className="aspect-[3/4] w-full">
                   <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="card" />
                 </div>
                 <span className="absolute right-1 top-1 flex h-6 min-w-6 items-center justify-center rounded-lg bg-black/55 px-1.5 text-xs font-bold text-white backdrop-blur-sm">
                   {player.squad_number}
                 </span>
-              </div>
+                {player.photo_url && (
+                  <span className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-lg bg-black/55 text-white backdrop-blur-sm">
+                    <Maximize2 size={11} />
+                  </span>
+                )}
+              </button>
               <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
                 <p className="truncate text-lg font-semibold leading-tight">{player.name}</p>
                 <p className="truncate text-sm text-neutral-400">{player.position}</p>
@@ -387,8 +414,14 @@ export default function PortalPage() {
                     {getCountryFlag(player.nationality)} {player.nationality}
                   </p>
                 )}
-                <div className="mt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-2">
                   <Badge variant={availabilityVariant[player.availability] ?? "neutral"}>{player.availability_note}</Badge>
+                  <button
+                    onClick={() => setShowEditDetails(true)}
+                    className="touch-manipulation flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] font-medium text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+                  >
+                    <Pencil size={10} /> Edit details
+                  </button>
                 </div>
               </div>
             </div>
@@ -418,6 +451,40 @@ export default function PortalPage() {
             </>
           )}
         </div>
+
+        {/* Next 3 fixtures — the full Matches section (with results) expands below */}
+        {matches.length > 0 && (
+          <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+            <button
+              onClick={() => {
+                setMatchesOpen(true);
+                document.getElementById("portal-matches")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="touch-manipulation mb-2.5 flex w-full items-center gap-1.5 text-left"
+            >
+              <CalendarDays size={13} className="shrink-0 text-club-primary" />
+              <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Next 3 fixtures</span>
+              <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-club-primary">
+                All matches <ChevronRight size={13} />
+              </span>
+            </button>
+            <ul className="divide-y divide-white/10">
+              {matches.slice(0, 3).map((m) => (
+                <li key={m.id}>
+                  <Link
+                    href={`/portal/matches/${m.id}`}
+                    className="flex items-center gap-2.5 py-2 text-sm transition-colors hover:text-club-primary"
+                  >
+                    <Badge variant={m.is_home ? "green" : "neutral"} className="shrink-0">{m.is_home ? "H" : "A"}</Badge>
+                    <span className="min-w-0 flex-1 truncate font-medium">{m.opponent}</span>
+                    <span className="shrink-0 text-[11px] text-neutral-400">{formatDate(m.kickoff)}</span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">{formatTime(m.kickoff)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* League / Form switcher */}
         <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
@@ -494,13 +561,20 @@ export default function PortalPage() {
           )}
         </div>
 
-        {/* Calendar — always visible, next 4 weeks of fixtures and sessions */}
+        {/* Calendar — just the coming week here; the full month grid opens on tap */}
         <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
-          <p className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-            <CalendarDays size={13} /> Calendar · next 4 weeks
-          </p>
+          <button
+            onClick={() => setShowFullCalendar(true)}
+            className="touch-manipulation mb-3 flex w-full items-center gap-1.5 text-left"
+          >
+            <CalendarDays size={13} className="shrink-0 text-club-primary" />
+            <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Calendar · this week</span>
+            <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-club-primary">
+              Full calendar <ChevronRight size={13} />
+            </span>
+          </button>
           {calendarDays.length === 0 ? (
-            <p className="text-sm text-neutral-400">Nothing scheduled in the next four weeks.</p>
+            <p className="text-sm text-neutral-400">Nothing scheduled in the next seven days.</p>
           ) : (
             <div className="space-y-3">
               {calendarDays.map((day) => (
@@ -547,7 +621,7 @@ export default function PortalPage() {
           <RecentUploadsFeed limit={6} compact />
         </div>
 
-        <Collapsible title="Matches" icon={<CalendarDays size={16} />} defaultOpen>
+        <Collapsible id="portal-matches" title="Matches" icon={<CalendarDays size={16} />} open={matchesOpen} onOpenChange={setMatchesOpen}>
           <div className="mb-3 flex gap-1.5">
             {(["upcoming", "results"] as const).map((t) => (
               <button
@@ -571,8 +645,13 @@ export default function PortalPage() {
                   const docs = docsByMatch[m.id] ?? [];
                   return (
                     <div key={m.id} className="rounded-xl border border-white/10 p-3">
-                      <p className="text-sm font-medium">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                      <p className="mt-0.5 text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
+                      <Link href={`/portal/matches/${m.id}`} className="block transition-colors hover:text-club-primary">
+                        <div className="flex items-center gap-2">
+                          <p className="min-w-0 flex-1 text-sm font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
+                          <ChevronRight size={14} className="shrink-0 text-neutral-500" />
+                        </div>
+                        <p className="mt-0.5 text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
+                      </Link>
                       {docs.length > 0 && (
                         <div className="mt-2.5 space-y-1.5 border-t border-white/10 pt-2.5">
                           {docs.map((d) => (
@@ -810,6 +889,22 @@ export default function PortalPage() {
           getViewUrl={() => getMatchDocumentUrl(viewing.file_path)}
           getDownloadUrl={() => getMatchDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
           onClose={() => setViewing(null)}
+        />
+      )}
+
+      {showFullCalendar && (
+        <PortalCalendarModal matches={allMatches} events={allEvents} onClose={() => setShowFullCalendar(false)} />
+      )}
+
+      {showPhotoFull && player?.photo_url && (
+        <PhotoLightbox photoUrl={player.photo_url} name={player.name} onClose={() => setShowPhotoFull(false)} />
+      )}
+
+      {showEditDetails && player && (
+        <EditDetailsModal
+          player={player}
+          onClose={() => setShowEditDetails(false)}
+          onSaved={(patch) => setPlayer((prev) => (prev ? { ...prev, ...patch } : prev))}
         />
       )}
 
