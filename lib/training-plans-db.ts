@@ -24,6 +24,30 @@ export async function fetchTrainingPlans(planDate: string): Promise<DbTrainingPl
   return (data ?? []) as DbTrainingPlan[];
 }
 
+// Every uploaded plan, newest session first — the per-date fetch above only
+// ever answers "what's on for this day", which meant an uploaded plan became
+// unreachable the moment you navigated away from its date.
+export async function fetchAllTrainingPlans(limit = 200): Promise<DbTrainingPlan[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("training_plans")
+    .select("*")
+    .order("plan_date", { ascending: false })
+    .order("uploaded_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as DbTrainingPlan[];
+}
+
+// Longer-lived than the download link because a PDF viewer may keep requesting
+// ranges of the file while someone reads it.
+export async function getTrainingPlanViewUrl(filePath: string): Promise<string> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.storage.from("training-plans").createSignedUrl(filePath, 600);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 export async function uploadTrainingPlan(planDate: string, file: File): Promise<DbTrainingPlan> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const path = `${planDate}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
