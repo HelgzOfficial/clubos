@@ -109,7 +109,10 @@ export async function POST(req: Request) {
       user_metadata: { name: reqRow.name, role },
     });
     if (updateError) {
-      return NextResponse.json({ error: `Couldn't update the existing account: ${updateError.message}` }, { status: 500 });
+      return NextResponse.json(
+        { error: `Approval step "update existing login" failed: ${updateError.message}` },
+        { status: 500 }
+      );
     }
   } else {
     const { error: createError } = await admin.auth.admin.createUser({
@@ -119,23 +122,67 @@ export async function POST(req: Request) {
       user_metadata: { name: reqRow.name, role },
     });
     if (createError) {
-      return NextResponse.json({ error: createError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: `Approval step "create login" failed: ${createError.message}` },
+        { status: 500 }
+      );
     }
   }
 
-  const { error: upsertError } = await admin.from("app_users").upsert(
-    {
-      email: reqRow.email,
-      name: reqRow.name,
-      role,
-      player_id: role === "player" ? playerId : null,
-      invite_status: "active",
-      invited_at: new Date().toISOString(),
-    },
-    { onConflict: "email" }
-  );
-  if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+  // invite_status must be one of 'pending' | 'accepted' (enforced by a check
+  // constraint on the table). 'accepted' is correct here even though nobody
+  // clicked an invite link: they already chose their own password when they
+  // requested access, so the account is fully usable the moment it's created
+  // — there's no pending step left. accepted_at is stamped for the same
+  // reason, which is also what makes Staff & Access show them as "Active".
+  //
+  // Deliberately match any existing row case-insensitively and update it by
+  // id, rather than upserting on the email column. The unique constraint on
+  // email is case-sensitive, so an upsert would quietly create a *second*
+  // row for the same person if their existing entry was typed with different
+  // capitalisation — a duplicate that's confusing and hard to spot.
+  const nowIso = new Date().toISOString();
+  const { data: existingRows, error: existingLookupError } = await admin
+    .from("app_users")
+    .select("id")
+    .ilike("email", reqRow.email)
+    .limit(1);
+  if (existingLookupError) {
+    return NextResponse.json(
+      { error: `Approval step "find existing staff entry" failed: ${existingLookupError.message}` },
+      { status: 500 }
+    );
+  }
+
+  const roleFields = {
+    name: reqRow.name,
+    role,
+    player_id: role === "player" ? playerId : null,
+    invite_status: "accepted",
+    accepted_at: nowIso,
+  };
+
+  if (existingRows?.[0]) {
+    const { error: updateRowError } = await admin
+      .from("app_users")
+      .update(roleFields)
+      .eq("id", existingRows[0].id);
+    if (updateRowError) {
+      return NextResponse.json(
+        { error: `Approval step "update staff entry" failed: ${updateRowError.message}` },
+        { status: 500 }
+      );
+    }
+  } else {
+    const { error: insertRowError } = await admin
+      .from("app_users")
+      .insert({ email: reqRow.email, invited_at: nowIso, ...roleFields });
+    if (insertRowError) {
+      return NextResponse.json(
+        { error: `Approval step "create staff entry" failed: ${insertRowError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   // Clear the password immediately — it's done its one job. status flips to
