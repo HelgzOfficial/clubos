@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/analysis/video-player";
+import { youTubeWatchUrl } from "@/lib/youtube";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
 import { fetchAllMatchStats, type DbMatchStats } from "@/lib/match-stats-db";
@@ -75,6 +76,10 @@ export default function AnalysisDashboardPage() {
   }, [clips]);
 
   async function playClip(c: DbClip) {
+    if (c.source === "youtube" && c.youtube_id) {
+      window.open(youTubeWatchUrl(c.youtube_id), "_blank");
+      return;
+    }
     const url = await getClipUrl(c.file_path);
     setPlaying({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
   }

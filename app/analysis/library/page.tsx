@@ -8,14 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/analysis/video-player";
 import { ImageAnnotator } from "@/components/analysis/image-annotator";
 import {
-  fetchAllClips, uploadClip, deleteClip, getClipUrl, CLIP_CATEGORIES, type DbClip, type ClipCategory,
+  fetchAllClips, uploadClip, addYouTubeClip, deleteClip, getClipUrl, CLIP_CATEGORIES, type DbClip, type ClipCategory,
 } from "@/lib/clips-db";
+import { YouTubePlayer } from "@/components/analysis/youtube-player";
+import { parseYouTubeId, youTubeThumbnailUrl } from "@/lib/youtube";
 import {
   fetchAnnotatedImages, uploadRawImage, deleteAnnotatedImage, getAnnotatedImageUrl, type DbAnnotatedImage,
 } from "@/lib/annotated-images-db";
 import { usePermissions } from "@/lib/permissions";
 import type { Clip } from "@/lib/analysis-types";
-import { ArrowLeft, Upload, Film, Image as ImageIcon, PlayCircle, Trash2, Loader2, X, Pencil } from "lucide-react";
+import { ArrowLeft, Upload, Film, Image as ImageIcon, PlayCircle, Trash2, Loader2, X, Pencil, Link2 } from "lucide-react";
 
 export default function AnalysisLibraryPage() {
   const { canWrite } = usePermissions();
@@ -28,7 +30,15 @@ export default function AnalysisLibraryPage() {
   const [categoryFilter, setCategoryFilter] = useState<"All" | ClipCategory | "Uncategorised">("All");
 
   const [playing, setPlaying] = useState<Clip | null>(null);
+  const [playingYouTube, setPlayingYouTube] = useState<{ title: string; videoId: string } | null>(null);
   const [annotating, setAnnotating] = useState<{ url: string; title: string } | null>(null);
+
+  const [showYouTube, setShowYouTube] = useState(false);
+  const [ytUrl, setYtUrl] = useState("");
+  const [ytTitle, setYtTitle] = useState("");
+  const [ytCategory, setYtCategory] = useState<string>("");
+  const [ytSaving, setYtSaving] = useState(false);
+  const [ytError, setYtError] = useState("");
 
   const [pendingClipFile, setPendingClipFile] = useState<File | null>(null);
   const [pendingTitle, setPendingTitle] = useState("");
@@ -97,8 +107,40 @@ export default function AnalysisLibraryPage() {
   }
 
   async function playClip(c: DbClip) {
+    // YouTube clips have no stored file — they open in the embed player,
+    // which has no annotation tools (can't draw over a cross-origin iframe).
+    if (c.source === "youtube" && c.youtube_id) {
+      setPlayingYouTube({ title: c.title, videoId: c.youtube_id });
+      return;
+    }
+    if (!c.file_path) return;
     const url = await getClipUrl(c.file_path);
     setPlaying({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
+  }
+
+  async function handleAddYouTube() {
+    const videoId = parseYouTubeId(ytUrl);
+    if (!videoId) {
+      setYtError("That doesn't look like a YouTube link — paste the full URL from the address bar or the Share button.");
+      return;
+    }
+    setYtSaving(true);
+    setYtError("");
+    try {
+      await addYouTubeClip({
+        title: ytTitle.trim() || "YouTube clip",
+        url: ytUrl,
+        youtubeId: videoId,
+        category: ytCategory || null,
+      });
+      setShowYouTube(false);
+      setYtUrl(""); setYtTitle(""); setYtCategory("");
+      await load();
+    } catch (e) {
+      setYtError(e instanceof Error ? e.message : "Couldn't add that link.");
+    } finally {
+      setYtSaving(false);
+    }
   }
 
   async function annotateImage(img: DbAnnotatedImage) {
@@ -141,6 +183,13 @@ export default function AnalysisLibraryPage() {
               Upload Image
             </button>
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImageChosen(e.target.files[0])} />
+
+            <button
+              onClick={() => { setShowYouTube(true); setYtError(""); }}
+              className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+            >
+              <Link2 size={15} /> Add YouTube Link
+            </button>
           </div>
         )}
       </div>
@@ -190,9 +239,18 @@ export default function AnalysisLibraryPage() {
               {filteredClips.map((clip) => (
                 <div key={clip.id} className="overflow-hidden rounded-xl border border-white/10">
                   <div className="relative flex aspect-video items-center justify-center bg-navy-800">
-                    <button onClick={() => playClip(clip)} className="flex h-full w-full items-center justify-center hover:bg-black/20 transition-colors">
-                      <PlayCircle size={32} className="text-white" />
+                    {clip.source === "youtube" && clip.youtube_id && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={youTubeThumbnailUrl(clip.youtube_id)} alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
+                    )}
+                    <button onClick={() => playClip(clip)} className="relative flex h-full w-full items-center justify-center hover:bg-black/20 transition-colors">
+                      <PlayCircle size={32} className="text-white drop-shadow" />
                     </button>
+                    {clip.source === "youtube" && (
+                      <span className="absolute left-2 top-2 rounded-md bg-red-600/90 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        YouTube
+                      </span>
+                    )}
                   </div>
                   <div className="p-3">
                     <p className="truncate text-sm font-medium">{clip.title}</p>
@@ -266,6 +324,58 @@ export default function AnalysisLibraryPage() {
             >
               {uploading ? "Uploading…" : "Add to Library"}
             </button>
+          </Card>
+        </div>
+      )}
+      {playingYouTube && (
+        <YouTubePlayer title={playingYouTube.title} videoId={playingYouTube.videoId} onClose={() => setPlayingYouTube(null)} />
+      )}
+
+      {showYouTube && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="font-medium">Add YouTube Link</p>
+              <button onClick={() => setShowYouTube(false)} className="text-neutral-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">YouTube URL</label>
+            <input
+              value={ytUrl}
+              onChange={(e) => { setYtUrl(e.target.value); setYtError(""); }}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="mb-3 w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+            />
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Title</label>
+            <input
+              value={ytTitle}
+              onChange={(e) => setYtTitle(e.target.value)}
+              placeholder="e.g. Full match vs Chipstead"
+              className="mb-3 w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+            />
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Category</label>
+            <select
+              value={ytCategory}
+              onChange={(e) => setYtCategory(e.target.value)}
+              className="mb-4 w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+            >
+              <option value="">Uncategorised</option>
+              {CLIP_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            {ytError && (
+              <p className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-300">{ytError}</p>
+            )}
+            <button
+              onClick={handleAddYouTube}
+              disabled={ytSaving || !ytUrl.trim()}
+              className="w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+            >
+              {ytSaving ? "Adding…" : "Add to Library"}
+            </button>
+            <p className="mt-3 text-[11px] text-neutral-500">
+              Saved as a link, so there&apos;s no file size limit. Note the drawing tools only work on uploaded video files, not YouTube.
+            </p>
           </Card>
         </div>
       )}

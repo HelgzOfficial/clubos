@@ -24,15 +24,17 @@ import { fetchClips, getClipUrl, type DbClip } from "@/lib/clips-db";
 import { getCountryFlag } from "@/lib/countries";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PlayerAvatar } from "@/components/players/player-avatar";
+import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { MessageThread } from "@/components/medical/message-thread";
 import { VideoPlayer } from "@/components/analysis/video-player";
+import { YouTubePlayer } from "@/components/analysis/youtube-player";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import type { Clip } from "@/lib/analysis-types";
 import {
   LogOut, FileText, AlertCircle, Download, CalendarDays, Trophy, User, HeartPulse,
-  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield,
+  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload,
 } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -93,6 +95,7 @@ export default function PortalPage() {
 
   const [clips, setClips] = useState<DbClip[]>([]);
   const [playingClip, setPlayingClip] = useState<Clip | null>(null);
+  const [playingYouTube, setPlayingYouTube] = useState<{ title: string; videoId: string } | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -288,6 +291,13 @@ export default function PortalPage() {
   }
 
   async function handlePlayClip(c: DbClip) {
+    // YouTube-linked clips play in the embed modal; uploaded files stream from
+    // storage via a signed URL.
+    if (c.source === "youtube" && c.youtube_id) {
+      setPlayingYouTube({ title: c.title, videoId: c.youtube_id });
+      return;
+    }
+    if (!c.file_path) return;
     const url = await getClipUrl(c.file_path);
     setPlayingClip({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
   }
@@ -525,6 +535,16 @@ export default function PortalPage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Recent uploads — the same merged feed the desktop dashboard shows,
+            so anything new (clip, YouTube link, image, document) surfaces here
+            for players too. */}
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+            <Upload size={13} /> Recent Uploads
+          </p>
+          <RecentUploadsFeed limit={6} compact />
         </div>
 
         <Collapsible title="Matches" icon={<CalendarDays size={16} />} defaultOpen>
@@ -794,6 +814,9 @@ export default function PortalPage() {
       )}
 
       {playingClip && <VideoPlayer clip={playingClip} onClose={() => setPlayingClip(null)} sourceClipId={playingClip.id} />}
+      {playingYouTube && (
+        <YouTubePlayer title={playingYouTube.title} videoId={playingYouTube.videoId} onClose={() => setPlayingYouTube(null)} />
+      )}
 
       {showBook && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

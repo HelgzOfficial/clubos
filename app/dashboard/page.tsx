@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useCallback, Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
+import { youTubeWatchUrl } from "@/lib/youtube";
 import { useIsMobileOrTablet } from "@/lib/use-media-query";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +84,8 @@ const statusVariant: Record<string, "green" | "amber" | "red"> = { green: "green
 // labels (e.g. "Match Pack / Training Upload") are too long to fit as tabs.
 const TAB_LABELS: Record<DashboardWidgetKey, string> = {
   "next-match": "Next Match", weather: "Weather", schedule: "Schedule", availability: "Availability",
-  "league-position": "League", "form-guide": "Form", uploads: "Uploads", injuries: "Injuries",
+  "league-position": "League", "form-guide": "Form", uploads: "Uploads",
+  "recent-uploads": "Recent", injuries: "Injuries",
   "top-scorers": "Scorers", "top-assists": "Assists", clips: "Clips",
 };
 
@@ -456,37 +459,42 @@ export default function DashboardPage() {
       ? [{
           key: "form-guide" as const,
           node: (
-            <Link href="/matches" className="block">
-              <Card className="h-full transition-colors hover:border-club-primary/40">
-                <CardHeader>
-                  <CardTitle>Form Guide</CardTitle>
-                  <TrendingUp size={18} className="text-neutral-400" />
-                </CardHeader>
-                {formGuide.length === 0 ? (
-                  <p className="text-sm text-neutral-400">No completed fixtures recorded yet.</p>
-                ) : (
-                  <>
-                    <div className="flex gap-2">
-                      {formGuide.map((f) => (
-                        <div key={f.id} title={`${f.result} — vs ${f.opponent} (${f.score})`} className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${resultColor[f.result]}`}>
-                          {f.result}
-                        </div>
-                      ))}
-                    </div>
-                    <ul className="mt-3 divide-y divide-white/10">
-                      {[...formGuide].reverse().map((f) => (
-                        <li key={`row-${f.id}`} className="flex items-center justify-between py-1.5 text-xs">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle>Form Guide</CardTitle>
+                <TrendingUp size={18} className="text-neutral-400" />
+              </CardHeader>
+              {formGuide.length === 0 ? (
+                <p className="text-sm text-neutral-400">No completed fixtures recorded yet.</p>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    {formGuide.map((f) => (
+                      <Link
+                        key={f.id}
+                        href={`/matches/${f.id}`}
+                        title={`${f.result} — vs ${f.opponent} (${f.score}) — view match`}
+                        className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-transform hover:scale-110 ${resultColor[f.result]}`}
+                      >
+                        {f.result}
+                      </Link>
+                    ))}
+                  </div>
+                  <ul className="mt-3 divide-y divide-white/10">
+                    {[...formGuide].reverse().map((f) => (
+                      <li key={`row-${f.id}`}>
+                        <Link href={`/matches/${f.id}`} className="flex items-center justify-between py-1.5 text-xs hover:text-club-primary transition-colors">
                           <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
                           <span className="flex-1 truncate px-2 text-neutral-300">{f.opponent}</span>
                           <span className="tabular-nums text-neutral-400">{f.score}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-2 text-[11px] text-neutral-500">Last {formGuide.length} fixtures, all competitions — latest first · tap for Match Centre</p>
-                  </>
-                )}
-              </Card>
-            </Link>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[11px] text-neutral-500">Last {formGuide.length} fixtures, all competitions — latest first · tap a result to open its match</p>
+                </>
+              )}
+            </Card>
           ),
         }]
       : []),
@@ -506,6 +514,20 @@ export default function DashboardPage() {
                   <p className="text-sm text-neutral-400 sm:col-span-2">No upcoming fixture or training session to attach files to right now.</p>
                 )}
               </div>
+            </Card>
+          ),
+        }]
+      : []),
+    ...(isVisible("recent-uploads")
+      ? [{
+          key: "recent-uploads" as const,
+          node: (
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Recent Uploads</CardTitle>
+                <Upload size={18} className="text-neutral-400" />
+              </CardHeader>
+              <RecentUploadsFeed limit={8} />
             </Card>
           ),
         }]
@@ -968,7 +990,13 @@ function ClipsCard({ clips, onChange }: { clips: DbClip[]; onChange: () => Promi
       setUploading(false);
     }
   }
-  async function handlePlay(c: DbClip) { window.open(await getClipUrl(c.file_path), "_blank"); }
+  async function handlePlay(c: DbClip) {
+    if (c.source === "youtube" && c.youtube_id) {
+      window.open(youTubeWatchUrl(c.youtube_id), "_blank");
+      return;
+    }
+    window.open(await getClipUrl(c.file_path), "_blank");
+  }
   async function handleDelete(c: DbClip) {
     if (!window.confirm(`Remove "${c.title}"?`)) return;
     await deleteClip(c.id, c.file_path);

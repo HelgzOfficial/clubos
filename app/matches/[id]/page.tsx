@@ -32,6 +32,7 @@ import { DirectionsLinks } from "@/components/directions-links";
 import { PitchMapInput, type PitchPoint } from "@/components/analysis/pitch-map";
 import { fetchClipsForMatch, uploadClip, getClipUrl, deleteClip, type DbClip } from "@/lib/clips-db";
 import { VideoPlayer } from "@/components/analysis/video-player";
+import { youTubeWatchUrl } from "@/lib/youtube";
 import type { Clip } from "@/lib/analysis-types";
 import {
   ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin, Film, Play,
@@ -190,6 +191,12 @@ function HighlightsCard({ matchId }: { matchId: string }) {
   }
 
   async function handlePlay(c: DbClip) {
+    // A YouTube-linked highlight has no stored file to stream, so it opens on
+    // YouTube itself rather than in the in-app annotating player.
+    if (c.source === "youtube" && c.youtube_id) {
+      window.open(youTubeWatchUrl(c.youtube_id), "_blank");
+      return;
+    }
     const url = await getClipUrl(c.file_path);
     setPlaying({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
   }

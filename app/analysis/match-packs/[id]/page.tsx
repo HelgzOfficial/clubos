@@ -14,6 +14,7 @@ import { fetchHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-hea
 import { fetchAllClips, getClipUrl, type DbClip } from "@/lib/clips-db";
 import { fetchAnnotatedImages, getAnnotatedImageUrl, type DbAnnotatedImage } from "@/lib/annotated-images-db";
 import { VideoPlayer } from "@/components/analysis/video-player";
+import { youTubeWatchUrl } from "@/lib/youtube";
 import { usePermissions } from "@/lib/permissions";
 import type { Clip } from "@/lib/analysis-types";
 import {
@@ -134,6 +135,10 @@ export default function MatchPackDetailPage() {
     if (item.type === "clip") {
       const c = clips.find((cc) => cc.id === item.clipId);
       if (!c) return;
+      if (c.source === "youtube" && c.youtube_id) {
+        window.open(youTubeWatchUrl(c.youtube_id), "_blank");
+        return;
+      }
       const url = await getClipUrl(c.file_path);
       setPlaying({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
     } else {

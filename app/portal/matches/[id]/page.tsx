@@ -12,6 +12,7 @@ import {
 import { fetchClipsForMatch, getClipUrl, type DbClip } from "@/lib/clips-db";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { VideoPlayer } from "@/components/analysis/video-player";
+import { YouTubePlayer } from "@/components/analysis/youtube-player";
 import { DirectionsLinks } from "@/components/directions-links";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
   const [clips, setClips] = useState<DbClip[]>([]);
   const [viewing, setViewing] = useState<DbMatchDocument | null>(null);
   const [playingClip, setPlayingClip] = useState<Clip | null>(null);
+  const [playingYouTube, setPlayingYouTube] = useState<{ title: string; videoId: string } | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -72,6 +74,13 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
   }, [params.id]);
 
   async function handlePlayClip(c: DbClip) {
+    // YouTube-linked clips play in the embed modal; uploaded files stream from
+    // storage via a signed URL.
+    if (c.source === "youtube" && c.youtube_id) {
+      setPlayingYouTube({ title: c.title, videoId: c.youtube_id });
+      return;
+    }
+    if (!c.file_path) return;
     const url = await getClipUrl(c.file_path);
     setPlayingClip({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
   }
@@ -256,6 +265,9 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
       )}
 
       {playingClip && <VideoPlayer clip={playingClip} onClose={() => setPlayingClip(null)} sourceClipId={playingClip.id} />}
+      {playingYouTube && (
+        <YouTubePlayer title={playingYouTube.title} videoId={playingYouTube.videoId} onClose={() => setPlayingYouTube(null)} />
+      )}
     </div>
   );
 }
