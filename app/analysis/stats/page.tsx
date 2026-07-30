@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { usePermissions } from "@/lib/permissions";
+import { useIsMobileOrTablet } from "@/lib/use-media-query";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { competitionKind } from "@/lib/competition-kind";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/player-match-stats-db";
 import {
   ArrowLeft, Save, Plus, X, Sliders, Trophy, GitCompare, ClipboardList,
-  Check, Loader2, AlertCircle, EyeOff,
+  Check, Loader2, AlertCircle, EyeOff, ChevronDown,
 } from "lucide-react";
 
 type Tab = "enter" | "metrics" | "rankings" | "compare";
@@ -171,6 +172,12 @@ function EnterStatsTab({
     [matches]
   );
 
+  // A 13-column table is unusable on a phone — horizontal scrolling hides the
+  // metric headings, so you lose track of which column you're typing into.
+  // Below `lg` the grid becomes one expandable form per player instead.
+  const isMobile = useIsMobileOrTablet();
+  const [openPlayerId, setOpenPlayerId] = useState<string | null>(null);
+
   const [matchId, setMatchId] = useState<string>("");
   const [grid, setGrid] = useState<Record<string, Record<string, string>>>({});
   const [existingIds, setExistingIds] = useState<Set<string>>(new Set());
@@ -311,6 +318,72 @@ function EnterStatsTab({
 
       {loadingMatch ? (
         <p className="text-sm text-neutral-400">Loading fixture…</p>
+      ) : isMobile ? (
+        <Card className="p-0">
+          <ul className="divide-y divide-white/10">
+            {players.map((p) => {
+              const cells = grid[p.id] ?? {};
+              const filled = metrics.filter((m) => (cells[m.key] ?? "") !== "").length;
+              const open = openPlayerId === p.id;
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => setOpenPlayerId(open ? null : p.id)}
+                    className="touch-manipulation flex w-full items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{p.name}</p>
+                      <p className="text-[11px] text-neutral-500">
+                        #{p.squad_number} · {p.position}
+                      </p>
+                    </div>
+                    {filled > 0 ? (
+                      <Badge variant={filled === metrics.length ? "green" : "amber"}>
+                        {filled}/{metrics.length}
+                      </Badge>
+                    ) : existingIds.has(p.id) ? (
+                      <Badge variant="neutral">saved</Badge>
+                    ) : null}
+                    <ChevronDown size={15} className={`shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {open && (
+                    <div className="space-y-2 border-t border-white/10 px-4 py-3">
+                      {metrics.map((m) => (
+                        <div key={m.key} className="flex items-center gap-3">
+                          <label className="min-w-0 flex-1 text-sm text-neutral-300">
+                            {m.label}
+                            {m.unit && <span className="ml-1 text-xs text-neutral-500">({m.unit})</span>}
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            inputMode="decimal"
+                            disabled={!canEdit}
+                            value={cells[m.key] ?? ""}
+                            onChange={(e) => setCell(p.id, m.key, e.target.value)}
+                            className="w-24 shrink-0 rounded-lg border border-white/10 bg-navy-600 px-2 py-2 text-center text-base outline-none focus:ring-2 focus:ring-club-primary/30 disabled:opacity-50 dark:bg-navy-800"
+                          />
+                        </div>
+                      ))}
+                      {canEdit && (
+                        <button
+                          onClick={() => saveRow(p.id)}
+                          disabled={savingId === p.id}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-club-primary px-4 py-2.5 text-sm font-medium text-navy-950 hover:opacity-90 disabled:opacity-60"
+                        >
+                          {savingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                          {savingId === p.id ? "Saving…" : `Save ${p.name.split(" ")[0]}`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
@@ -347,6 +420,7 @@ function EnterStatsTab({
                         <input
                           type="number"
                           step="any"
+                          inputMode="decimal"
                           disabled={!canEdit}
                           value={grid[p.id]?.[m.key] ?? ""}
                           onChange={(e) => setCell(p.id, m.key, e.target.value)}
