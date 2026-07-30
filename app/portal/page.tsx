@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club as clubFallback } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
@@ -59,6 +60,7 @@ export default function PortalPage() {
 
   const [matches, setMatches] = useState<DbMatch[]>([]);
   const [recentResults, setRecentResults] = useState<DbMatch[]>([]);
+  const [scheduleTab, setScheduleTab] = useState<"upcoming" | "results">("upcoming");
   const [docsByMatch, setDocsByMatch] = useState<Record<string, DbMatchDocument[]>>({});
   const [openedIds, setOpenedIds] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<DbMatchDocument | null>(null);
@@ -104,13 +106,22 @@ export default function PortalPage() {
           fetchMatches(), fetchLeagueTable(), fetchBookings(), fetchCalendarEvents(), fetchClips(6),
         ]);
 
-        const upcoming = allMatches.filter((m) => new Date(m.kickoff).getTime() >= now).slice(0, 8);
+        const upcoming = allMatches
+          .filter((m) => new Date(m.kickoff).getTime() >= now && m.status !== "cancelled")
+          .slice(0, 8);
         setMatches(upcoming);
+
+        // "Played" here means the kickoff has passed — deliberately NOT
+        // "status === completed with both scores filled in". Fixtures are
+        // often left as 'scheduled' and simply drift into the past, or get a
+        // score without anyone flipping the status, so the stricter check
+        // left this list looking empty even though games had been played.
+        // Anything without a score just shows its status instead.
         setRecentResults(
           allMatches
-            .filter((m) => m.status === "completed" && m.home_score !== null && m.away_score !== null)
+            .filter((m) => new Date(m.kickoff).getTime() < now && m.status !== "cancelled" && m.status !== "postponed")
             .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime())
-            .slice(0, 5)
+            .slice(0, 15)
         );
         const docLists = await Promise.all(upcoming.map((m) => fetchMatchDocuments(m.id)));
         const map: Record<string, DbMatchDocument[]> = {};
@@ -147,12 +158,20 @@ export default function PortalPage() {
   const nextMatch = matches[0] ?? null;
 
   const formGuide = useMemo(() => {
-    return [...recentResults].reverse().map((m) => {
-      const gf = m.is_home ? m.home_score! : m.away_score!;
-      const ga = m.is_home ? m.away_score! : m.home_score!;
-      const result: "W" | "D" | "L" = gf > ga ? "W" : gf < ga ? "L" : "D";
-      return { id: m.id, result, opponent: m.opponent, score: `${gf}-${ga}` };
-    });
+    // recentResults is newest-first and may include played games that have no
+    // score recorded yet — those can't be a W/D/L, so they're skipped here
+    // (they still appear in the Results tab). The strip wants the most recent
+    // 5 *scored* games, shown oldest-to-newest.
+    return recentResults
+      .filter((m) => m.home_score !== null && m.away_score !== null)
+      .slice(0, 5)
+      .reverse()
+      .map((m) => {
+        const gf = m.is_home ? m.home_score! : m.away_score!;
+        const ga = m.is_home ? m.away_score! : m.home_score!;
+        const result: "W" | "D" | "L" = gf > ga ? "W" : gf < ga ? "L" : "D";
+        return { id: m.id, result, opponent: m.opponent, score: `${gf}-${ga}` };
+      });
   }, [recentResults]);
 
   const ownRow = league.find((r) => r.is_own_club) ?? null;
@@ -288,37 +307,80 @@ export default function PortalPage() {
           )}
         </div>
 
-        <Collapsible title="Schedule" icon={<CalendarDays size={16} />} defaultOpen>
-          {matches.length === 0 ? (
-            <p className="text-sm text-neutral-400">No upcoming fixtures scheduled yet.</p>
+        <Collapsible title="Matches" icon={<CalendarDays size={16} />} defaultOpen>
+          <div className="mb-3 flex gap-1.5">
+            {(["upcoming", "results"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setScheduleTab(t)}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  scheduleTab === t ? "bg-club-primary text-navy-950" : "bg-navy-600 dark:bg-navy-800 text-neutral-400 hover:text-white"
+                }`}
+              >
+                {t === "upcoming" ? "Upcoming" : "Recent Results"}
+              </button>
+            ))}
+          </div>
+
+          {scheduleTab === "upcoming" ? (
+            matches.length === 0 ? (
+              <p className="text-sm text-neutral-400">No upcoming fixtures scheduled yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {matches.map((m) => {
+                  const docs = docsByMatch[m.id] ?? [];
+                  return (
+                    <div key={m.id} className="rounded-xl border border-white/10 p-3">
+                      <p className="text-sm font-medium">{m.is_home ? "vs" : "@"} {m.opponent}</p>
+                      <p className="mt-0.5 text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
+                      {docs.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 border-t border-white/10 pt-2.5">
+                          {docs.map((d) => (
+                            <div key={d.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-left text-xs">
+                              <button onClick={() => handleOpenDoc(d)} className="flex min-w-0 flex-1 items-center gap-1.5 hover:text-white transition-colors">
+                                <FileText size={12} className="shrink-0 text-neutral-400" />
+                                <span className="flex-1 truncate">{d.file_name}</span>
+                              </button>
+                              {openedIds.has(d.id) && <span className="shrink-0 text-[10px] text-emerald-400">Opened</span>}
+                              <button onClick={() => handleDownloadDoc(d)} title="Download" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                                <Download size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : recentResults.length === 0 ? (
+            <p className="text-sm text-neutral-400">No games have been played yet.</p>
           ) : (
-            <div className="space-y-3">
-              {matches.map((m) => {
-                const docs = docsByMatch[m.id] ?? [];
+            <ul className="divide-y divide-white/10">
+              {recentResults.map((m) => {
+                const scored = m.home_score !== null && m.away_score !== null;
+                const gf = m.is_home ? m.home_score : m.away_score;
+                const ga = m.is_home ? m.away_score : m.home_score;
+                const result = scored ? (gf! > ga! ? "W" : gf! < ga! ? "L" : "D") : null;
                 return (
-                  <div key={m.id} className="rounded-xl border border-white/10 p-3">
-                    <p className="text-sm font-medium">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                    <p className="mt-0.5 text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
-                    {docs.length > 0 && (
-                      <div className="mt-2.5 space-y-1.5 border-t border-white/10 pt-2.5">
-                        {docs.map((d) => (
-                          <div key={d.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-left text-xs">
-                            <button onClick={() => handleOpenDoc(d)} className="flex min-w-0 flex-1 items-center gap-1.5 hover:text-white transition-colors">
-                              <FileText size={12} className="shrink-0 text-neutral-400" />
-                              <span className="flex-1 truncate">{d.file_name}</span>
-                            </button>
-                            {openedIds.has(d.id) && <span className="shrink-0 text-[10px] text-emerald-400">Opened</span>}
-                            <button onClick={() => handleDownloadDoc(d)} title="Download" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
-                              <Download size={12} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                  <Link key={m.id} href={`/portal/matches/${m.id}`} className="flex items-center gap-3 py-2.5 text-sm hover:text-club-primary transition-colors">
+                    {result ? (
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${resultColor[result]}`}>{result}</span>
+                    ) : (
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-neutral-400">–</span>
                     )}
-                  </div>
+                    <span className="min-w-0 flex-1 truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
+                    {scored ? (
+                      <span className="shrink-0 tabular-nums text-neutral-400">{gf}-{ga}</span>
+                    ) : (
+                      <span className="shrink-0 text-[11px] text-neutral-500">no score</span>
+                    )}
+                    <span className="shrink-0 text-xs text-neutral-500">{formatDate(m.kickoff)}</span>
+                  </Link>
                 );
               })}
-            </div>
+            </ul>
           )}
         </Collapsible>
 
@@ -326,9 +388,14 @@ export default function PortalPage() {
           {formGuide.length > 0 && (
             <div className="mb-3 flex items-center gap-1.5">
               {formGuide.map((f) => (
-                <span key={f.id} title={`${f.opponent} ${f.score}`} className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${resultColor[f.result]}`}>
+                <Link
+                  key={f.id}
+                  href={`/portal/matches/${f.id}`}
+                  title={`${f.opponent} ${f.score} — view match`}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-transform hover:scale-110 ${resultColor[f.result]}`}
+                >
                   {f.result}
-                </span>
+                </Link>
               ))}
             </div>
           )}
