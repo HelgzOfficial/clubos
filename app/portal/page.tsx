@@ -23,6 +23,7 @@ import { fetchCalendarEvents, expandEvent, type EventOccurrence } from "@/lib/ca
 import { fetchClips, getClipUrl, type DbClip } from "@/lib/clips-db";
 import { getCountryFlag } from "@/lib/countries";
 import { DirectionsLinks } from "@/components/directions-links";
+import { PlayerAvatar } from "@/components/players/player-avatar";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { MessageThread } from "@/components/medical/message-thread";
 import { VideoPlayer } from "@/components/analysis/video-player";
@@ -48,6 +49,10 @@ const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral"
 };
 const resultColor: Record<string, string> = {
   W: "bg-emerald-500 text-white", D: "bg-amber-400 text-navy-950", L: "bg-red-500 text-white",
+};
+// Same green/amber/red meaning as the Medical and Players modules.
+const availabilityVariant: Record<string, "green" | "amber" | "red"> = {
+  green: "green", amber: "amber", red: "red",
 };
 
 export default function PortalPage() {
@@ -82,6 +87,9 @@ export default function PortalPage() {
   const [h2h, setH2h] = useState<DbHeadToHead | null>(null);
 
   const [weekEvents, setWeekEvents] = useState<EventOccurrence[]>([]);
+  // A wider window than weekEvents, for the always-visible dashboard calendar.
+  const [agendaEvents, setAgendaEvents] = useState<EventOccurrence[]>([]);
+  const [dashTab, setDashTab] = useState<"league" | "form">("league");
 
   const [clips, setClips] = useState<DbClip[]>([]);
   const [playingClip, setPlayingClip] = useState<Clip | null>(null);
@@ -134,8 +142,11 @@ export default function PortalPage() {
 
         const todayStr = new Date().toISOString().slice(0, 10);
         const weekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const occ = events.flatMap((e) => expandEvent(e, todayStr, weekEnd)).sort((a, b) => a.date.localeCompare(b.date));
-        setWeekEvents(occ);
+        const monthEnd = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const byDateThenTime = (a: EventOccurrence, b: EventOccurrence) =>
+          a.date.localeCompare(b.date) || (a.startTime ?? "").localeCompare(b.startTime ?? "");
+        setWeekEvents(events.flatMap((e) => expandEvent(e, todayStr, weekEnd)).sort(byDateThenTime));
+        setAgendaEvents(events.flatMap((e) => expandEvent(e, todayStr, monthEnd)).sort(byDateThenTime));
 
         if (upcoming[0]) {
           const [reports, headToHead] = await Promise.all([
@@ -181,6 +192,57 @@ export default function PortalPage() {
     const start = Math.max(0, idx - 2);
     return league.slice(start, start + 5);
   }, [league, ownRow]);
+
+  // Fixtures and training/meetings merged into one chronological agenda for
+  // the dashboard calendar, grouped by day so a date heading isn't repeated
+  // for every item on it.
+  const calendarDays = useMemo(() => {
+    type AgendaItem = { key: string; time: string | null; title: string; kind: "match" | "training" | "meeting"; venue: string | null; href?: string };
+    const byDate = new Map<string, AgendaItem[]>();
+
+    const push = (date: string, item: AgendaItem) => {
+      const list = byDate.get(date);
+      if (list) list.push(item);
+      else byDate.set(date, [item]);
+    };
+
+    for (const m of matches) {
+      const d = new Date(m.kickoff);
+      push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, {
+        key: `match-${m.id}`,
+        time: formatTime(m.kickoff),
+        title: `${m.is_home ? "vs" : "@"} ${m.opponent}`,
+        kind: "match",
+        venue: m.venue,
+        href: `/portal/matches/${m.id}`,
+      });
+    }
+    for (const e of agendaEvents) {
+      push(e.date, { key: e.key, time: e.startTime, title: e.title, kind: e.type, venue: e.venue });
+    }
+
+    return [...byDate.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, items]) => ({
+        date,
+        items: items.sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")),
+      }));
+  }, [matches, agendaEvents]);
+
+  const playerStats = useMemo(() => {
+    if (!player) return [];
+    const base = [
+      { label: "Apps", value: player.appearances },
+      { label: "Goals", value: player.goals },
+      { label: "Assists", value: player.assists },
+      { label: "Minutes", value: player.minutes },
+    ];
+    // Clean sheets only mean something for keepers and defenders.
+    if (player.position_group === "GK" || player.position_group === "DEF") {
+      base.push({ label: "Clean sheets", value: player.clean_sheets ?? 0 });
+    }
+    return base;
+  }, [player]);
 
   async function markOpened(doc: DbMatchDocument) {
     if (!player) return;
@@ -292,8 +354,48 @@ export default function PortalPage() {
       <div className="mx-auto max-w-lg space-y-4 px-4 pt-4">
         {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
 
-        {/* Next match — always visible hero, everything else is condensed
-            into dropdowns below to keep this from turning into a long scroll. */}
+        {/* ---- Dashboard: always visible, no dropdown. The player's own card,
+             their next fixture, a League/Form switcher and the calendar. All
+             the deeper detail stays in the collapsible sections below. ---- */}
+
+        {player && (
+          <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+            <div className="flex gap-3.5">
+              <div className="relative w-[84px] shrink-0 overflow-hidden rounded-xl">
+                <div className="aspect-[3/4] w-full">
+                  <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="card" />
+                </div>
+                <span className="absolute right-1 top-1 flex h-6 min-w-6 items-center justify-center rounded-lg bg-black/55 px-1.5 text-xs font-bold text-white backdrop-blur-sm">
+                  {player.squad_number}
+                </span>
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                <p className="truncate text-lg font-semibold leading-tight">{player.name}</p>
+                <p className="truncate text-sm text-neutral-400">{player.position}</p>
+                {player.nationality && (
+                  <p className="truncate text-xs text-neutral-500">
+                    {getCountryFlag(player.nationality)} {player.nationality}
+                  </p>
+                )}
+                <div className="mt-1">
+                  <Badge variant={availabilityVariant[player.availability] ?? "neutral"}>{player.availability_note}</Badge>
+                </div>
+              </div>
+            </div>
+
+            {playerStats.length > 0 && (
+              <div className={`mt-3.5 grid gap-2 border-t border-white/10 pt-3.5 text-center ${playerStats.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+                {playerStats.map((s) => (
+                  <div key={s.label}>
+                    <p className="text-lg font-semibold tabular-nums leading-tight">{s.value}</p>
+                    <p className="text-[10px] text-neutral-500">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
           <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Next Match</p>
           {!nextMatch ? (
@@ -304,6 +406,124 @@ export default function PortalPage() {
               <p className="mt-0.5 text-sm text-neutral-400">{formatDate(nextMatch.kickoff)} · {formatTime(nextMatch.kickoff)}{nextMatch.venue ? ` · ${nextMatch.venue}` : ""}</p>
               <DirectionsLinks venue={nextMatch.venue} className="mt-2" />
             </>
+          )}
+        </div>
+
+        {/* League / Form switcher */}
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <div className="mb-3 flex gap-1.5">
+            {(["league", "form"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setDashTab(t)}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  dashTab === t ? "bg-club-primary text-navy-950" : "bg-navy-600 dark:bg-navy-800 text-neutral-400 hover:text-white"
+                }`}
+              >
+                {t === "league" ? "League Table" : "Form Guide"}
+              </button>
+            ))}
+          </div>
+
+          {dashTab === "league" ? (
+            league.length === 0 ? (
+              <p className="text-sm text-neutral-400">League table hasn&apos;t been set up yet.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-neutral-500">
+                    <th className="pb-1.5 pr-2 font-medium">#</th>
+                    <th className="pb-1.5 pr-2 font-medium">Team</th>
+                    <th className="pb-1.5 pr-2 text-center font-medium">P</th>
+                    <th className="pb-1.5 pr-2 text-center font-medium">GD</th>
+                    <th className="pb-1.5 text-center font-medium">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {miniTable.map((r) => (
+                    <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : ""}>
+                      <td className="py-1 pr-2">{r.position}</td>
+                      <td className="max-w-0 truncate py-1 pr-2">{r.team}</td>
+                      <td className="py-1 pr-2 text-center tabular-nums">{r.played}</td>
+                      <td className="py-1 pr-2 text-center tabular-nums">{r.goals_for - r.goals_against}</td>
+                      <td className="py-1 text-center font-semibold tabular-nums">{r.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : formGuide.length === 0 ? (
+            <p className="text-sm text-neutral-400">No scored results yet.</p>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center gap-1.5">
+                {formGuide.map((f) => (
+                  <Link
+                    key={f.id}
+                    href={`/portal/matches/${f.id}`}
+                    title={`${f.opponent} ${f.score} — view match`}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-transform hover:scale-110 ${resultColor[f.result]}`}
+                  >
+                    {f.result}
+                  </Link>
+                ))}
+                <span className="ml-1 text-[10px] text-neutral-500">oldest → newest</span>
+              </div>
+              <ul className="divide-y divide-white/10">
+                {[...formGuide].reverse().map((f) => (
+                  <li key={`fg-${f.id}`}>
+                    <Link href={`/portal/matches/${f.id}`} className="flex items-center gap-2.5 py-1.5 text-xs hover:text-club-primary transition-colors">
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
+                      <span className="min-w-0 flex-1 truncate text-neutral-300">{f.opponent}</span>
+                      <span className="shrink-0 tabular-nums text-neutral-400">{f.score}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+
+        {/* Calendar — always visible, next 4 weeks of fixtures and sessions */}
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <p className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+            <CalendarDays size={13} /> Calendar · next 4 weeks
+          </p>
+          {calendarDays.length === 0 ? (
+            <p className="text-sm text-neutral-400">Nothing scheduled in the next four weeks.</p>
+          ) : (
+            <div className="space-y-3">
+              {calendarDays.map((day) => (
+                <div key={day.date} className="flex gap-3">
+                  <div className="w-11 shrink-0 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-neutral-500">
+                      {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short" })}
+                    </p>
+                    <p className="text-lg font-semibold leading-tight tabular-nums">
+                      {new Date(`${day.date}T00:00:00`).getDate()}
+                    </p>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    {day.items.map((item) => {
+                      const body = (
+                        <div className={`rounded-lg border px-2.5 py-1.5 ${item.kind === "match" ? "border-club-primary/40 bg-club-primary/10" : "border-white/10"}`}>
+                          <div className="flex items-center gap-2">
+                            <p className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</p>
+                            {item.time && <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">{item.time}</span>}
+                          </div>
+                          {item.venue && <p className="truncate text-[11px] text-neutral-500">{item.venue}</p>}
+                        </div>
+                      );
+                      return item.href ? (
+                        <Link key={item.key} href={item.href} className="block transition-colors hover:brightness-125">{body}</Link>
+                      ) : (
+                        <div key={item.key}>{body}</div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
