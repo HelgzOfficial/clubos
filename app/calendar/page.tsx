@@ -319,7 +319,13 @@ export default function CalendarPage() {
                         className={`h-3 w-3 shrink-0 rounded-full ring-1 ring-white/20 ${dotColor[e.type]}`}
                       />
                     ) : (
-                      <span key={e.key} title={e.title} className={`h-3 w-3 shrink-0 rounded-full ring-1 ring-white/20 ${dotColor[e.type]}`} />
+                      e.crestName ? (
+                        <Link key={e.key} href={e.href ?? "#"} onClick={(ev) => ev.stopPropagation()} title={e.title}>
+                          <TeamCrest name={e.crestName} size="xs" lookup={crestLookup} plain />
+                        </Link>
+                      ) : (
+                        <span key={e.key} title={e.title} className={`h-3 w-3 shrink-0 rounded-full ring-1 ring-white/20 ${dotColor[e.type]}`} />
+                      )
                     )
                   )}
                   {dayEvents.length > 6 && <span className="text-[9px] leading-none text-neutral-500">+{dayEvents.length - 6}</span>}
@@ -328,10 +334,28 @@ export default function CalendarPage() {
                 {/* Tablet/desktop: room for a truncated title, still clickable straight to its destination. */}
                 <div className="mt-1 hidden space-y-1 sm:block">
                   {dayEvents.slice(0, 3).map((e) =>
-                    e.href ? (
-                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-1">
-                        {e.crestName && <TeamCrest name={e.crestName} size="xxs" lookup={crestLookup} />}
-                        <Badge variant={typeVariant[e.type]} className="block min-w-0 flex-1 truncate text-[10px] leading-tight hover:opacity-80 transition-opacity">
+                    e.crestName && e.href ? (
+                      // A fixture is the most important thing that can happen on
+                      // a day, so it gets the crest at full width rather than a
+                      // text badge — and the whole tile is the link to the match.
+                      <Link
+                        key={e.key}
+                        href={e.href}
+                        onClick={(ev) => ev.stopPropagation()}
+                        title={`${e.title}${e.startTime ? ` · ${e.startTime}` : ""}`}
+                        className="flex flex-col items-center gap-0.5 rounded-lg border border-club-primary/30 bg-club-primary/10 px-1 py-1.5 transition-colors hover:border-club-primary/60 hover:bg-club-primary/20"
+                      >
+                        <TeamCrest name={e.crestName} size="md" lookup={crestLookup} plain />
+                        <span className="w-full truncate text-center text-[9px] font-medium leading-tight text-neutral-200">
+                          {e.title}
+                        </span>
+                        {e.startTime && (
+                          <span className="text-[9px] leading-none text-club-primary">{e.startTime}</span>
+                        )}
+                      </Link>
+                    ) : e.href ? (
+                      <Link key={e.key} href={e.href} onClick={(ev) => ev.stopPropagation()} className="block">
+                        <Badge variant={typeVariant[e.type]} className="block truncate text-[10px] leading-tight hover:opacity-80 transition-opacity">
                           {e.title}
                         </Badge>
                       </Link>

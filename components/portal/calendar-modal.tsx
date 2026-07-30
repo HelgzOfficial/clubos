@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { expandEvent, type DbCalendarEvent } from "@/lib/calendar-events-db";
+import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import type { DbMatch } from "@/lib/matches-db";
 
 type DayItem = {
   key: string;
+  crestName?: string;
   time: string | null;
   title: string;
   kind: "match" | "training" | "meeting";
@@ -40,6 +42,7 @@ export function PortalCalendarModal({
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selected, setSelected] = useState<string>(isoDate(today));
+  const crestLookup = useCrestLookup();
 
   // Six weeks starting from the Monday on/before the 1st — a fixed grid size
   // keeps the modal from resizing as you page through months.
@@ -66,6 +69,7 @@ export function PortalCalendarModal({
       const date = isoDate(d);
       if (date < rangeStart || date > rangeEnd) continue;
       push(date, {
+        crestName: m.opponent,
         key: `match-${m.id}`,
         time: d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
         title: `${m.is_home ? "vs" : "@"} ${m.opponent}`,
@@ -186,7 +190,11 @@ export function PortalCalendarModal({
                   const body = (
                     <div className={`rounded-lg border px-2.5 py-2 ${item.kind === "match" ? "border-club-primary/40 bg-club-primary/10" : "border-white/10"}`}>
                       <div className="flex items-center gap-2">
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${kindDot[item.kind]}`} />
+                        {item.crestName ? (
+                          <TeamCrest name={item.crestName} size="xs" lookup={crestLookup} />
+                        ) : (
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${kindDot[item.kind]}`} />
+                        )}
                         <p className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</p>
                         {item.time && <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">{item.time}</span>}
                       </div>

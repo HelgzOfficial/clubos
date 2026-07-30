@@ -284,13 +284,17 @@ export default function MatchesPage() {
               {upcoming.map((m) => (
                 <Card key={m.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2 font-medium">
-                      <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
-                      <span className="truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
-                    </p>
-                    <div className="mt-1 mb-1 flex items-center gap-1.5">
-                      <TeamCrest name={m.competition} kind="competition" size="xs" lookup={crestLookup} />
-                      <CompetitionBadge competition={m.competition} />
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          <span className="text-neutral-500">{m.is_home ? "vs" : "@"}</span> {m.opponent}
+                        </p>
+                        <div className="mt-1 mb-1 flex items-center gap-1.5">
+                          <TeamCrest name={m.competition} kind="competition" size="xs" lookup={crestLookup} />
+                          <CompetitionBadge competition={m.competition} />
+                        </div>
+                      </div>
+                      <TeamCrest name={m.opponent} size="md" lookup={crestLookup} className="order-last" />
                     </div>
                     <p className="text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
                     <DirectionsLinks venue={m.venue} className="mt-1.5" />
@@ -329,13 +333,17 @@ export default function MatchesPage() {
                   <Card key={m.id} className="gap-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="flex items-center gap-2 font-medium">
-                          <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
-                          <span className="truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
-                        </p>
-                        <div className="mt-1 mb-1 flex items-center gap-1.5">
-                          <TeamCrest name={m.competition} kind="competition" size="xs" lookup={crestLookup} />
-                          <CompetitionBadge competition={m.competition} />
+                        <div className="flex items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">
+                              <span className="text-neutral-500">{m.is_home ? "vs" : "@"}</span> {m.opponent}
+                            </p>
+                            <div className="mt-1 mb-1 flex items-center gap-1.5">
+                              <TeamCrest name={m.competition} kind="competition" size="xs" lookup={crestLookup} />
+                              <CompetitionBadge competition={m.competition} />
+                            </div>
+                          </div>
+                          <TeamCrest name={m.opponent} size="md" lookup={crestLookup} />
                         </div>
                         <p className="text-xs text-neutral-400">{formatDate(m.kickoff)}</p>
                       </div>

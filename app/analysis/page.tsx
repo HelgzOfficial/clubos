@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { PlayerAvatar } from "@/components/players/player-avatar";
+import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/analysis/video-player";
@@ -35,6 +37,7 @@ export default function AnalysisDashboardPage() {
   const [reports, setReports] = useState<DbMatchReport[]>([]);
   const [packs, setPacks] = useState<DbMatchPack[]>([]);
   const [loading, setLoading] = useState(true);
+  const [players, setPlayers] = useState<DbPlayer[]>([]);
   const [playing, setPlaying] = useState<Clip | null>(null);
 
   async function loadAll() {
@@ -55,6 +58,12 @@ export default function AnalysisDashboardPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    // Scorer/assist names come from goal records as free text, so they're
+    // matched back to squad records here purely to show a face next to a name.
+    fetchPlayers().then(setPlayers).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -100,6 +109,28 @@ export default function AnalysisDashboardPage() {
     { label: "Points", value: kpis.points },
     { label: "League Points", value: kpis.leaguePoints ?? "—" },
   ];
+
+  const playerByName = useMemo(() => {
+    const map = new Map<string, DbPlayer>();
+    const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, " ");
+    const lastName = (v: string) => norm(v).split(" ").slice(-1)[0] ?? "";
+    for (const p of players) map.set(norm(p.name), p);
+    // Match sheets often abbreviate ("A. Goode"), so fall back to a last name
+    // when exactly one player has it — ambiguous ones are simply left without
+    // a photo rather than risking the wrong face.
+    const byLast = new Map<string, DbPlayer[]>();
+    for (const p of players) {
+      const key = lastName(p.name);
+      byLast.set(key, [...(byLast.get(key) ?? []), p]);
+    }
+    for (const [key, list] of byLast) if (list.length === 1 && !map.has(key)) map.set(key, list[0]);
+    return map;
+  }, [players]);
+
+  function lookupPlayer(name: string): DbPlayer | undefined {
+    const norm = name.trim().toLowerCase().replace(/\s+/g, " ");
+    return playerByName.get(norm) ?? playerByName.get(norm.split(" ").slice(-1)[0] ?? "");
+  }
 
   return (
     <AppShell>
@@ -190,9 +221,17 @@ export default function AnalysisDashboardPage() {
                     <p className="mb-1.5 text-xs font-medium text-neutral-500">Goalscorers</p>
                     <ul className="space-y-1 text-sm">
                       {scorers.map((s) => (
-                        <li key={s.name} className="flex items-center justify-between">
-                          <span className="truncate">{s.name}</span>
-                          <span className="font-semibold text-club-primary">{s.count}</span>
+                        <li key={s.name} className="flex items-center gap-2.5">
+                          {(() => {
+                            const p = lookupPlayer(s.name);
+                            return p ? (
+                              <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
+                            ) : (
+                              <span className="h-7 w-7 shrink-0 rounded-full bg-navy-600 dark:bg-navy-800" />
+                            );
+                          })()}
+                          <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                          <span className="shrink-0 font-semibold text-club-primary">{s.count}</span>
                         </li>
                       ))}
                     </ul>
@@ -201,9 +240,17 @@ export default function AnalysisDashboardPage() {
                     <p className="mb-1.5 text-xs font-medium text-neutral-500">Assists</p>
                     <ul className="space-y-1 text-sm">
                       {assists.map((s) => (
-                        <li key={s.name} className="flex items-center justify-between">
-                          <span className="truncate">{s.name}</span>
-                          <span className="font-semibold text-club-primary">{s.count}</span>
+                        <li key={s.name} className="flex items-center gap-2.5">
+                          {(() => {
+                            const p = lookupPlayer(s.name);
+                            return p ? (
+                              <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
+                            ) : (
+                              <span className="h-7 w-7 shrink-0 rounded-full bg-navy-600 dark:bg-navy-800" />
+                            );
+                          })()}
+                          <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                          <span className="shrink-0 font-semibold text-club-primary">{s.count}</span>
                         </li>
                       ))}
                     </ul>

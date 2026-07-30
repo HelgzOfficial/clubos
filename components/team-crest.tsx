@@ -35,19 +35,29 @@ export function useCrestLookup(): CrestLookup | null {
   return lookup;
 }
 
-const SIZES = { xxs: "h-4 w-4 text-[7px]", xs: "h-5 w-5 text-[8px]", sm: "h-7 w-7 text-[10px]", md: "h-9 w-9 text-xs", lg: "h-12 w-12 text-sm" };
+const SIZES = {
+  xxs: "h-4 w-4 text-[7px]",
+  xs: "h-5 w-5 text-[8px]",
+  sm: "h-7 w-7 text-[10px]",
+  md: "h-10 w-10 text-xs",
+  lg: "h-14 w-14 text-base",
+  xl: "h-20 w-20 text-xl",
+};
 
 // A team or competition badge. Uses the uploaded crest when there is one, and
 // otherwise draws initials on a colour derived from the name — so a fixture
 // list looks intentional even before any crests have been added.
 export function TeamCrest({
-  name, kind = "team", size = "sm", lookup, className = "",
+  name, kind = "team", size = "sm", lookup, className = "", plain = false,
 }: {
   name: string;
   kind?: CrestKind;
   size?: keyof typeof SIZES;
   lookup?: CrestLookup | null;
   className?: string;
+  // plain drops the tile background/ring, for places where the crest sits on
+  // an already-busy surface (e.g. inside a calendar cell).
+  plain?: boolean;
 }) {
   // Accepts a lookup from the parent (one fetch for a whole list) or fetches
   // its own if used standalone.
@@ -56,14 +66,19 @@ export function TeamCrest({
   const url = crestFor(effective, kind, name);
 
   if (url) {
+    // Uploaded crests vary wildly in aspect ratio and background, so they sit
+    // inside a fixed square tile with object-contain rather than being
+    // stretched — that's what keeps a fixture list looking even.
     return (
-      /* eslint-disable-next-line @next/next/no-img-element */
-      <img
-        src={url}
-        alt={`${name} crest`}
+      <span
         title={name}
-        className={`${SIZES[size]} shrink-0 rounded-md object-contain ${className}`}
-      />
+        className={`${SIZES[size]} shrink-0 inline-flex items-center justify-center overflow-hidden rounded-lg ${
+          plain ? "" : "bg-white/5 ring-1 ring-white/10"
+        } ${className}`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={`${name} crest`} className="h-full w-full object-contain p-0.5" />
+      </span>
     );
   }
 
@@ -71,7 +86,9 @@ export function TeamCrest({
     <span
       title={name}
       aria-label={`${name} badge`}
-      className={`${SIZES[size]} shrink-0 inline-flex items-center justify-center rounded-md font-bold text-white/90 ${className}`}
+      className={`${SIZES[size]} shrink-0 inline-flex items-center justify-center rounded-lg font-bold leading-none text-white/95 ${
+        plain ? "" : "ring-1 ring-white/10"
+      } ${className}`}
       style={{ backgroundColor: crestColor(name) }}
     >
       {crestInitials(name)}

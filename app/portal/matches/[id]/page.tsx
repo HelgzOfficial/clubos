@@ -14,6 +14,7 @@ import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import { VideoPlayer } from "@/components/analysis/video-player";
 import { YouTubePlayer } from "@/components/analysis/youtube-player";
 import { DirectionsLinks } from "@/components/directions-links";
+import { TeamCrest } from "@/components/team-crest";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import type { Clip } from "@/lib/analysis-types";
@@ -133,7 +134,10 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
           <>
             <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 text-center shadow-softDark">
               <p className="text-xs text-neutral-500">{match.competition}</p>
-              <p className="mt-1 text-lg font-semibold">{match.is_home ? "vs" : "@"} {match.opponent}</p>
+              <div className="mt-2 flex flex-col items-center gap-2">
+                <TeamCrest name={match.opponent} size="xl" />
+                <p className="text-lg font-semibold">{match.is_home ? "vs" : "@"} {match.opponent}</p>
+              </div>
               {played ? (
                 <>
                   <p className="mt-2 text-3xl font-bold tabular-nums">{gf} – {ga}</p>

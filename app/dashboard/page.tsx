@@ -458,7 +458,12 @@ export default function DashboardPage() {
                       {miniTable.map((r) => (
                         <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : "text-neutral-400"}>
                           <td className="py-0.5 pr-2">{r.position}</td>
-                          <td className="py-0.5 truncate">{r.team}</td>
+                          <td className="py-0.5">
+                            <span className="flex items-center gap-1.5">
+                              <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
+                              <span className="truncate">{r.team}</span>
+                            </span>
+                          </td>
                           <td className="py-0.5 pl-2 text-right tabular-nums">{r.points}</td>
                         </tr>
                       ))}
@@ -500,6 +505,7 @@ export default function DashboardPage() {
                       <li key={`row-${f.id}`}>
                         <Link href={`/matches/${f.id}`} className="flex items-center justify-between py-1.5 text-xs hover:text-club-primary transition-colors">
                           <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
+                          <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} className="ml-2" />
                           <span className="flex-1 truncate px-2 text-neutral-300">{f.opponent}</span>
                           <span className="tabular-nums text-neutral-400">{f.score}</span>
                         </Link>
@@ -563,10 +569,15 @@ export default function DashboardPage() {
                   {injuries.map((inj) => {
                     const player = players.find((p) => p.id === inj.player_id);
                     return (
-                      <li key={inj.id} className="flex items-center justify-between py-2.5 text-sm">
-                        <div>
-                          <p className="font-medium">{player?.name ?? "Unknown player"}</p>
-                          <p className="text-xs text-neutral-400">{inj.injury}</p>
+                      <li key={inj.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                          {player && (
+                            <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="sm" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{player?.name ?? "Unknown player"}</p>
+                            <p className="truncate text-xs text-neutral-400">{inj.injury}</p>
+                          </div>
                         </div>
                         <div className="text-right">
                           <Badge variant={statusVariant[inj.severity]}>{inj.severity.toUpperCase()}</Badge>
@@ -980,10 +991,13 @@ function TopStatCard({
       ) : (
         <ul className="space-y-2.5">
           {top.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 text-sm">
-              <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
-              <span className="flex-1 truncate">{p.name}</span>
-              <span className="tabular-nums font-semibold text-club-primary">{p[statKey]}</span>
+            <li key={p.id}>
+              <Link href={`/players/${p.id}`} className="flex items-center gap-3 text-sm transition-colors hover:text-club-primary">
+                <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <span className="shrink-0 text-[11px] text-neutral-500">#{p.squad_number}</span>
+                <span className="shrink-0 tabular-nums font-semibold text-club-primary">{p[statKey]}</span>
+              </Link>
             </li>
           ))}
         </ul>

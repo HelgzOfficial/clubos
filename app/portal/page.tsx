@@ -25,6 +25,7 @@ import { getCountryFlag } from "@/lib/countries";
 import { personalGreeting } from "@/lib/greeting";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PlayerAvatar } from "@/components/players/player-avatar";
+import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
 import { PortalCalendarModal } from "@/components/portal/calendar-modal";
 import { PhotoLightbox } from "@/components/portal/photo-lightbox";
@@ -111,6 +112,7 @@ export default function PortalPage() {
   const [clips, setClips] = useState<DbClip[]>([]);
   const [playingClip, setPlayingClip] = useState<Clip | null>(null);
   const [playingYouTube, setPlayingYouTube] = useState<{ title: string; videoId: string } | null>(null);
+  const crestLookup = useCrestLookup();
 
   useEffect(() => {
     async function init() {
@@ -446,7 +448,10 @@ export default function PortalPage() {
             <p className="text-sm text-neutral-400">No upcoming fixture scheduled yet.</p>
           ) : (
             <>
-              <p className="text-lg font-semibold">{nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}</p>
+              <p className="flex items-center gap-2.5 text-lg font-semibold">
+                <TeamCrest name={nextMatch.opponent} size="md" lookup={crestLookup} />
+                <span className="min-w-0 truncate">{nextMatch.is_home ? "vs" : "@"} {nextMatch.opponent}</span>
+              </p>
               <p className="mt-0.5 text-sm text-neutral-400">{formatDate(nextMatch.kickoff)} · {formatTime(nextMatch.kickoff)}{nextMatch.venue ? ` · ${nextMatch.venue}` : ""}</p>
               <DirectionsLinks venue={nextMatch.venue} className="mt-2" />
             </>
@@ -477,6 +482,7 @@ export default function PortalPage() {
                     className="flex items-center gap-2.5 py-2 text-sm transition-colors hover:text-club-primary"
                   >
                     <Badge variant={m.is_home ? "green" : "neutral"} className="shrink-0">{m.is_home ? "H" : "A"}</Badge>
+                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
                     <span className="min-w-0 flex-1 truncate font-medium">{m.opponent}</span>
                     <span className="shrink-0 text-[11px] text-neutral-400">{formatDate(m.kickoff)}</span>
                     <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">{formatTime(m.kickoff)}</span>
@@ -521,7 +527,12 @@ export default function PortalPage() {
                   {miniTable.map((r) => (
                     <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : ""}>
                       <td className="py-1 pr-2">{r.position}</td>
-                      <td className="max-w-0 truncate py-1 pr-2">{r.team}</td>
+                      <td className="py-1 pr-2">
+                        <span className="flex items-center gap-1.5">
+                          <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
+                          <span className="truncate">{r.team}</span>
+                        </span>
+                      </td>
                       <td className="py-1 pr-2 text-center tabular-nums">{r.played}</td>
                       <td className="py-1 pr-2 text-center tabular-nums">{r.goals_for - r.goals_against}</td>
                       <td className="py-1 text-center font-semibold tabular-nums">{r.points}</td>
@@ -552,6 +563,7 @@ export default function PortalPage() {
                   <li key={`fg-${f.id}`}>
                     <Link href={`/portal/matches/${f.id}`} className="flex items-center gap-2.5 py-1.5 text-xs hover:text-club-primary transition-colors">
                       <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
+                      <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} />
                       <span className="min-w-0 flex-1 truncate text-neutral-300">{f.opponent}</span>
                       <span className="shrink-0 tabular-nums text-neutral-400">{f.score}</span>
                     </Link>
@@ -690,6 +702,7 @@ export default function PortalPage() {
                     ) : (
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-neutral-400">–</span>
                     )}
+                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
                     <span className="min-w-0 flex-1 truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
                     {scored ? (
                       <span className="shrink-0 tabular-nums text-neutral-400">{gf}-{ga}</span>
@@ -736,7 +749,12 @@ export default function PortalPage() {
                   {miniTable.map((r) => (
                     <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : ""}>
                       <td className="py-1 pr-2">{r.position}</td>
-                      <td className="py-1 pr-2 truncate">{r.team}</td>
+                      <td className="py-1 pr-2">
+                        <span className="flex items-center gap-1.5">
+                          <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
+                          <span className="truncate">{r.team}</span>
+                        </span>
+                      </td>
                       <td className="py-1 pr-2 text-center">{r.played}</td>
                       <td className="py-1 text-center">{r.points}</td>
                     </tr>
