@@ -37,6 +37,7 @@ import {
 import { usePermissions } from "@/lib/permissions";
 import { personalGreeting } from "@/lib/greeting";
 import { TeamCrest, useCrestLookup } from "@/components/team-crest";
+import { LeagueTableModal } from "@/components/league-table-modal";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import {
   CloudSun, Clock, ShieldAlert, Trophy, TrendingUp, Upload, FileText, Download, Eye, Trash2, X,
@@ -129,6 +130,7 @@ export default function DashboardPage() {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [scheduleForm, setScheduleForm] = useState(blankScheduleForm);
   const [showLeagueEditor, setShowLeagueEditor] = useState(false);
+  const [showFullLeague, setShowFullLeague] = useState(false);
 
   // Below `lg` (phones/tablets), widgets switch from one long vertical stack
   // to a tab strip so the page doesn't turn into an endless scroll — this
@@ -457,18 +459,26 @@ export default function DashboardPage() {
                     <tbody>
                       {miniTable.map((r) => (
                         <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : "text-neutral-400"}>
-                          <td className="py-0.5 pr-2">{r.position}</td>
-                          <td className="py-0.5">
+                          <td className="py-1 pr-2">{r.position}</td>
+                          <td className="py-1">
                             <span className="flex items-center gap-1.5">
                               <span className="min-w-0 truncate">{r.team}</span>
-                              <TeamCrest name={r.team} size="xs" lookup={crestLookup} />
+                              <TeamCrest name={r.team} size="sm" lookup={crestLookup} />
                             </span>
                           </td>
-                          <td className="py-0.5 pl-2 text-right tabular-nums">{r.points}</td>
+                          <td className="py-1 pl-2 text-right tabular-nums">{r.points}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  {league.length > miniTable.length && (
+                    <button
+                      onClick={() => setShowFullLeague(true)}
+                      className="touch-manipulation mt-3 w-full rounded-lg border border-white/10 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                    >
+                      Full table ({league.length} teams)
+                    </button>
+                  )}
                 </>
               )}
             </Card>
@@ -847,6 +857,10 @@ export default function DashboardPage() {
 
       {showLeagueEditor && (
         <LeagueEditorModal league={league} onClose={() => setShowLeagueEditor(false)} onChange={loadAll} />
+      )}
+
+      {showFullLeague && (
+        <LeagueTableModal league={league} onClose={() => setShowFullLeague(false)} />
       )}
     </AppShell>
   );
