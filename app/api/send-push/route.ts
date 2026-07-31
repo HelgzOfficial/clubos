@@ -6,12 +6,13 @@ export const dynamic = "force-dynamic";
 // web-push needs Node crypto, so this can't run on the edge runtime.
 export const runtime = "nodejs";
 
-// Sends a Web Push notification to every device registered against a role.
+// Sends a Web Push notification to every device registered against a role, or
+// to one specific player's devices.
 //
 // The subscription keys are read with the service role rather than the
-// caller's session: the sender is a player, and a player has no business
-// listing the medical team's devices. Doing the lookup server-side keeps that
-// asymmetry intact.
+// caller's session: neither side should be able to list the other's devices,
+// and doing the lookup server-side keeps that asymmetry intact whichever
+// direction the message is travelling.
 
 type PushRow = {
   id: string;
@@ -21,7 +22,14 @@ type PushRow = {
 };
 
 export async function POST(req: Request) {
-  let body: { targetRole?: string; title?: string; body?: string; url?: string; tag?: string };
+  let body: {
+    targetRole?: string;
+    playerId?: string;
+    title?: string;
+    body?: string;
+    url?: string;
+    tag?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -29,9 +37,10 @@ export async function POST(req: Request) {
   }
 
   const targetRole = body.targetRole?.trim();
+  const playerId = body.playerId?.trim();
   const title = body.title?.trim();
-  if (!targetRole || !title) {
-    return NextResponse.json({ error: "Missing targetRole or title." }, { status: 400 });
+  if ((!targetRole && !playerId) || !title) {
+    return NextResponse.json({ error: "Missing target (role or playerId) and/or title." }, { status: 400 });
   }
 
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -55,17 +64,17 @@ export async function POST(req: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await admin
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth")
-    .eq("role", targetRole);
+  const query = admin.from("push_subscriptions").select("id, endpoint, p256dh, auth");
+  const { data, error } = playerId
+    ? await query.eq("player_id", playerId)
+    : await query.eq("role", targetRole!);
   if (error) {
     return NextResponse.json({ error: `Couldn't load subscriptions: ${error.message}` }, { status: 500 });
   }
 
   const subscriptions = (data ?? []) as PushRow[];
   if (subscriptions.length === 0) {
-    return NextResponse.json({ sent: 0, note: "Nobody in that role has enabled notifications on a device yet." });
+    return NextResponse.json({ sent: 0, note: "No devices have notifications enabled for that recipient yet." });
   }
 
   const payload = JSON.stringify({
@@ -100,10 +109,8 @@ export async function POST(req: Request) {
     await admin.from("push_subscriptions").delete().in("id", expired);
   }
 
-  await admin
-    .from("push_subscriptions")
-    .update({ last_used_at: new Date().toISOString() })
-    .eq("role", targetRole);
+  const touch = admin.from("push_subscriptions").update({ last_used_at: new Date().toISOString() });
+  await (playerId ? touch.eq("player_id", playerId) : touch.eq("role", targetRole!));
 
   return NextResponse.json({ sent, removed: expired.length });
 }
