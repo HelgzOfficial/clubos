@@ -76,17 +76,17 @@ export function PortalEmergencyContact({
         <p className="text-xs text-neutral-400">
           Who should the club call if something happens to you at training or on a matchday?
         </p>
-        <input value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name")(e.target.value)} placeholder="Their name" className={inputClass} />
-        <input value={form.emergency_contact_relationship} onChange={(e) => set("emergency_contact_relationship")(e.target.value)} placeholder="Relationship to you (e.g. mum, partner)" className={inputClass} />
-        <input value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone")(e.target.value)} placeholder="Phone number" inputMode="tel" className={inputClass} />
-        <input value={form.emergency_contact_alt_phone} onChange={(e) => set("emergency_contact_alt_phone")(e.target.value)} placeholder="Another number (optional)" inputMode="tel" className={inputClass} />
+        <input value={form.emergency_contact_name ?? ""} onChange={(e) => set("emergency_contact_name")(e.target.value)} placeholder="Their name" className={inputClass} />
+        <input value={form.emergency_contact_relationship ?? ""} onChange={(e) => set("emergency_contact_relationship")(e.target.value)} placeholder="Relationship to you (e.g. mum, partner)" className={inputClass} />
+        <input value={form.emergency_contact_phone ?? ""} onChange={(e) => set("emergency_contact_phone")(e.target.value)} placeholder="Phone number" inputMode="tel" className={inputClass} />
+        <input value={form.emergency_contact_alt_phone ?? ""} onChange={(e) => set("emergency_contact_alt_phone")(e.target.value)} placeholder="Another number (optional)" inputMode="tel" className={inputClass} />
 
         <p className="pt-1 text-xs text-neutral-400">
           Anything a paramedic would need to know. Leave blank if it doesn&apos;t apply.
         </p>
-        <input value={form.allergies} onChange={(e) => set("allergies")(e.target.value)} placeholder="Allergies" className={inputClass} />
-        <input value={form.conditions} onChange={(e) => set("conditions")(e.target.value)} placeholder="Conditions (asthma, epilepsy…)" className={inputClass} />
-        <input value={form.medications} onChange={(e) => set("medications")(e.target.value)} placeholder="Medication you take" className={inputClass} />
+        <input value={form.allergies ?? ""} onChange={(e) => set("allergies")(e.target.value)} placeholder="Allergies" className={inputClass} />
+        <input value={form.conditions ?? ""} onChange={(e) => set("conditions")(e.target.value)} placeholder="Conditions (asthma, epilepsy…)" className={inputClass} />
+        <input value={form.medications ?? ""} onChange={(e) => set("medications")(e.target.value)} placeholder="Medication you take" className={inputClass} />
 
         {error && <p className="text-xs text-red-300">{error}</p>}
 
