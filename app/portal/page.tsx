@@ -40,13 +40,14 @@ import { Badge } from "@/components/ui/badge";
 import type { Clip } from "@/lib/analysis-types";
 import {
   LogOut, FileText, AlertCircle, Download, CalendarDays, Trophy, User, HeartPulse,
-  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2, Camera, Plane,
+  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2, Camera, Plane, ClipboardList,
 } from "lucide-react";
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
 import { PortalPushToggle } from "@/components/portal/push-toggle";
 import { MatchPhotos } from "@/components/documents/match-photos";
 import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
 import { MyAbsences } from "@/components/portal/my-absences";
+import { MatchAvailability, PublishedLineup } from "@/components/portal/match-availability";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -808,6 +809,16 @@ export default function PortalPage() {
         {/* Sits next to the notification card, above the profile section: both
             are "things about you that you maintain", and an emergency contact
             nobody can find is the same as not having one. */}
+        {player && (
+          <Collapsible title="Am I Available?" icon={<Check size={16} />}>
+            <MatchAvailability playerId={player.id} matches={allMatches} />
+          </Collapsible>
+        )}
+
+        <Collapsible title="Team Named" icon={<ClipboardList size={16} />}>
+          <PublishedLineup match={matches[0] ?? null} />
+        </Collapsible>
+
         {player && (
           <Collapsible title="My Time Off" icon={<Plane size={16} />}>
             <MyAbsences playerId={player.id} />
