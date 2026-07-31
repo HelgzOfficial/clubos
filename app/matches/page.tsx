@@ -8,7 +8,10 @@ import { TeamCrest, useCrestLookup, invalidateCrestCache } from "@/components/te
 import { CrestManager } from "@/components/crest-manager";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync, type DbMatch } from "@/lib/matches-db";
+import {
+  fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync,
+  playedMatches, upcomingMatches, type DbMatch,
+} from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
 import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
@@ -217,8 +220,10 @@ export default function MatchesPage() {
   }
 
   const now = Date.now();
-  const upcoming = matches.filter((m) => new Date(m.kickoff).getTime() >= now);
-  const past = matches.filter((m) => new Date(m.kickoff).getTime() < now).reverse();
+  // Shared with the match-photos fixture picker (see lib/matches-db.ts) so
+  // "what counts as played" is defined once.
+  const upcoming = upcomingMatches(matches, now);
+  const past = playedMatches(matches, now);
 
   return (
     <AppShell>
