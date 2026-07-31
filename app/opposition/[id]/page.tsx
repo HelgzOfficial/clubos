@@ -220,6 +220,16 @@ function HeadToHeadCard({
   fallbackLastMeeting: { date: string; result: string } | null;
 }) {
   const [h2h, setH2h] = useState<DbHeadToHead | null | undefined>(undefined);
+
+  // The previous-meetings list and source URLs are declared here rather than
+  // read off DbHeadToHead. They come back from the same row, but keeping the
+  // shape local means this page doesn't fail to compile if the db module is a
+  // version behind — the fields simply come through as undefined until it
+  // catches up.
+  const research = h2h as (DbHeadToHead & {
+    recent_meetings?: { date: string; competition: string; venue: string; result: string }[] | null;
+    sources?: string[] | null;
+  }) | null | undefined;
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
@@ -297,11 +307,11 @@ function HeadToHeadCard({
 
           {/* The individual results behind the record, so the summary above can
               be sanity-checked instead of taken on trust. */}
-          {(h2h?.recent_meetings?.length ?? 0) > 0 && (
+          {(research?.recent_meetings?.length ?? 0) > 0 && (
             <div className="mt-3 border-t border-white/10 pt-2.5">
               <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Previous meetings</p>
               <ul className="space-y-1">
-                {h2h!.recent_meetings!.map((m, i) => (
+                {research!.recent_meetings!.map((m, i) => (
                   <li key={`${m.date}-${i}`} className="flex items-baseline justify-between gap-2 text-xs">
                     <span className="min-w-0 truncate text-neutral-300">
                       {m.date}
@@ -326,11 +336,11 @@ function HeadToHeadCard({
           {" "}· auto-updated {h2h ? new Date(h2h.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}
         </p>
       )}
-      {(h2h?.sources?.length ?? 0) > 0 && (
+      {(research?.sources?.length ?? 0) > 0 && (
         <div className="mt-2">
           <p className="text-[11px] text-neutral-500">
             Sources:{" "}
-            {h2h!.sources!.map((url, i) => (
+            {research!.sources!.map((url, i) => (
               <span key={url}>
                 {i > 0 && ", "}
                 <a href={url} target="_blank" rel="noreferrer" className="text-club-primary hover:underline">
