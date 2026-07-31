@@ -12,12 +12,14 @@ import {
   CalendarDays,
   ShieldCheck,
   HeartPulse,
+  ClipboardCheck,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; module: AppModule };
 
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" },
+  { href: "/manager", label: "Manager", icon: ClipboardCheck, module: "manager" },
   { href: "/matches", label: "Matches", icon: Swords, module: "matches" },
   { href: "/opposition", label: "Opposition", icon: Shield, module: "opposition" },
   { href: "/analysis", label: "Analysis", icon: Film, module: "analysis" },

@@ -20,7 +20,8 @@ export const ALL_ROLES: AppRole[] = ["owner", "manager", "head_coach", "goalkeep
 
 export type AppModule =
   | "dashboard" | "matches" | "players" | "opposition" | "analysis" | "training"
-  | "medical" | "recruitment" | "documents" | "calendar" | "settings" | "staff" | "treatment";
+  | "medical" | "recruitment" | "documents" | "calendar" | "settings" | "staff" | "treatment"
+  | "manager";
 
 // Modules a "player" role can see at all — everything else (medical,
 // recruitment, settings, staff) is hidden from their nav and blocked if
@@ -29,8 +30,10 @@ export type AppModule =
 const PLAYER_MODULES: AppModule[] = ["dashboard", "matches", "opposition", "analysis", "training", "players", "documents", "calendar", "treatment"];
 
 // Modules restricted to owner/manager regardless of role, since they touch
-// club administration rather than football operations.
-const OWNER_MANAGER_ONLY: AppModule[] = ["settings", "staff"];
+// club administration rather than football operations. "manager" is the
+// cross-department overview — contracts, registrations and selection planning
+// — which is explicitly not for coaching or medical staff.
+const OWNER_MANAGER_ONLY: AppModule[] = ["settings", "staff", "manager"];
 
 // "treatment" (the player self-booking page) is only meaningful for players
 // themselves and the people who run Medical — coaching roles have no reason
