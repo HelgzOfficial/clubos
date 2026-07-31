@@ -8,17 +8,30 @@ import { usePermissions } from "@/lib/permissions";
 import { fetchPlayer, type DbPlayer } from "@/lib/players-db";
 import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
 import {
-  fetchBookings, createBooking, deleteBooking, sendTreatmentInvite,
+  fetchBookings, createBooking, deleteBooking,
+  BOOKING_STEP_MINUTES, snapToBookingInterval,
   TREATMENT_TYPE_OPTIONS, type DbTreatmentBooking, type BookingStatus,
 } from "@/lib/treatment-bookings-db";
 import { HeartPulse, Plus, X, CalendarClock, Trash2, AlertCircle, Check, MessageCircle } from "lucide-react";
 import { MessageThread } from "@/components/medical/message-thread";
 
-const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral"> = {
+// Partial + fallback rather than an exhaustive Record: this map lives in a
+// different file from BookingStatus, so an exhaustive one meant adding a
+// status broke the build here until this file was updated in lockstep.
+const statusVariant: Partial<Record<BookingStatus, "green" | "amber" | "red" | "neutral" | "blue">> = {
+  requested: "blue",
   scheduled: "amber",
   completed: "green",
   cancelled: "neutral",
   "no-show": "red",
+};
+
+const statusLabel: Partial<Record<BookingStatus, string>> = {
+  requested: "Awaiting confirmation",
+  scheduled: "Confirmed",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  "no-show": "Missed",
 };
 
 function todayIso() {
@@ -77,9 +90,9 @@ export default function TreatmentPage() {
     setSaving(true);
     setFormError("");
     try {
-      const start = new Date(`${date}T${startTime}:00`);
+      const start = new Date(`${date}T${snapToBookingInterval(startTime)}:00`);
       const end = new Date(start.getTime() + Number(durationMins) * 60 * 1000);
-      const booking = await createBooking({
+      await createBooking({
         playerId,
         injuryId: injuries[0]?.id ?? null,
         startTime: start.toISOString(),
@@ -88,8 +101,10 @@ export default function TreatmentPage() {
         notes: notes.trim(),
         doctorName: "",
         doctorEmail: "",
+        // A request, not a confirmed slot. Nothing is emailed until the
+        // medical team confirms it in the Medical module.
+        status: "requested",
       });
-      if (player?.email) await sendTreatmentInvite(booking, { name: player.name, email: player.email });
       setShowAdd(false);
       setTreatmentType(TREATMENT_TYPE_OPTIONS[0]);
       setDate(todayIso());
@@ -136,7 +151,7 @@ export default function TreatmentPage() {
     );
   }
 
-  const upcoming = bookings.filter((b) => b.status === "scheduled" && new Date(b.start_time).getTime() >= Date.now());
+  const upcoming = bookings.filter((b) => (b.status === "scheduled" || b.status === "requested") && new Date(b.start_time).getTime() >= Date.now());
   const history = bookings.filter((b) => !upcoming.includes(b));
 
   return (
@@ -180,7 +195,7 @@ export default function TreatmentPage() {
                   {b.notes && <p className="mt-0.5 text-xs text-neutral-500">{b.notes}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={statusVariant[b.status]}>{b.status}</Badge>
+                  <Badge variant={statusVariant[b.status] ?? "neutral"}>{statusLabel[b.status] ?? b.status}</Badge>
                   <button onClick={() => handleCancel(b)} className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10" title="Cancel">
                     <Trash2 size={14} />
                   </button>
@@ -201,7 +216,7 @@ export default function TreatmentPage() {
                   <p className="font-medium">{b.treatment_type}</p>
                   <p className="text-xs text-neutral-400">{formatDay(b.start_time)} · {formatTime(b.start_time)}</p>
                 </div>
-                <Badge variant={statusVariant[b.status]}>{b.status}</Badge>
+                <Badge variant={statusVariant[b.status] ?? "neutral"}>{statusLabel[b.status] ?? b.status}</Badge>
               </li>
             ))}
           </ul>
@@ -239,7 +254,10 @@ export default function TreatmentPage() {
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-medium text-neutral-500">Start time</label>
-                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+                  <input type="time" step={BOOKING_STEP_MINUTES * 60}
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    onBlur={(e) => setStartTime(snapToBookingInterval(e.target.value))}
                     className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
                 </div>
               </div>
@@ -247,7 +265,7 @@ export default function TreatmentPage() {
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Duration</label>
                 <select value={durationMins} onChange={(e) => setDurationMins(e.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
-                  {["15", "30", "45", "60"].map((m) => <option key={m} value={m}>{m} minutes</option>)}
+                  {["5", "10", "15", "20", "30", "45", "60", "90"].map((m) => <option key={m} value={m}>{m} minutes</option>)}
                 </select>
               </div>
               <div>

@@ -7,17 +7,27 @@ import type { DbPlayer } from "@/lib/players-db";
 import type { DbInjury } from "@/lib/injuries-db";
 import {
   fetchBookings, createBooking, updateBookingStatus, deleteBooking, sendTreatmentInvite,
+  confirmBooking, declineBooking, BOOKING_STEP_MINUTES, snapToBookingInterval,
   TREATMENT_TYPE_OPTIONS, type DbTreatmentBooking, type BookingStatus,
 } from "@/lib/treatment-bookings-db";
 import { fetchAppUsersByRole } from "@/lib/app-users-db";
 import type { AppUserRecord } from "@/lib/permissions";
 import { Plus, X, Check, Trash2, CalendarClock, Ban, CalendarPlus, Loader2 } from "lucide-react";
 
-const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral"> = {
+const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral" | "blue"> = {
+  requested: "blue",
   scheduled: "amber",
   completed: "green",
   cancelled: "neutral",
   "no-show": "red",
+};
+
+const statusLabel: Record<BookingStatus, string> = {
+  requested: "Awaiting your confirmation",
+  scheduled: "Confirmed",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  "no-show": "No-show",
 };
 
 function todayIso() {
@@ -41,6 +51,7 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
   const [inviteNoteId, setInviteNoteId] = useState<string | null>(null);
   const [inviteNote, setInviteNote] = useState("");
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const [doctorOptions, setDoctorOptions] = useState<AppUserRecord[]>([]);
 
@@ -82,7 +93,7 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
     setSaving(true);
     setFormError("");
     try {
-      const start = new Date(`${date}T${startTime}:00`);
+      const start = new Date(`${date}T${snapToBookingInterval(startTime)}:00`);
       const end = new Date(start.getTime() + Number(durationMins) * 60 * 1000);
       const activeInjury = injuries.find((i) => i.player_id === playerId);
       const doctor = doctorOptions.find((d) => d.id === doctorId);
@@ -97,6 +108,9 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
         notes: notes.trim(),
         doctorName: doctor?.name ?? "",
         doctorEmail: doctor?.email ?? "",
+        // Booked by the medical team themselves, so there's nobody left to
+        // confirm it — straight to scheduled, invite sent below.
+        status: "scheduled",
       });
       setShowAdd(false);
       setPlayerId("");
@@ -125,6 +139,53 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
     }
   }
 
+  // Confirming a player's request is the only point at which anyone gets an
+  // email about it. The invite goes to the player and to the confirming
+  // clinician together, so both ends of the appointment learn about it at the
+  // same moment.
+  async function handleConfirm(b: DbTreatmentBooking) {
+    const doctor = doctorOptions.find((d) => d.id === doctorId) ?? doctorOptions[0];
+    if (!doctor) {
+      setError("Add a doctor or physio under Staff before confirming requests — the invite needs somewhere to go.");
+      return;
+    }
+    setConfirmingId(b.id);
+    setError("");
+    try {
+      const confirmed = await confirmBooking(b.id, { name: doctor.name, email: doctor.email }, doctor.name);
+      const player = players.find((p) => p.id === b.player_id);
+      const result = await sendTreatmentInvite(confirmed, {
+        name: player?.name ?? "Player",
+        email: player?.email ?? null,
+      });
+      setInviteNoteId(b.id);
+      setInviteNote(
+        result.ok
+          ? `Confirmed — invite sent to ${player?.email ? `${player.name} and ` : ""}${doctor.name}.`
+          : `Confirmed, but the invite didn't send: ${result.error}`
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't confirm that request.");
+    } finally {
+      setConfirmingId(null);
+    }
+  }
+
+  async function handleDecline(b: DbTreatmentBooking) {
+    const reason = window.prompt("Why can't this slot go ahead? (the player will see this)") ?? "";
+    if (reason === null) return;
+    setConfirmingId(b.id);
+    try {
+      await declineBooking(b.id, reason);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't decline that request.");
+    } finally {
+      setConfirmingId(null);
+    }
+  }
+
   async function handleStatus(id: string, status: BookingStatus) {
     await updateBookingStatus(id, status);
     await load();
@@ -138,7 +199,15 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
 
   const playerName = (id: string) => players.find((p) => p.id === id)?.name ?? "Unknown player";
 
-  const visible = showAll ? bookings : bookings.filter((b) => b.start_time.slice(0, 10) === dayFilter);
+  // Pending requests are pulled out and shown above the day list. They're the
+  // thing that needs an action, and they'd otherwise be invisible unless you
+  // happened to be looking at the right day.
+  const pending = bookings
+    .filter((b) => b.status === "requested")
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  const visible = (showAll ? bookings : bookings.filter((b) => b.start_time.slice(0, 10) === dayFilter))
+    .filter((b) => b.status !== "requested");
   const sorted = [...visible].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
   return (
@@ -154,6 +223,67 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
           </button>
         )}
       </CardHeader>
+
+      {pending.length > 0 && (
+        <div className="mb-4 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
+          <p className="mb-1 text-sm font-medium text-blue-200">
+            {pending.length} treatment request{pending.length === 1 ? "" : "s"} awaiting confirmation
+          </p>
+          <p className="mb-2.5 text-xs text-neutral-400">
+            Nothing has been emailed yet. Confirming sends the calendar invite to the player and the clinician.
+          </p>
+          <ul className="divide-y divide-white/10">
+            {pending.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 text-sm">
+                <div className="w-24 shrink-0 text-xs text-neutral-400">
+                  <div>{formatDay(b.start_time)}</div>
+                  <div className="font-medium text-neutral-200">{formatTime(b.start_time)}–{formatTime(b.end_time)}</div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{playerName(b.player_id)}</p>
+                  <p className="truncate text-xs text-neutral-400">
+                    {b.treatment_type}{b.notes ? ` · ${b.notes}` : ""}
+                  </p>
+                </div>
+                {canEdit && (
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      onClick={() => handleConfirm(b)}
+                      disabled={confirmingId === b.id}
+                      className="flex touch-manipulation items-center gap-1.5 rounded-lg bg-club-primary px-2.5 py-1.5 text-xs font-medium text-navy-950 disabled:opacity-60"
+                    >
+                      {confirmingId === b.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                      Confirm &amp; send invite
+                    </button>
+                    <button
+                      onClick={() => handleDecline(b)}
+                      disabled={confirmingId === b.id}
+                      className="flex touch-manipulation items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-navy-600 disabled:opacity-60 dark:hover:bg-navy-800"
+                    >
+                      <Ban size={12} /> Decline
+                    </button>
+                  </span>
+                )}
+                {inviteNoteId === b.id && <p className="w-full text-xs text-neutral-400">{inviteNote}</p>}
+              </li>
+            ))}
+          </ul>
+          {canEdit && doctorOptions.length > 0 && (
+            <label className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
+              Confirm as:
+              <select
+                value={doctorId}
+                onChange={(e) => setDoctorId(e.target.value)}
+                className="rounded-lg border border-white/10 bg-navy-600 px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+              >
+                {doctorOptions.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-xs text-neutral-400">
@@ -194,7 +324,7 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
                     {b.treatment_type}{b.doctor_name ? ` · with ${b.doctor_name}` : ""}{b.notes ? ` · ${b.notes}` : ""}
                   </p>
                 </div>
-                <Badge variant={statusVariant[b.status]}>{b.status}</Badge>
+                <Badge variant={statusVariant[b.status]}>{statusLabel[b.status]}</Badge>
                 {canEdit && (
                   <>
                     <button
@@ -264,13 +394,17 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-medium text-neutral-500">Start time</label>
-                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+                  <input type="time" step={BOOKING_STEP_MINUTES * 60}
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    onBlur={(e) => setStartTime(snapToBookingInterval(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
                 </div>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Duration (minutes)</label>
                 <select value={durationMins} onChange={(e) => setDurationMins(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
-                  {["15", "30", "45", "60", "90"].map((d) => <option key={d} value={d}>{d} min</option>)}
+                  {["5", "10", "15", "20", "30", "45", "60", "90"].map((d) => <option key={d} value={d}>{d} min</option>)}
                 </select>
               </div>
               <div>

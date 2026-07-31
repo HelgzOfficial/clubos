@@ -14,7 +14,8 @@ import {
 } from "@/lib/match-documents-db";
 import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
 import {
-  fetchBookings, createBooking, deleteBooking, sendTreatmentInvite,
+  fetchBookings, createBooking, deleteBooking,
+  BOOKING_STEP_MINUTES, snapToBookingInterval,
   TREATMENT_TYPE_OPTIONS, type DbTreatmentBooking, type BookingStatus,
 } from "@/lib/treatment-bookings-db";
 import { fetchOppositionReports, getOppositionReportDownloadUrl, type DbOppositionReport } from "@/lib/opposition-reports-db";
@@ -52,8 +53,13 @@ function formatTime(iso: string) {
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
-const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral"> = {
-  scheduled: "amber", completed: "green", cancelled: "neutral", "no-show": "red",
+const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral" | "blue"> = {
+  requested: "blue", scheduled: "amber", completed: "green", cancelled: "neutral", "no-show": "red",
+};
+// "requested" is jargon on a player's screen — they asked, they're waiting.
+const statusLabel: Record<BookingStatus, string> = {
+  requested: "Awaiting confirmation", scheduled: "Confirmed", completed: "Completed",
+  cancelled: "Cancelled", "no-show": "Missed",
 };
 const resultColor: Record<string, string> = {
   W: "bg-emerald-500 text-white", D: "bg-amber-400 text-navy-950", L: "bg-red-500 text-white",
@@ -289,13 +295,16 @@ export default function PortalPage() {
     setBooking(true);
     setBookError("");
     try {
-      const start = new Date(`${bookDate}T${bookTime}:00`);
+      const start = new Date(`${bookDate}T${snapToBookingInterval(bookTime)}:00`);
       const end = new Date(start.getTime() + Number(bookDuration) * 60 * 1000);
-      const b = await createBooking({
+      // Deliberately a request, not a booking. No invite is sent here — the
+      // medical team confirms first, and the emails go out at that point, so
+      // nobody ends up with a calendar entry for a slot that was never agreed.
+      await createBooking({
         playerId: player.id, injuryId: null, startTime: start.toISOString(), endTime: end.toISOString(),
         treatmentType, notes: bookNotes.trim(), doctorName: "", doctorEmail: "",
+        status: "requested",
       });
-      if (player.email) await sendTreatmentInvite(b, { name: player.name, email: player.email });
       setShowBook(false);
       setTreatmentType(TREATMENT_TYPE_OPTIONS[0]); setBookDate(todayIso()); setBookTime("09:00"); setBookDuration("30"); setBookNotes("");
       setBookConfirmed(true);
@@ -359,8 +368,8 @@ export default function PortalPage() {
     );
   }
 
-  const upcomingBookings = bookings.filter((b) => b.status === "scheduled");
-  const pastBookings = bookings.filter((b) => b.status !== "scheduled");
+  const upcomingBookings = bookings.filter((b) => b.status === "scheduled" || b.status === "requested");
+  const pastBookings = bookings.filter((b) => b.status !== "scheduled" && b.status !== "requested");
 
   return (
     <div className="min-h-screen bg-navy-800 dark:bg-navy-950 pb-10 text-white">
@@ -909,7 +918,7 @@ export default function PortalPage() {
                     <p className="text-neutral-400">{formatDate(b.start_time)} · {formatTime(b.start_time)}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <Badge variant={statusVariant[b.status]}>{b.status}</Badge>
+                    <Badge variant={statusVariant[b.status]}>{statusLabel[b.status]}</Badge>
                     <button onClick={() => handleCancelBooking(b)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
                   </div>
                 </li>
@@ -922,7 +931,7 @@ export default function PortalPage() {
               {pastBookings.slice(0, 5).map((b) => (
                 <div key={b.id} className="flex items-center justify-between gap-2 text-xs">
                   <p className="truncate text-neutral-300">{b.treatment_type} · {formatDate(b.start_time)}</p>
-                  <Badge variant={statusVariant[b.status]}>{b.status}</Badge>
+                  <Badge variant={statusVariant[b.status]}>{statusLabel[b.status]}</Badge>
                 </div>
               ))}
             </div>
@@ -990,7 +999,10 @@ export default function PortalPage() {
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-medium text-neutral-500">Start time</label>
-                  <input type="time" value={bookTime} onChange={(e) => setBookTime(e.target.value)}
+                  <input type="time" step={BOOKING_STEP_MINUTES * 60}
+                    value={bookTime}
+                    onChange={(e) => setBookTime(e.target.value)}
+                    onBlur={(e) => setBookTime(snapToBookingInterval(e.target.value))}
                     className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
                 </div>
               </div>
@@ -998,7 +1010,7 @@ export default function PortalPage() {
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Duration</label>
                 <select value={bookDuration} onChange={(e) => setBookDuration(e.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
-                  {["15", "30", "45", "60"].map((m) => <option key={m} value={m}>{m} minutes</option>)}
+                  {["5", "10", "15", "20", "30", "45", "60", "90"].map((m) => <option key={m} value={m}>{m} minutes</option>)}
                 </select>
               </div>
               <div>
