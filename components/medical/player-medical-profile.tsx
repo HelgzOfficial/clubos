@@ -98,7 +98,10 @@ export function PlayerMedicalProfile({
       // Address and date of birth live on the player record, not the medical
       // one — they're admin detail that other parts of the app already use.
       if (address !== (player.address ?? "") || dob !== (player.dob ?? "")) {
-        await updatePlayer(player.id, { address: address.trim() || null, dob: dob || null });
+        // Pass plain strings: updatePlayer turns an empty one into null
+        // itself, and PlayerInput types these as strings, so handing it null
+        // here is a type error.
+        await updatePlayer(player.id, { address: address.trim(), dob });
         onPlayerChanged?.();
       }
       setEditing(false);
