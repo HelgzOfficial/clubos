@@ -59,6 +59,15 @@ export async function sendMessage(input: {
       url: "/medical",
       tag: `medical-${input.playerId}`,
     });
+  } else {
+    // A reply from the medical team goes to that player's own devices.
+    void notifyByPush({
+      playerId: input.playerId,
+      title: "Message from the medical team",
+      body: input.body.slice(0, 140),
+      url: "/portal",
+      tag: `medical-${input.playerId}`,
+    });
   }
   return message;
 }

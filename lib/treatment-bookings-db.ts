@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { notifyByPush } from "./push-client";
 
 // "requested" is a player's ask, not yet agreed by the medical team. It exists
 // so that nothing is emailed to either side until a doctor or physio has
@@ -152,7 +153,20 @@ export async function confirmBooking(
     .select()
     .single();
   if (error) throw error;
-  return data as DbTreatmentBooking;
+
+  // The player asked and has been waiting — tell them, on whatever device
+  // they've enabled notifications on.
+  const booking = data as DbTreatmentBooking;
+  void notifyByPush({
+    playerId: booking.player_id,
+    title: "Treatment confirmed",
+    body: `${booking.treatment_type} — ${new Date(booking.start_time).toLocaleString("en-GB", {
+      weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+    })}`,
+    url: "/portal",
+    tag: `treatment-${booking.id}`,
+  });
+  return booking;
 }
 
 // Declining keeps the row rather than deleting it, so the player can see their
@@ -167,7 +181,16 @@ export async function declineBooking(id: string, reason: string): Promise<DbTrea
     .select()
     .single();
   if (error) throw error;
-  return data as DbTreatmentBooking;
+
+  const booking = data as DbTreatmentBooking;
+  void notifyByPush({
+    playerId: booking.player_id,
+    title: "Treatment request declined",
+    body: reason.trim() || "Speak to the medical team to rearrange.",
+    url: "/portal",
+    tag: `treatment-${booking.id}`,
+  });
+  return booking;
 }
 
 export async function updateBookingStatus(id: string, status: BookingStatus): Promise<DbTreatmentBooking> {

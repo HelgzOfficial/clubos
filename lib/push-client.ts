@@ -118,7 +118,8 @@ export async function disablePush(): Promise<void> {
 // Deliberately never throws — a message must still send even if the push
 // service is down.
 export async function notifyByPush(input: {
-  targetRole: string;
+  targetRole?: string;
+  playerId?: string;
   title: string;
   body: string;
   url?: string;
