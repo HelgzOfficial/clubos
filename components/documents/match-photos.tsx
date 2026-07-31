@@ -2,23 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, Trash2, X, Loader2, ChevronLeft, ChevronRight, Image as ImageIcon } from "lucide-react";
-import { fetchMatches, type DbMatch } from "@/lib/matches-db";
+import { fetchMatches, playedMatches, type DbMatch } from "@/lib/matches-db";
 import {
   fetchMatchPhotos, uploadMatchPhoto, deleteMatchPhoto,
   type DbMatchPhoto,
 } from "@/lib/match-photos-db";
-
-// "Played" means the kickoff has passed — deliberately not `status ===
-// "completed"`. Fixtures routinely drift into the past still marked
-// 'scheduled', or get a score without anyone flipping the status, and the
-// stricter test would leave the list looking empty right after a game, which
-// is exactly when photos get uploaded.
-function playedFixtures(matches: DbMatch[]): DbMatch[] {
-  const now = Date.now();
-  return matches
-    .filter((m) => new Date(m.kickoff).getTime() < now && m.status !== "cancelled" && m.status !== "postponed")
-    .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime());
-}
 
 function fixtureOption(m: DbMatch): string {
   const date = new Date(m.kickoff).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -64,25 +52,40 @@ export function MatchPhotos({
   const [pendingCaption, setPendingCaption] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Fetched independently rather than in one Promise.all. They were bundled,
+  // which meant a photos failure — a missing table before the setup SQL is
+  // run, say — also wiped out the fixture list, so the picker wrongly claimed
+  // no games had been played. Two unrelated things failing together is a lie.
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    try {
-      const [p, m] = await Promise.all([fetchMatchPhotos(limit ?? 200), fetchMatches()]);
-      setPhotos(p);
+
+    const [photoResult, matchResult] = await Promise.allSettled([
+      fetchMatchPhotos(limit ?? 200),
+      fetchMatches(),
+    ]);
+
+    if (photoResult.status === "fulfilled") {
+      setPhotos(photoResult.value);
+    } else {
+      const message = photoResult.reason instanceof Error ? photoResult.reason.message : "";
+      setError(
+        /relation|does not exist|schema cache/i.test(message)
+          ? "Photos aren't set up yet — run supabase-match-photos-setup.sql in Supabase."
+          : message || "Couldn't load photos."
+      );
+    }
+
+    if (matchResult.status === "fulfilled") {
+      const m = matchResult.value;
       setMatches(m);
       // Default to the most recent game, since that's almost always the one
       // the photos are from. Only set it once, so it doesn't overwrite a
       // choice the user has already made when the list reloads after upload.
-      setPendingMatchId((prev) => {
-        if (prev) return prev;
-        return playedFixtures(m)[0]?.id ?? "";
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load photos.");
-    } finally {
-      setLoading(false);
+      setPendingMatchId((prev) => prev || playedMatches(m)[0]?.id || "");
     }
+
+    setLoading(false);
   }, [limit]);
 
   useEffect(() => { load(); }, [load]);
@@ -125,7 +128,7 @@ export function MatchPhotos({
     }
   }
 
-  const played = playedFixtures(matches);
+  const played = playedMatches(matches);
   const shown = limit ? photos.slice(0, limit) : photos;
 
   if (loading) return <p className="py-4 text-sm text-neutral-400">Loading photos…</p>;
