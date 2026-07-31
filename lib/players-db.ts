@@ -17,6 +17,7 @@ export type DbPlayer = {
   position_group: PositionGroup;
   nationality: string;
   dob: string | null;
+  address: string | null;
   pitch_x: number;
   pitch_y: number;
   pitch_positions: PitchPoint[];
@@ -50,6 +51,9 @@ export type PlayerInput = {
   availabilityNote: string;
   email: string;
   phone: string;
+  // Home address — admin detail, only surfaced in the Medical module.
+  // Optional so the squad-creation form doesn't have to collect it.
+  address?: string | null;
 };
 
 export const POSITION_OPTIONS: { label: string; group: PositionGroup }[] = [
@@ -134,6 +138,7 @@ export async function updatePlayer(id: string, input: Partial<PlayerInput>) {
   if (input.availabilityNote !== undefined) patch.availability_note = input.availabilityNote;
   if (input.email !== undefined) patch.email = input.email.trim() || null;
   if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
+  if (input.address !== undefined) patch.address = input.address?.trim() || null;
 
   const { data, error } = await supabase.from("players").update(patch).eq("id", id).select().single();
   if (error) throw error;

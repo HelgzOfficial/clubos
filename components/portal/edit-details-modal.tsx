@@ -23,6 +23,7 @@ export function EditDetailsModal({
   const [phone, setPhone] = useState(player.phone ?? "");
   const [nationality, setNationality] = useState(player.nationality ?? "");
   const [dob, setDob] = useState(player.dob ?? "");
+  const [address, setAddress] = useState(player.address ?? "");
   const [photoUrl, setPhotoUrl] = useState(player.photo_url);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -32,8 +33,8 @@ export function EditDetailsModal({
     setSaving(true);
     setError("");
     try {
-      await updatePlayer(player.id, { phone, nationality, dob });
-      onSaved({ phone: phone.trim() || null, nationality, dob: dob || null, photo_url: photoUrl });
+      await updatePlayer(player.id, { phone, nationality, dob, address });
+      onSaved({ phone: phone.trim() || null, nationality, dob: dob || null, address: address.trim() || null, photo_url: photoUrl });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save your details.");
@@ -98,6 +99,22 @@ export function EditDetailsModal({
               onChange={(e) => setDob(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
             />
+          </div>
+
+          {/* Address is here rather than in the medical section because it's
+              admin detail — but it's what the medical team reads off in an
+              emergency, which is why it's worth a player keeping it right. */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Home address</label>
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street, town, postcode"
+              className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+            />
+            <p className="mt-1 text-[11px] text-neutral-500">
+              Only the club&apos;s medical staff and management can see this.
+            </p>
           </div>
 
           <p className="rounded-xl border border-white/10 bg-navy-600/50 dark:bg-navy-800/50 p-2.5 text-[11px] text-neutral-400">

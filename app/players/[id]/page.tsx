@@ -17,6 +17,8 @@ import { PITCH_ROLES, PITCH_ROLE_GROUPS, findPitchRole } from "@/lib/pitch-posit
 import { COUNTRIES, getCountryFlag, flagEmoji } from "@/lib/countries";
 import Link from "next/link";
 import { ArrowLeft, FileText, Film, Pencil, Trash2, Check, X, RefreshCw, Mail, Phone, Plus } from "lucide-react";
+import { PlayerMedicalProfile } from "@/components/medical/player-medical-profile";
+import { usePermissions } from "@/lib/permissions";
 
 const statusVariant = { green: "green", amber: "amber", red: "red" } as const;
 const AVAILABILITY_OPTIONS: Availability[] = ["green", "amber", "red"];
@@ -32,6 +34,8 @@ export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
+  const { can, canWrite, appUser } = usePermissions();
+  const canSeeMedical = can("medical");
   const [player, setPlayer] = useState<DbPlayer | null | undefined>(undefined);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -321,6 +325,22 @@ export default function PlayerProfilePage() {
             </ul>
           )}
         </Card>
+
+        {/* Only rendered for medical staff and senior management. The
+            database won't return the row to anyone else either, so this isn't
+            the only thing standing between a player's medical history and the
+            rest of the squad — see supabase-player-medical-profiles.sql. */}
+        {canSeeMedical && (
+          <Card className="lg:col-span-2">
+            <CardHeader><CardTitle>Emergency &amp; Medical</CardTitle></CardHeader>
+            <PlayerMedicalProfile
+              player={player}
+              canEdit={canWrite("medical")}
+              editorName={appUser?.name ?? null}
+              onPlayerChanged={load}
+            />
+          </Card>
+        )}
 
         <Card>
           <CardHeader><CardTitle>Clips</CardTitle></CardHeader>

@@ -18,6 +18,7 @@ import { AiInjurySearch } from "@/components/medical/ai-injury-search";
 import { VoiceNoteButton } from "@/components/voice-note-button";
 import { MessageThread } from "@/components/medical/message-thread";
 import { PlayerNotes } from "@/components/medical/player-notes";
+import { PlayerMedicalProfile } from "@/components/medical/player-medical-profile";
 import { fetchUnreadCountsForDoctor } from "@/lib/medical-messages-db";
 import { usePermissions } from "@/lib/permissions";
 import { Plus, Pencil, Check, X, Trash2, AlertCircle, MessageCircle } from "lucide-react";
@@ -394,6 +395,18 @@ export default function MedicalPage() {
                         </div>
                       </form>
                     )}
+
+                    {/* Emergency and medical detail sits above the notes and
+                        the message thread — if someone opens a player's record
+                        in a hurry, this is what they're looking for. */}
+                    <div className="mt-6 border-t border-white/10 pt-5">
+                      <PlayerMedicalProfile
+                        player={p}
+                        canEdit={canEdit}
+                        editorName={appUser?.name ?? null}
+                        onPlayerChanged={load}
+                      />
+                    </div>
 
                     <div className="mt-6 border-t border-white/10 pt-5">
                       <PlayerNotes

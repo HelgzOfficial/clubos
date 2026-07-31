@@ -45,6 +45,7 @@ import {
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
 import { PortalPushToggle } from "@/components/portal/push-toggle";
 import { MatchPhotos } from "@/components/documents/match-photos";
+import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -801,6 +802,15 @@ export default function PortalPage() {
             <p className="mb-2 text-sm font-medium">Notifications</p>
             <PortalPushToggle playerId={player.id} email={player.email ?? null} />
           </div>
+        )}
+
+        {/* Sits next to the notification card, above the profile section: both
+            are "things about you that you maintain", and an emergency contact
+            nobody can find is the same as not having one. */}
+        {player && (
+          <Collapsible title="Emergency Contact" icon={<HeartPulse size={16} />}>
+            <PortalEmergencyContact playerId={player.id} playerName={player.name} />
+          </Collapsible>
         )}
 
         <Collapsible title="My Profile" icon={<User size={16} />}>
