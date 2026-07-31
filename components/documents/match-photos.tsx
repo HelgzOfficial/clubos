@@ -17,6 +17,19 @@ function fixtureOption(m: DbMatch): string {
   return `${m.is_home ? "vs" : "@"} ${m.opponent}${score} · ${date}`;
 }
 
+function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`touch-manipulation rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+        active ? "bg-club-primary text-navy-950" : "bg-navy-600 text-neutral-400 hover:text-white dark:bg-navy-800"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function matchLabel(matches: DbMatch[], matchId: string | null): string | null {
   if (!matchId) return null;
   const m = matches.find((x) => x.id === matchId);
@@ -50,6 +63,8 @@ export function MatchPhotos({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [pendingMatchId, setPendingMatchId] = useState("");
   const [pendingCaption, setPendingCaption] = useState("");
+  // "" means every photo; "none" means only the ones with no fixture attached.
+  const [filterMatchId, setFilterMatchId] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetched independently rather than in one Promise.all. They were bundled,
@@ -107,6 +122,9 @@ export function MatchPhotos({
         });
       }
       setPendingCaption("");
+      // Jump the filter to whatever they were just filed under, so the upload
+      // is visible immediately rather than hidden behind the current filter.
+      setFilterMatchId(pendingMatchId || "none");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't upload those photos.");
@@ -129,7 +147,19 @@ export function MatchPhotos({
   }
 
   const played = playedMatches(matches);
-  const shown = limit ? photos.slice(0, limit) : photos;
+
+  // Only fixtures that actually have photos are offered — a filter listing
+  // forty games where two have pictures is worse than no filter.
+  const fixturesWithPhotos = played.filter((m) => photos.some((p) => p.match_id === m.id));
+  const looseCount = photos.filter((p) => !p.match_id).length;
+
+  const filtered = filterMatchId === ""
+    ? photos
+    : filterMatchId === "none"
+      ? photos.filter((p) => !p.match_id)
+      : photos.filter((p) => p.match_id === filterMatchId);
+
+  const shown = limit ? filtered.slice(0, limit) : filtered;
 
   if (loading) return <p className="py-4 text-sm text-neutral-400">Loading photos…</p>;
 
@@ -186,10 +216,37 @@ export function MatchPhotos({
 
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
 
+      {!compact && (fixturesWithPhotos.length > 0 || looseCount > 0) && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <FilterChip
+            active={filterMatchId === ""}
+            onClick={() => setFilterMatchId("")}
+            label={`All photos (${photos.length})`}
+          />
+          {fixturesWithPhotos.map((m) => (
+            <FilterChip
+              key={m.id}
+              active={filterMatchId === m.id}
+              onClick={() => setFilterMatchId(m.id)}
+              label={`${m.is_home ? "vs" : "@"} ${m.opponent} (${photos.filter((p) => p.match_id === m.id).length})`}
+            />
+          ))}
+          {looseCount > 0 && (
+            <FilterChip
+              active={filterMatchId === "none"}
+              onClick={() => setFilterMatchId("none")}
+              label={`Club photos (${looseCount})`}
+            />
+          )}
+        </div>
+      )}
+
       {shown.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <ImageIcon size={22} className="mb-2 text-neutral-500" />
-          <p className="text-sm text-neutral-400">No match photos yet.</p>
+          <p className="text-sm text-neutral-400">
+            {photos.length === 0 ? "No match photos yet." : "No photos for that fixture."}
+          </p>
         </div>
       ) : compact ? (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 touch-pan-x">
