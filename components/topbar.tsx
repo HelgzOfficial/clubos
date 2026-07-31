@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Bell, Sparkles, LogOut } from "lucide-react";
+import { Search, Sparkles, LogOut } from "lucide-react";
+import { MessageBell } from "@/components/medical/message-bell";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNav } from "./mobile-nav";
 import { useAuth } from "@/lib/auth";
@@ -37,12 +38,9 @@ export function Topbar() {
         >
           <Sparkles size={16} />
         </button>
-        <button
-          className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
-          aria-label="Notifications"
-        >
-          <Bell size={16} />
-        </button>
+        {/* Replaces the placeholder bell — renders nothing for anyone without
+            medical access, so it doesn't clutter the bar for other roles. */}
+        <MessageBell />
         <ThemeToggle />
         <div className="relative ml-1">
           <button

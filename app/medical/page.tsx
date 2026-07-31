@@ -17,6 +17,7 @@ import { PlayerAvatar } from "@/components/players/player-avatar";
 import { AiInjurySearch } from "@/components/medical/ai-injury-search";
 import { VoiceNoteButton } from "@/components/voice-note-button";
 import { MessageThread } from "@/components/medical/message-thread";
+import { PlayerNotes } from "@/components/medical/player-notes";
 import { fetchUnreadCountsForDoctor } from "@/lib/medical-messages-db";
 import { usePermissions } from "@/lib/permissions";
 import { Plus, Pencil, Check, X, Trash2, AlertCircle, MessageCircle } from "lucide-react";
@@ -393,6 +394,15 @@ export default function MedicalPage() {
                         </div>
                       </form>
                     )}
+
+                    <div className="mt-6 border-t border-white/10 pt-5">
+                      <PlayerNotes
+                        playerId={p.id}
+                        canEdit={canEdit}
+                        authorName={appUser?.name ?? null}
+                        authorEmail={appUser?.email ?? null}
+                      />
+                    </div>
 
                     <div className="mt-6 border-t border-white/10 pt-5">
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">

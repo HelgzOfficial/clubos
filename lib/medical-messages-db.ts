@@ -90,6 +90,24 @@ export async function fetchUnreadCountForPlayer(playerId: string): Promise<numbe
   return count ?? 0;
 }
 
+// Live updates across every thread, for the notification bell — the
+// per-thread subscription above is filtered to one player, which is no use
+// when the point is to be told about a message you weren't already looking at.
+export function subscribeToAllMessages(onInsert: (msg: MedicalMessage) => void): () => void {
+  if (!supabase) return () => {};
+  const channel = supabase
+    .channel("medical-messages-all")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "medical_messages" },
+      (payload) => onInsert(payload.new as MedicalMessage)
+    )
+    .subscribe();
+  return () => {
+    supabase?.removeChannel(channel);
+  };
+}
+
 // Live updates for an open thread — resolves to an unsubscribe function.
 export function subscribeToThread(playerId: string, onInsert: (msg: MedicalMessage) => void): () => void {
   if (!supabase) return () => {};
