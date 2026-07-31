@@ -49,6 +49,10 @@ const GP: { key: keyof MedicalProfileInput; label: string }[] = [
   { key: "gp_phone", label: "Practice phone" },
 ];
 
+// Every form value is coerced with ?? "" at the point of use. The types say
+// they're strings, but an input cannot hold null and this file has to compile
+// even if the db module it imports from is a version behind — which is exactly
+// what happened when this shipped.
 const inputClass =
   "w-full rounded-lg border border-white/10 bg-navy-600 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800";
 
@@ -142,37 +146,37 @@ export function PlayerMedicalProfile({
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Emergency contact</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name")(e.target.value)} placeholder="Name" className={inputClass} />
-              <input value={form.emergency_contact_relationship} onChange={(e) => set("emergency_contact_relationship")(e.target.value)} placeholder="Relationship (e.g. mother)" className={inputClass} />
-              <input value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone")(e.target.value)} placeholder="Phone" inputMode="tel" className={inputClass} />
-              <input value={form.emergency_contact_alt_phone} onChange={(e) => set("emergency_contact_alt_phone")(e.target.value)} placeholder="Second phone (optional)" inputMode="tel" className={inputClass} />
+              <input value={form.emergency_contact_name ?? ""} onChange={(e) => set("emergency_contact_name")(e.target.value)} placeholder="Name" className={inputClass} />
+              <input value={form.emergency_contact_relationship ?? ""} onChange={(e) => set("emergency_contact_relationship")(e.target.value)} placeholder="Relationship (e.g. mother)" className={inputClass} />
+              <input value={form.emergency_contact_phone ?? ""} onChange={(e) => set("emergency_contact_phone")(e.target.value)} placeholder="Phone" inputMode="tel" className={inputClass} />
+              <input value={form.emergency_contact_alt_phone ?? ""} onChange={(e) => set("emergency_contact_alt_phone")(e.target.value)} placeholder="Second phone (optional)" inputMode="tel" className={inputClass} />
             </div>
           </div>
 
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">In an emergency</p>
             <div className="space-y-2">
-              <input value={form.allergies} onChange={(e) => set("allergies")(e.target.value)} placeholder="Allergies — including reaction and treatment" className={inputClass} />
-              <input value={form.conditions} onChange={(e) => set("conditions")(e.target.value)} placeholder="Conditions (asthma, epilepsy, cardiac history…)" className={inputClass} />
-              <input value={form.medications} onChange={(e) => set("medications")(e.target.value)} placeholder="Current medication" className={inputClass} />
-              <input value={form.blood_type} onChange={(e) => set("blood_type")(e.target.value)} placeholder="Blood type (if known)" className={inputClass} />
+              <input value={form.allergies ?? ""} onChange={(e) => set("allergies")(e.target.value)} placeholder="Allergies — including reaction and treatment" className={inputClass} />
+              <input value={form.conditions ?? ""} onChange={(e) => set("conditions")(e.target.value)} placeholder="Conditions (asthma, epilepsy, cardiac history…)" className={inputClass} />
+              <input value={form.medications ?? ""} onChange={(e) => set("medications")(e.target.value)} placeholder="Current medication" className={inputClass} />
+              <input value={form.blood_type ?? ""} onChange={(e) => set("blood_type")(e.target.value)} placeholder="Blood type (if known)" className={inputClass} />
             </div>
           </div>
 
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">History</p>
             <div className="space-y-2">
-              <textarea value={form.surgeries} onChange={(e) => set("surgeries")(e.target.value)} rows={2} placeholder="Surgeries — what and when" className={inputClass} />
-              <textarea value={form.previous_injuries} onChange={(e) => set("previous_injuries")(e.target.value)} rows={2} placeholder="Previous injuries — recurring problems worth knowing about" className={inputClass} />
+              <textarea value={form.surgeries ?? ""} onChange={(e) => set("surgeries")(e.target.value)} rows={2} placeholder="Surgeries — what and when" className={inputClass} />
+              <textarea value={form.previous_injuries ?? ""} onChange={(e) => set("previous_injuries")(e.target.value)} rows={2} placeholder="Previous injuries — recurring problems worth knowing about" className={inputClass} />
             </div>
           </div>
 
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Registered GP</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <input value={form.gp_name} onChange={(e) => set("gp_name")(e.target.value)} placeholder="GP name" className={inputClass} />
-              <input value={form.gp_practice} onChange={(e) => set("gp_practice")(e.target.value)} placeholder="Practice" className={inputClass} />
-              <input value={form.gp_phone} onChange={(e) => set("gp_phone")(e.target.value)} placeholder="Phone" inputMode="tel" className={inputClass} />
+              <input value={form.gp_name ?? ""} onChange={(e) => set("gp_name")(e.target.value)} placeholder="GP name" className={inputClass} />
+              <input value={form.gp_practice ?? ""} onChange={(e) => set("gp_practice")(e.target.value)} placeholder="Practice" className={inputClass} />
+              <input value={form.gp_phone ?? ""} onChange={(e) => set("gp_phone")(e.target.value)} placeholder="Phone" inputMode="tel" className={inputClass} />
             </div>
           </div>
 
@@ -191,7 +195,7 @@ export function PlayerMedicalProfile({
           </div>
 
           <div>
-            <textarea value={form.notes} onChange={(e) => set("notes")(e.target.value)} rows={2} placeholder="Anything else the medical team should know" className={inputClass} />
+            <textarea value={form.notes ?? ""} onChange={(e) => set("notes")(e.target.value)} rows={2} placeholder="Anything else the medical team should know" className={inputClass} />
           </div>
 
           <div className="flex gap-2">
