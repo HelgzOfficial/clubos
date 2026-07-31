@@ -15,7 +15,11 @@ import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { fetchMatches, upcomingMatches, playedMatches, type DbMatch } from "@/lib/matches-db";
 import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
 import { fetchPlayerAbsences, type DbPlayerAbsence } from "@/lib/player-absences-db";
-import { fetchSuspensions, isSuspensionActive, type DbSuspension } from "@/lib/manager-db";
+import { fetchSuspensions, type DbSuspension } from "@/lib/manager-db";
+import {
+  fetchAvailabilityForMatch, effectiveAvailability, AVAILABILITY_LABEL, AVAILABILITY_TONE, SOURCE_LABEL,
+  type DbMatchAvailability,
+} from "@/lib/match-availability-db";
 import {
   fetchLineup, saveLineup, emptyLineup, FORMATIONS, FORMATION_NAMES,
   iFasList, teamSheetText, squadListText,
@@ -25,27 +29,6 @@ import {
   ArrowLeft, ShieldAlert, Check, X, Loader2, Copy, Printer, Mail,
   ChevronUp, ChevronDown, Star, Send,
 } from "lucide-react";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// Why a player can't be picked, or null if they can. The manager can still
-// select them — a doubtful player often plays — but it has to be visible.
-function unavailableReason(
-  playerId: string,
-  injuries: DbInjury[],
-  suspensions: DbSuspension[],
-  absences: DbPlayerAbsence[]
-): string | null {
-  if (suspensions.some((s) => s.player_id === playerId && isSuspensionActive(s))) return "Suspended";
-  const injury = injuries.find((i) => i.player_id === playerId);
-  if (injury) return "Injured";
-  const t = today();
-  const away = absences.find((a) => a.player_id === playerId && a.start_date <= t && a.end_date >= t);
-  if (away) return away.reason;
-  return null;
-}
 
 export default function LineupPage() {
   const { can, appUser, loading: permsLoading } = usePermissions();
@@ -57,6 +40,7 @@ export default function LineupPage() {
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
   const [absences, setAbsences] = useState<DbPlayerAbsence[]>([]);
   const [suspensions, setSuspensions] = useState<DbSuspension[]>([]);
+  const [availability, setAvailability] = useState<DbMatchAvailability[]>([]);
   const [clubName, setClubName] = useState(clubFallback.name);
 
   const [matchId, setMatchId] = useState("");
@@ -106,6 +90,12 @@ export default function LineupPage() {
   }, []);
 
   useEffect(() => { loadLineup(matchId); }, [matchId, loadLineup]);
+
+  // Replies are per fixture, so they reload whenever the fixture changes.
+  useEffect(() => {
+    if (!matchId) return;
+    fetchAvailabilityForMatch(matchId).then(setAvailability).catch(() => setAvailability([]));
+  }, [matchId]);
 
   const match = matches.find((m) => m.id === matchId) ?? null;
   const positions = lineup ? FORMATIONS[lineup.formation] ?? FORMATIONS["4-4-2"] : [];
@@ -370,20 +360,35 @@ export default function LineupPage() {
             <Card>
               <CardHeader><CardTitle>Squad</CardTitle></CardHeader>
               <p className="mb-2 text-xs text-neutral-400">
-                Anyone unavailable is flagged but still selectable — a doubtful player often plays, and that&apos;s
-                your call, not the app&apos;s.
+                Combines each player&apos;s own reply with medical, suspensions and booked time off. Anyone flagged is
+                still selectable — a doubtful player often plays, and that&apos;s your call, not the app&apos;s.
               </p>
               <ul className="divide-y divide-white/10">
                 {available.map((p) => {
-                  const reason = unavailableReason(p.id, injuries, suspensions, absences);
+                  const eff = match
+                    ? effectiveAvailability(p.id, match, {
+                        reply: availability.find((a) => a.player_id === p.id),
+                        injuries, suspensions, absences,
+                      })
+                    : null;
                   return (
                     <li key={p.id} className="flex items-center gap-2.5 py-2">
                       <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{p.name}</p>
-                        <p className="truncate text-[11px] text-neutral-500">#{p.squad_number} · {p.position}</p>
+                        <p className="truncate text-[11px] text-neutral-500">
+                          #{p.squad_number} · {p.position}
+                          {eff && eff.detail ? ` · ${eff.detail}` : ""}
+                        </p>
                       </div>
-                      {reason && <Badge variant={reason === "Suspended" ? "amber" : reason === "Injured" ? "red" : "blue"}>{reason}</Badge>}
+                      {eff && eff.status !== "unknown" && (
+                        <span
+                          title={`${SOURCE_LABEL[eff.source]}${eff.detail ? ` · ${eff.detail}` : ""}`}
+                          className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-medium ${AVAILABILITY_TONE[eff.status]}`}
+                        >
+                          {AVAILABILITY_LABEL[eff.status]}
+                        </span>
+                      )}
                       <button
                         onClick={() => addStarter(p)}
                         disabled={lineup.starters.length >= 11}
