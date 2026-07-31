@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { notifyByPush } from "./push-client";
 
 export type MedicalMessage = {
   id: string;
@@ -45,7 +46,21 @@ export async function sendMessage(input: {
     .select()
     .single();
   if (error) throw error;
-  return data as MedicalMessage;
+
+  // Tell the other side's devices. Fire-and-forget by design: a push failure
+  // must never stop a message being sent, and the in-app badge is unaffected
+  // either way.
+  const message = data as MedicalMessage;
+  if (input.senderRole === "player") {
+    void notifyByPush({
+      targetRole: "doctor_physio",
+      title: `New message from ${input.senderName}`,
+      body: input.body.slice(0, 140),
+      url: "/medical",
+      tag: `medical-${input.playerId}`,
+    });
+  }
+  return message;
 }
 
 // Marks every message in a thread as read by whichever side is currently
