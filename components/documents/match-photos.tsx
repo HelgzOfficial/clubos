@@ -8,6 +8,27 @@ import {
   type DbMatchPhoto,
 } from "@/lib/match-photos-db";
 
+// "Played" means the kickoff has passed — deliberately not `status ===
+// "completed"`. Fixtures routinely drift into the past still marked
+// 'scheduled', or get a score without anyone flipping the status, and the
+// stricter test would leave the list looking empty right after a game, which
+// is exactly when photos get uploaded.
+function playedFixtures(matches: DbMatch[]): DbMatch[] {
+  const now = Date.now();
+  return matches
+    .filter((m) => new Date(m.kickoff).getTime() < now && m.status !== "cancelled" && m.status !== "postponed")
+    .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime());
+}
+
+function fixtureOption(m: DbMatch): string {
+  const date = new Date(m.kickoff).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const scored = m.home_score !== null && m.away_score !== null;
+  const gf = m.is_home ? m.home_score : m.away_score;
+  const ga = m.is_home ? m.away_score : m.home_score;
+  const score = scored ? ` (${gf}-${ga})` : "";
+  return `${m.is_home ? "vs" : "@"} ${m.opponent}${score} · ${date}`;
+}
+
 function matchLabel(matches: DbMatch[], matchId: string | null): string | null {
   if (!matchId) return null;
   const m = matches.find((x) => x.id === matchId);
@@ -50,6 +71,13 @@ export function MatchPhotos({
       const [p, m] = await Promise.all([fetchMatchPhotos(limit ?? 200), fetchMatches()]);
       setPhotos(p);
       setMatches(m);
+      // Default to the most recent game, since that's almost always the one
+      // the photos are from. Only set it once, so it doesn't overwrite a
+      // choice the user has already made when the list reloads after upload.
+      setPendingMatchId((prev) => {
+        if (prev) return prev;
+        return playedFixtures(m)[0]?.id ?? "";
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load photos.");
     } finally {
@@ -97,6 +125,7 @@ export function MatchPhotos({
     }
   }
 
+  const played = playedFixtures(matches);
   const shown = limit ? photos.slice(0, limit) : photos;
 
   if (loading) return <p className="py-4 text-sm text-neutral-400">Loading photos…</p>;
@@ -106,19 +135,19 @@ export function MatchPhotos({
       {canEdit && (
         <div className="mb-4 rounded-xl border border-white/10 p-3">
           <p className="mb-2 text-xs text-neutral-400">
-            Add photos from a match. Pick a fixture to file them against, or leave it blank for general club photos.
+            Add photos from a match. The list shows fixtures that have already been played, most recent first —
+            pick one, or choose &quot;No fixture&quot; for general club photos.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
               value={pendingMatchId}
+              disabled={played.length === 0}
               onChange={(e) => setPendingMatchId(e.target.value)}
               className="flex-1 rounded-lg border border-white/10 bg-navy-600 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
             >
               <option value="">No fixture</option>
-              {matches.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.is_home ? "vs" : "@"} {m.opponent} · {new Date(m.kickoff).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                </option>
+              {played.map((m) => (
+                <option key={m.id} value={m.id}>{fixtureOption(m)}</option>
               ))}
             </select>
             <input
@@ -136,6 +165,11 @@ export function MatchPhotos({
               {uploading ? progress || "Uploading…" : "Add photos"}
             </button>
           </div>
+          {played.length === 0 && (
+            <p className="mt-2 text-xs text-amber-300">
+              No fixtures have been played yet, so photos will be filed as general club photos for now.
+            </p>
+          )}
           <input
             ref={inputRef}
             type="file"
