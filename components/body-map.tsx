@@ -4,12 +4,13 @@ import { useState } from "react";
 import Image from "next/image";
 import { BodyPart, bodyCoords } from "@/lib/sample-data";
 
-const severityColor = { amber: "#D97706", red: "#DC2626" };
+// Amber / orange / red as severity climbs.
+const severityColor = { mild: "#D97706", moderate: "#EA580C", severe: "#DC2626" };
 
 export function BodyMap({
   markers,
 }: {
-  markers: { bodyPart: BodyPart; label: string; severity: "amber" | "red" }[];
+  markers: { bodyPart: BodyPart; label: string; severity: "mild" | "moderate" | "severe" }[];
 }) {
   const [view, setView] = useState<"front" | "back">("front");
 

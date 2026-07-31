@@ -82,6 +82,12 @@ type ScheduleItem = {
 
 const statusVariant: Record<string, "green" | "amber" | "red"> = { green: "green", amber: "amber", red: "red" };
 
+// Injury severity is a clinical scale now (mild/moderate/severe), so it needs
+// its own colours rather than borrowing the availability traffic light.
+const severityVariant: Record<string, "green" | "amber" | "red"> = {
+  mild: "green", moderate: "amber", severe: "red",
+};
+
 // Shorter labels than WIDGET_LABELS for the mobile tab strip — the full
 // labels (e.g. "Match Pack / Training Upload") are too long to fit as tabs.
 //
@@ -589,7 +595,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <Badge variant={statusVariant[inj.severity]}>{inj.severity.toUpperCase()}</Badge>
+                          <Badge variant={severityVariant[inj.severity] ?? "amber"}>{inj.severity.toUpperCase()}</Badge>
                           <p className="text-xs text-neutral-400 mt-1">
                             {inj.expected_return ? `Back ${new Date(inj.expected_return).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Return TBC"}
                           </p>

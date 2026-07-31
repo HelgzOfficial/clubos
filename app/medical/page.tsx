@@ -10,7 +10,7 @@ import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { supabaseConfigured } from "@/lib/supabase";
 import {
   fetchActiveInjuries, createInjury, updateInjury, markInjuryRecovered, deleteInjury,
-  BODY_PART_OPTIONS, type DbInjury, type InjurySeverity,
+  BODY_PART_OPTIONS, SEVERITY_OPTIONS, SEVERITY_LABEL, SEVERITY_DAYS, type DbInjury, type InjurySeverity,
 } from "@/lib/injuries-db";
 import { TreatmentBookings } from "@/components/medical/treatment-bookings";
 import { PlayerAvatar } from "@/components/players/player-avatar";
@@ -37,10 +37,16 @@ const severityGradient = {
   red: "from-red-900/70 to-transparent",
 } as const;
 
+// Mild reads as the least alarming, severe the most — deliberately not the
+// same palette as availability, which answers a different question.
+const severityText: Record<string, string> = {
+  mild: "text-amber-300", moderate: "text-orange-300", severe: "text-red-300",
+};
+
 const emptyForm = {
   bodyPart: BODY_PART_OPTIONS[0].value,
   injury: "",
-  severity: "amber" as InjurySeverity,
+  severity: "moderate" as InjurySeverity,
   dateOccurred: "",
   expectedReturn: "",
   notes: "",
@@ -274,6 +280,12 @@ export default function MedicalPage() {
                                 {injury.date_occurred ? `Occurred ${injury.date_occurred}` : "Date not set"}
                                 {injury.expected_return ? ` · Expected return ${injury.expected_return}` : ""}
                               </p>
+                              <p className="mt-1 text-xs">
+                                <span className={severityText[injury.severity] ?? "text-neutral-300"}>
+                                  {SEVERITY_LABEL[injury.severity] ?? injury.severity}
+                                </span>
+                                <span className="text-neutral-500"> · typically {SEVERITY_DAYS[injury.severity] ?? "—"} out</span>
+                              </p>
                             </div>
                             {canEdit && (
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -346,8 +358,9 @@ export default function MedicalPage() {
                           <div className="flex-1">
                             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Severity</label>
                             <select value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value as InjurySeverity })} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
-                              <option value="amber">Doubtful</option>
-                              <option value="red">Unavailable</option>
+                              {SEVERITY_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label} — {o.expected}</option>
+                              ))}
                             </select>
                           </div>
                         </div>

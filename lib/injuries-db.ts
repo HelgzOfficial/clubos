@@ -3,7 +3,35 @@ import { updatePlayer } from "./players-db";
 import type { BodyPart } from "./sample-data";
 
 export type InjuryStatus = "active" | "recovered";
-export type InjurySeverity = "amber" | "red";
+// Severity describes the injury, not the player's availability — the two used
+// to be the same field, which meant you couldn't record a mild knock without
+// also declaring the player doubtful.
+//
+//   mild      1–7 days
+//   moderate  7–21 days
+//   severe    21+ days
+export type InjurySeverity = "mild" | "moderate" | "severe";
+
+export const SEVERITY_OPTIONS: { value: InjurySeverity; label: string; expected: string }[] = [
+  { value: "mild", label: "Mild", expected: "1–7 days" },
+  { value: "moderate", label: "Moderate", expected: "7–21 days" },
+  { value: "severe", label: "Severe", expected: "21+ days" },
+];
+
+export const SEVERITY_LABEL: Record<InjurySeverity, string> = {
+  mild: "Mild", moderate: "Moderate", severe: "Severe",
+};
+
+export const SEVERITY_DAYS: Record<InjurySeverity, string> = {
+  mild: "1–7 days", moderate: "7–21 days", severe: "21+ days",
+};
+
+// How an injury translates into the player's availability badge. A mild knock
+// leaves them doubtful; anything longer rules them out of the next fixture.
+// One place to change if the club wants a different rule.
+export const SEVERITY_TO_AVAILABILITY: Record<InjurySeverity, "amber" | "red"> = {
+  mild: "amber", moderate: "red", severe: "red",
+};
 
 export type DbInjury = {
   id: string;
@@ -77,7 +105,7 @@ export async function createInjury(playerId: string, input: InjuryInput) {
 
   // Keep the player's availability badge in sync with the injury just logged.
   await updatePlayer(playerId, {
-    availability: input.severity,
+    availability: SEVERITY_TO_AVAILABILITY[input.severity],
     availabilityNote: input.expectedReturn ? `${input.injury} — back ${input.expectedReturn}` : input.injury,
   });
 
@@ -101,7 +129,7 @@ export async function updateInjury(id: string, playerId: string, input: Partial<
   if (input.severity !== undefined || input.injury !== undefined || input.expectedReturn !== undefined) {
     const injury = data as DbInjury;
     await updatePlayer(playerId, {
-      availability: injury.severity,
+      availability: SEVERITY_TO_AVAILABILITY[injury.severity],
       availabilityNote: injury.expected_return ? `${injury.injury} — back ${injury.expected_return}` : injury.injury,
     });
   }

@@ -247,7 +247,7 @@ export type ActiveInjury = {
   playerId: string;
   bodyPart: BodyPart;
   injury: string;
-  severity: "amber" | "red";
+  severity: "mild" | "moderate" | "severe";
   dateOccurred: string;
   expectedReturn: string;
   rehabStage: number;
@@ -256,17 +256,17 @@ export type ActiveInjury = {
 
 export const activeInjuries: ActiveInjury[] = [
   {
-    playerId: "p2", bodyPart: "thigh-l", injury: "Hamstring strain", severity: "amber",
+    playerId: "p2", bodyPart: "thigh-l", injury: "Hamstring strain", severity: "moderate",
     dateOccurred: "14 Jul 2026", expectedReturn: "2 Aug 2026", rehabStage: 2,
     notes: "Grade 1 strain, responding well to gym-based rehab. Reassess Friday before progressing to pitch work.",
   },
   {
-    playerId: "p3", bodyPart: "ankle-r", injury: "Ankle sprain", severity: "red",
+    playerId: "p3", bodyPart: "ankle-r", injury: "Ankle sprain", severity: "severe",
     dateOccurred: "20 Jul 2026", expectedReturn: "18 Aug 2026", rehabStage: 1,
     notes: "Grade 2 lateral ligament sprain. In a protective boot, non-weight-bearing this week. Physio 3x/week.",
   },
   {
-    playerId: "p7", bodyPart: "head", injury: "Concussion protocol", severity: "amber",
+    playerId: "p7", bodyPart: "head", injury: "Concussion protocol", severity: "moderate",
     dateOccurred: "18 Jul 2026", expectedReturn: "30 Jul 2026", rehabStage: 3,
     notes: "Graduated return-to-play protocol, stage 3 of 6. No symptoms at rest or on light exertion.",
   },
