@@ -43,6 +43,7 @@ import {
   MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2,
 } from "lucide-react";
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
+import { PortalPushToggle } from "@/components/portal/push-toggle";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -790,6 +791,16 @@ export default function PortalPage() {
             </div>
           )}
         </Collapsible>
+
+        {/* Sits above the profile section rather than buried inside it — it's
+            the one setting a player is likely to want, and burying it means
+            nobody finds it. */}
+        {player && (
+          <div className="rounded-card border border-white/10 bg-navy-700 p-4 dark:bg-navy-900">
+            <p className="mb-2 text-sm font-medium">Notifications</p>
+            <PortalPushToggle playerId={player.id} email={player.email ?? null} />
+          </div>
+        )}
 
         <Collapsible title="My Profile" icon={<User size={16} />}>
           {player && (
