@@ -21,6 +21,10 @@ import {
   type DbSuspension, type DbPlayerCard, type DbContract, type DbRegistration, type CardType,
 } from "@/lib/manager-db";
 import {
+  fetchAvailabilityForMatches, effectiveAvailability, SOURCE_LABEL, AVAILABILITY_LABEL, AVAILABILITY_TONE,
+  type DbMatchAvailability,
+} from "@/lib/match-availability-db";
+import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
   Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks,
 } from "lucide-react";
@@ -106,6 +110,7 @@ export default function ManagerPage() {
   const [contracts, setContracts] = useState<DbContract[]>([]);
   const [registrations, setRegistrations] = useState<DbRegistration[]>([]);
   const [league, setLeague] = useState<DbLeagueRow[]>([]);
+  const [availability, setAvailability] = useState<DbMatchAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -138,6 +143,16 @@ export default function ManagerPage() {
           : msg || "Some data couldn't be loaded."
       );
     }
+    // Availability is fetched after the fixtures, since it's keyed on them.
+    if (m.status === "fulfilled") {
+      const ids = upcomingMatches(m.value).slice(0, 5).map((x) => x.id);
+      try {
+        setAvailability(await fetchAvailabilityForMatches(ids));
+      } catch {
+        // The table may not exist yet — the rest of the module still works.
+      }
+    }
+
     setLoading(false);
   }, []);
 
@@ -322,6 +337,9 @@ export default function ManagerPage() {
           statuses={statuses}
           suspensions={suspensions}
           absences={absences}
+          injuries={injuries}
+          matches={matches}
+          availability={availability}
           onChanged={load}
         />
       ) : tab === "discipline" ? (
@@ -439,14 +457,20 @@ function CardPips({ yellow, red }: { yellow: number; red: number }) {
 // Availability
 // ---------------------------------------------------------------------------
 function AvailabilityTab({
-  players, statuses, suspensions, absences, onChanged,
+  players, statuses, suspensions, absences, injuries, matches, availability, onChanged,
 }: {
   players: DbPlayer[];
   statuses: Map<string, Status>;
   suspensions: DbSuspension[];
   absences: DbPlayerAbsence[];
+  injuries: DbInjury[];
+  matches: DbMatch[];
+  availability: DbMatchAvailability[];
   onChanged: () => void;
 }) {
+  const fixtures = upcomingMatches(matches).slice(0, 5);
+  const [fixtureId, setFixtureId] = useState("");
+  const selectedFixture = fixtures.find((f) => f.id === fixtureId) ?? fixtures[0] ?? null;
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -475,8 +499,76 @@ function AvailabilityTab({
 
   const active = suspensions.filter((s) => isSuspensionActive(s));
 
+  // Every player's position for the chosen fixture, combining their own reply
+  // with medical, suspensions and booked time off — the club's records win.
+  const perFixture = selectedFixture
+    ? players.map((p) => ({
+        player: p,
+        effective: effectiveAvailability(p.id, selectedFixture, {
+          reply: availability.find((a) => a.match_id === selectedFixture.id && a.player_id === p.id),
+          injuries, suspensions, absences,
+        }),
+      }))
+    : [];
+
+  const fixtureCounts = {
+    available: perFixture.filter((r) => r.effective.status === "available").length,
+    doubtful: perFixture.filter((r) => r.effective.status === "doubtful").length,
+    unavailable: perFixture.filter((r) => r.effective.status === "unavailable").length,
+    unknown: perFixture.filter((r) => r.effective.status === "unknown").length,
+  };
+
   return (
     <div className="space-y-5">
+      {selectedFixture && (
+        <Card>
+          <CardHeader><CardTitle>Availability by Fixture</CardTitle></CardHeader>
+          <select
+            value={selectedFixture.id}
+            onChange={(e) => setFixtureId(e.target.value)}
+            className={`${inputClass} mb-3`}
+          >
+            {fixtures.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.is_home ? "vs" : "@"} {m.opponent} · {new Date(m.kickoff).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              </option>
+            ))}
+          </select>
+
+          <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-lg bg-emerald-500/15 px-2 py-1 font-medium text-emerald-300">{fixtureCounts.available} available</span>
+            <span className="rounded-lg bg-amber-500/15 px-2 py-1 font-medium text-amber-300">{fixtureCounts.doubtful} doubtful</span>
+            <span className="rounded-lg bg-red-500/15 px-2 py-1 font-medium text-red-300">{fixtureCounts.unavailable} out</span>
+            <span className="rounded-lg bg-white/10 px-2 py-1 font-medium text-neutral-400">{fixtureCounts.unknown} no reply</span>
+          </div>
+
+          <ul className="divide-y divide-white/10">
+            {perFixture.map(({ player, effective }) => (
+              <li key={player.id} className="flex items-center gap-3 py-2.5">
+                <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{player.name}</p>
+                  <p className="truncate text-[11px] text-neutral-500">
+                    {SOURCE_LABEL[effective.source]}
+                    {effective.detail ? ` · ${effective.detail}` : ""}
+                    {effective.overridesReply ? " · overrides their reply" : ""}
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium ${
+                  effective.status === "unknown" ? "bg-white/10 text-neutral-400" : AVAILABILITY_TONE[effective.status]
+                }`}>
+                  {effective.status === "unknown" ? "No reply" : AVAILABILITY_LABEL[effective.status]}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-neutral-500">
+            Injuries, suspensions and booked time off are applied automatically and take precedence over a player&apos;s
+            own answer — so a reply given a fortnight ago can&apos;t hide a hamstring picked up on Tuesday.
+          </p>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Squad Availability</CardTitle>
