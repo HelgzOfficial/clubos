@@ -96,3 +96,30 @@ export async function triggerFixtureSync(): Promise<{ synced?: number; error?: s
     return { error: e instanceof Error ? e.message : "Sync failed." };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Played / upcoming
+//
+// One definition of "this game has happened", shared by the Match Centre's
+// Results tab, the match-photos fixture picker and anything else that needs
+// it. Kept here rather than repeated at each call site so the lists can't
+// drift apart — which is exactly what "sync the photos dropdown with the
+// results tab" means in practice.
+//
+// A game counts as played once its kick-off has passed. Deliberately NOT
+// `status === "completed"`: fixtures routinely sit in the past still marked
+// 'scheduled', or get a score without anyone changing the status, so the
+// stricter test hides real results. Cancelled and postponed games are excluded
+// — they didn't happen, so they belong in neither list.
+// ---------------------------------------------------------------------------
+export function playedMatches(matches: DbMatch[], now = Date.now()): DbMatch[] {
+  return matches
+    .filter((m) => new Date(m.kickoff).getTime() < now && m.status !== "cancelled" && m.status !== "postponed")
+    .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime());
+}
+
+export function upcomingMatches(matches: DbMatch[], now = Date.now()): DbMatch[] {
+  return matches
+    .filter((m) => new Date(m.kickoff).getTime() >= now && m.status !== "cancelled")
+    .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
+}
