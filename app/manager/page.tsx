@@ -22,7 +22,7 @@ import {
 } from "@/lib/manager-db";
 import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
-  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square,
+  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks,
 } from "lucide-react";
 
 type Tab = "overview" | "availability" | "discipline" | "contracts" | "registrations" | "previous" | "opposition";
@@ -187,9 +187,17 @@ export default function ManagerPage() {
 
   return (
     <AppShell>
-      <div className="mb-5">
-        <h1 className="text-2xl font-semibold">Manager</h1>
-        <p className="text-sm text-neutral-500">Everything from every department, in one place.</p>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Manager</h1>
+          <p className="text-sm text-neutral-500">Everything from every department, in one place.</p>
+        </div>
+        <Link
+          href="/manager/lineup"
+          className="flex touch-manipulation items-center gap-1.5 rounded-xl bg-club-primary px-3.5 py-2 text-sm font-medium text-navy-950 hover:opacity-90"
+        >
+          <ListChecks size={15} /> Team selection
+        </Link>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
