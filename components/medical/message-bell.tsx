@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, BellRing } from "lucide-react";
+import { Bell, BellRing, Loader2 } from "lucide-react";
 import { usePermissions } from "@/lib/permissions";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import {
   fetchUnreadCountsForDoctor, subscribeToAllMessages, type MedicalMessage,
 } from "@/lib/medical-messages-db";
+import { enablePush, disablePush, isPushEnabled, pushSupport } from "@/lib/push-client";
 
 // Unread medical messages, visible from anywhere in the app.
 //
@@ -16,12 +17,13 @@ import {
 // of knowing one had arrived. This subscribes to inserts across every thread,
 // not just an open one.
 //
-// Scope note: a browser notification only fires while ClubOS is open in a tab.
-// Notifying a closed app needs Web Push (VAPID keys and a push service), which
-// is a bigger piece of work — this covers "at their desk with the app open",
-// which is the realistic case for a club physio.
+// Two layers of alerting, because they cover different situations:
+//   - while ClubOS is open, the badge and a same-tab Notification
+//   - when it's closed entirely, Web Push through the service worker
+// The second is opt-in per device, since a subscription is per browser-install
+// rather than per person.
 export function MessageBell() {
-  const { can, role } = usePermissions();
+  const { can, role, appUser } = usePermissions();
   const isMedical = can("medical");
 
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -29,6 +31,9 @@ export function MessageBell() {
   const [open, setOpen] = useState(false);
   const [latest, setLatest] = useState<MedicalMessage | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState("");
   const ringTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ringing, setRinging] = useState(false);
 
@@ -50,6 +55,7 @@ export function MessageBell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     setPermission("Notification" in window ? Notification.permission : "unsupported");
+    isPushEnabled().then(setPushOn).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -87,14 +93,28 @@ export function MessageBell() {
     };
   }, [isMedical]);
 
-  async function enableAlerts() {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    const result = await Notification.requestPermission();
-    setPermission(result);
+  async function togglePush() {
+    setPushBusy(true);
+    setPushError("");
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+      } else {
+        await enablePush({ role, email: appUser?.email ?? null });
+        setPushOn(true);
+        setPermission("granted");
+      }
+    } catch (e) {
+      setPushError(e instanceof Error ? e.message : "Couldn't change notification settings.");
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   if (!isMedical || role === "player") return null;
 
+  const support = pushSupport();
   const withUnread = Object.entries(counts).filter(([, n]) => n > 0);
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "A player";
 
@@ -144,24 +164,43 @@ export function MessageBell() {
               </ul>
             )}
 
-            {permission === "default" && (
-              <button
-                onClick={enableAlerts}
-                className="w-full rounded-lg border border-white/10 px-2 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-navy-600 dark:hover:bg-navy-800"
-              >
-                Also alert me on this device
-              </button>
-            )}
-            {permission === "denied" && (
-              <p className="px-2 pt-1 text-[11px] text-neutral-500">
-                Device alerts are blocked in your browser settings.
-              </p>
-            )}
-            {permission === "granted" && (
-              <p className="px-2 pt-1 text-[11px] text-neutral-500">
-                Device alerts on — you&apos;ll be notified while ClubOS is open.
-              </p>
-            )}
+            <div className="mt-1 border-t border-white/10 pt-2">
+              {support === "unsupported" ? (
+                <p className="px-2 text-[11px] text-neutral-500">
+                  This browser doesn&apos;t support notifications when ClubOS is closed.
+                </p>
+              ) : support === "needs-install" ? (
+                <p className="px-2 text-[11px] text-neutral-500">
+                  On iPhone, add ClubOS to your home screen to get alerts when it&apos;s closed.
+                </p>
+              ) : (
+                <button
+                  onClick={togglePush}
+                  disabled={pushBusy}
+                  className="flex w-full touch-manipulation items-center justify-between gap-2 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-navy-600 disabled:opacity-60 dark:hover:bg-navy-800"
+                >
+                  <span>Alert me when ClubOS is closed</span>
+                  {pushBusy ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${pushOn ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-neutral-400"}`}>
+                      {pushOn ? "ON" : "OFF"}
+                    </span>
+                  )}
+                </button>
+              )}
+              {pushOn && (
+                <p className="px-2 pt-1 text-[11px] text-neutral-500">
+                  On for this device. Turn it on separately on your phone.
+                </p>
+              )}
+              {pushError && <p className="px-2 pt-1 text-[11px] text-red-300">{pushError}</p>}
+              {permission === "denied" && !pushError && (
+                <p className="px-2 pt-1 text-[11px] text-neutral-500">
+                  Notifications are blocked for this site in your browser settings.
+                </p>
+              )}
+            </div>
           </div>
         </>
       )}
