@@ -38,6 +38,7 @@ import { usePermissions } from "@/lib/permissions";
 import { personalGreeting } from "@/lib/greeting";
 import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
+import { MatchPhotos } from "@/components/documents/match-photos";
 import {
   CloudSun, Clock, ShieldAlert, Trophy, TrendingUp, Upload, FileText, Download, Eye, Trash2, X,
   Pencil, Plus, Settings, Loader2, Film, Play, Target, Goal,
@@ -99,7 +100,7 @@ const TAB_LABELS: Partial<Record<DashboardWidgetKey, string>> = {
   "next-match": "Next Match", weather: "Weather", schedule: "Schedule", availability: "Availability",
   "league-position": "League", "form-guide": "Form", uploads: "Uploads",
   "recent-uploads": "Recent", injuries: "Injuries",
-  "top-scorers": "Scorers", "top-assists": "Assists", clips: "Clips",
+  "top-scorers": "Scorers", "top-assists": "Assists", clips: "Clips", "match-photos": "Photos",
 };
 
 function tabLabel(key: DashboardWidgetKey): string {
@@ -616,6 +617,22 @@ export default function DashboardPage() {
       ? [{ key: "top-assists" as const, node: <TopStatCard title="Top Assist Makers" icon={Target} players={players} statKey="assists" /> }]
       : []),
     ...(isVisible("clips") ? [{ key: "clips" as const, node: <ClipsCard clips={clips} onChange={loadAll} /> }] : []),
+    ...(isVisible("match-photos")
+      ? [{
+          key: "match-photos" as const,
+          node: (
+            <Card>
+              <CardHeader>
+                <CardTitle>Match Photos</CardTitle>
+                <Link href="/documents" className="text-xs text-club-primary hover:underline">All photos</Link>
+              </CardHeader>
+              {/* Read-only here — uploading lives in Documents, so there's one
+                  place that owns adding them. */}
+              <MatchPhotos limit={8} />
+            </Card>
+          ),
+        }]
+      : []),
   ];
 
   // On mobile/tablet these four stay directly visible (stacked, like

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Film, PlayCircle, Image as ImageIcon, FileText, Paperclip } from "lucide-react";
+import { Film, PlayCircle, Image as ImageIcon, FileText, Paperclip, Camera } from "lucide-react";
 import { fetchRecentUploads, type RecentUpload, type RecentUploadKind } from "@/lib/recent-uploads-db";
 import { getClipUrl } from "@/lib/clips-db";
 import { getAnnotatedImageUrl } from "@/lib/annotated-images-db";
@@ -12,18 +12,23 @@ import { YouTubePlayer } from "@/components/analysis/youtube-player";
 import { DocumentViewerModal } from "@/components/document-viewer-modal";
 import type { Clip } from "@/lib/analysis-types";
 
-const kindIcon: Record<RecentUploadKind, typeof Film> = {
+// Partial + fallback rather than exhaustive Records: these maps live in a
+// different file from RecentUploadKind, so an exhaustive one meant adding a
+// new upload kind broke the build here until this file was changed too.
+const kindIcon: Partial<Record<RecentUploadKind, typeof Film>> = {
   clip: Film,
   youtube: PlayCircle,
   image: ImageIcon,
+  photo: Camera,
   "club-document": FileText,
   "match-document": Paperclip,
 };
 
-const kindTint: Record<RecentUploadKind, string> = {
+const kindTint: Partial<Record<RecentUploadKind, string>> = {
   clip: "text-club-primary",
   youtube: "text-red-400",
   image: "text-blue-400",
+  photo: "text-amber-400",
   "club-document": "text-neutral-400",
   "match-document": "text-emerald-400",
 };
@@ -81,11 +86,13 @@ export function RecentUploadsFeed({ limit = 8, compact = false }: { limit?: numb
 
   // The viewer needs a per-kind way to resolve view/download URLs.
   function viewUrlFor(item: RecentUpload): () => Promise<string> {
+    if (item.kind === "photo") return async () => item.filePath!;
     if (item.kind === "image") return () => getAnnotatedImageUrl(item.filePath!);
     if (item.kind === "club-document") return () => getClubDocumentUrl(item.filePath!);
     return () => getMatchDocumentUrl(item.filePath!);
   }
   function downloadUrlFor(item: RecentUpload): () => Promise<string> {
+    if (item.kind === "photo") return async () => item.filePath!;
     if (item.kind === "image") return () => getAnnotatedImageUrl(item.filePath!);
     if (item.kind === "club-document") return () => getClubDocumentDownloadUrl(item.filePath!, item.fileName ?? item.title);
     return () => getMatchDocumentDownloadUrl(item.filePath!, item.fileName ?? item.title);
@@ -102,14 +109,14 @@ export function RecentUploadsFeed({ limit = 8, compact = false }: { limit?: numb
       ) : (
         <ul className="divide-y divide-white/10">
           {items.map((item) => {
-            const Icon = kindIcon[item.kind];
+            const Icon = kindIcon[item.kind] ?? FileText;
             return (
               <li key={item.id}>
                 <button
                   onClick={() => open(item)}
                   className={`flex w-full items-center gap-3 text-left transition-colors hover:text-club-primary ${compact ? "py-2" : "py-2.5"}`}
                 >
-                  <Icon size={compact ? 14 : 16} className={`shrink-0 ${kindTint[item.kind]}`} />
+                  <Icon size={compact ? 14 : 16} className={`shrink-0 ${kindTint[item.kind] ?? "text-neutral-400"}`} />
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate font-medium ${compact ? "text-xs" : "text-sm"}`}>{item.title}</span>
                     {item.subtitle && <span className="block truncate text-[11px] text-neutral-500">{item.subtitle}</span>}

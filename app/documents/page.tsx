@@ -10,7 +10,9 @@ import {
   fetchClubDocuments, uploadClubDocument, deleteClubDocument, getClubDocumentUrl, getClubDocumentDownloadUrl,
   type DbClubDocument, type DocumentCategory,
 } from "@/lib/club-documents-db";
-import { FileText, FileVideo, Search, Upload, Download, Eye, Trash2, X } from "lucide-react";
+import { FileText, FileVideo, Search, Upload, Download, Eye, Trash2, X, Image as ImageIcon } from "lucide-react";
+import { MatchPhotos } from "@/components/documents/match-photos";
+import { usePermissions } from "@/lib/permissions";
 
 const categories: ("All" | DocumentCategory)[] = ["All", "Match Packs", "Match Reports", "Policies"];
 
@@ -25,11 +27,43 @@ function formatSize(kb: number) {
   return kb >= 1000 ? `${(kb / 1000).toFixed(1)} MB` : `${kb} KB`;
 }
 
+function TabSwitch({
+  tab, setTab,
+}: {
+  tab: "documents" | "photos";
+  setTab: (t: "documents" | "photos") => void;
+}) {
+  return (
+    <div className="mb-5 flex gap-2">
+      {([
+        { key: "documents" as const, label: "Documents", icon: FileText },
+        { key: "photos" as const, label: "Match Photos", icon: ImageIcon },
+      ]).map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          onClick={() => setTab(key)}
+          className={`flex touch-manipulation items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ${
+            tab === key ? "bg-club-primary text-navy-950" : "bg-navy-600 text-neutral-400 hover:text-white dark:bg-navy-800"
+          }`}
+        >
+          <Icon size={14} /> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
+  const { canWrite, appUser } = usePermissions();
+  const canEditDocuments = canWrite("documents");
   const [documents, setDocuments] = useState<DbClubDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
+  // A top-level split rather than another category pill: photos are a
+  // different kind of thing from documents — a grid of images, not a list of
+  // files — and mixing them in one list would make both worse.
+  const [tab, setTab] = useState<"documents" | "photos">("documents");
   const [query, setQuery] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -105,6 +139,21 @@ export default function DocumentsPage() {
     }
   }
 
+  if (tab === "photos") {
+    return (
+      <AppShell>
+        <div className="mb-5">
+          <h1 className="text-2xl font-semibold">Documents</h1>
+          <p className="text-sm text-neutral-500">Files and photography for the whole club.</p>
+        </div>
+        <TabSwitch tab={tab} setTab={setTab} />
+        <Card>
+          <MatchPhotos canEdit={canEditDocuments} uploadedBy={appUser?.name ?? null} />
+        </Card>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -138,6 +187,8 @@ export default function DocumentsPage() {
           />
         </div>
       </div>
+
+      <TabSwitch tab={tab} setTab={setTab} />
 
       {/* Packs built in the Analysis pack builder, shown alongside uploaded
           files so Documents is one place to find everything. */}

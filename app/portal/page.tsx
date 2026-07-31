@@ -40,10 +40,11 @@ import { Badge } from "@/components/ui/badge";
 import type { Clip } from "@/lib/analysis-types";
 import {
   LogOut, FileText, AlertCircle, Download, CalendarDays, Trophy, User, HeartPulse,
-  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2,
+  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2, Camera,
 } from "lucide-react";
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
 import { PortalPushToggle } from "@/components/portal/push-toggle";
+import { MatchPhotos } from "@/components/documents/match-photos";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -885,6 +886,11 @@ export default function PortalPage() {
             since most of these are PDFs or photos of a whiteboard. */}
         <Collapsible title="Training Plans" icon={<FileText size={16} />}>
           <SessionPlanLibrary compact />
+        </Collapsible>
+
+        <Collapsible title="Match Photos" icon={<Camera size={16} />}>
+          {/* Read-only for players — the club uploads them in Documents. */}
+          <MatchPhotos limit={30} />
         </Collapsible>
 
         <Collapsible title="Recent Clips" icon={<Film size={16} />}>

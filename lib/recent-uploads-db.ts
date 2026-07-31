@@ -6,7 +6,7 @@ import type { ClipSource } from "./clips-db";
 // documents, and documents attached to a specific fixture. Powers the Recent
 // Uploads widget on the desktop dashboard and the same card in the player
 // companion app, so a single fetch backs both instead of each rebuilding it.
-export type RecentUploadKind = "clip" | "youtube" | "image" | "club-document" | "match-document";
+export type RecentUploadKind = "clip" | "youtube" | "image" | "club-document" | "match-document" | "photo";
 
 export type RecentUpload = {
   id: string;
@@ -35,7 +35,7 @@ function safe<T>(promise: PromiseLike<{ data: T[] | null; error: unknown }>): Pr
 export async function fetchRecentUploads(limit = 12): Promise<RecentUpload[]> {
   if (!supabase) return [];
 
-  const [clips, images, clubDocs, matchDocs, matches] = await Promise.all([
+  const [clips, images, clubDocs, matchDocs, photos, matches] = await Promise.all([
     safe<{ id: string; title: string; category: string | null; file_path: string | null; file_name: string | null; file_type: string | null; source: ClipSource | null; youtube_id: string | null; match_id: string | null; uploaded_at: string }>(
       supabase.from("clips").select("id,title,category,file_path,file_name,file_type,source,youtube_id,match_id,uploaded_at").order("uploaded_at", { ascending: false }).limit(limit)
     ),
@@ -48,6 +48,9 @@ export async function fetchRecentUploads(limit = 12): Promise<RecentUpload[]> {
     safe<{ id: string; match_id: string; file_path: string; file_name: string; file_type: string; uploaded_at: string }>(
       supabase.from("match_documents").select("id,match_id,file_path,file_name,file_type,uploaded_at").order("uploaded_at", { ascending: false }).limit(limit)
     ),
+    safe<{ id: string; caption: string | null; file_path: string; file_name: string; photo_url: string; match_id: string | null; uploaded_at: string }>(
+      supabase.from("match_photos").select("id,caption,file_path,file_name,photo_url,match_id,uploaded_at").order("uploaded_at", { ascending: false }).limit(limit)
+    ),
     safe<{ id: string; opponent: string; is_home: boolean }>(
       supabase.from("matches").select("id,opponent,is_home")
     ),
@@ -56,6 +59,20 @@ export async function fetchRecentUploads(limit = 12): Promise<RecentUpload[]> {
   const matchLabel = new Map(matches.map((m) => [m.id, `${m.is_home ? "vs" : "@"} ${m.opponent}`]));
 
   const items: RecentUpload[] = [
+    ...photos.map((p) => ({
+      id: `photo-${p.id}`,
+      kind: "photo" as const,
+      title: p.caption || "Match photo",
+      subtitle: p.match_id ? matchLabel.get(p.match_id) ?? "Match photo" : "Club photo",
+      createdAt: p.uploaded_at,
+      // The bucket is public, so the URL is the file — no signing step, which
+      // is what lets a feed of thumbnails render immediately.
+      filePath: p.photo_url,
+      fileName: p.file_name,
+      fileType: "jpg",
+      youtubeId: null,
+      matchId: p.match_id,
+    })),
     ...clips.map((c) => {
       const isYouTube = (c.source ?? "upload") === "youtube";
       return {
