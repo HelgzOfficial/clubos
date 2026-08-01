@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
+import { ManagerHighlights } from "@/components/manager/highlights";
 import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { usePermissions } from "@/lib/permissions";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
@@ -26,10 +27,10 @@ import {
 } from "@/lib/match-availability-db";
 import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
-  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks,
+  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film,
 } from "lucide-react";
 
-type Tab = "overview" | "availability" | "discipline" | "contracts" | "registrations" | "previous" | "opposition";
+type Tab = "overview" | "availability" | "discipline" | "contracts" | "registrations" | "previous" | "highlights" | "opposition";
 
 const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: "overview", label: "Overview", icon: ClipboardCheck },
@@ -38,6 +39,7 @@ const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: "contracts", label: "Contracts", icon: FileSignature },
   { key: "registrations", label: "Registrations", icon: ShieldAlert },
   { key: "previous", label: "Previous Matches", icon: Swords },
+  { key: "highlights", label: "Highlights", icon: Film },
   { key: "opposition", label: "Opposition", icon: Shield },
 ];
 
@@ -385,6 +387,8 @@ export default function ManagerPage() {
             </ul>
           )}
         </Card>
+      ) : tab === "highlights" ? (
+        <ManagerHighlights matches={matches} crestLookup={crestLookup} />
       ) : (
         <Card>
           <CardHeader><CardTitle>Opposition</CardTitle></CardHeader>
