@@ -30,12 +30,13 @@ import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
 import { PitchMapInput, type PitchPoint } from "@/components/analysis/pitch-map";
-import { fetchClipsForMatch, uploadClip, getClipUrl, deleteClip, type DbClip } from "@/lib/clips-db";
+import { fetchClipsForMatch, uploadClip, addYouTubeClip, getClipUrl, deleteClip, type DbClip } from "@/lib/clips-db";
 import { VideoPlayer } from "@/components/analysis/video-player";
-import { youTubeWatchUrl } from "@/lib/youtube";
+import { YouTubePlayer } from "@/components/analysis/youtube-player";
+import { parseYouTubeId } from "@/lib/youtube";
 import type { Clip } from "@/lib/analysis-types";
 import {
-  ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin, Film, Play,
+  ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin, Film, Play, Youtube,
 } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -162,6 +163,15 @@ function HighlightsCard({ matchId }: { matchId: string }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState<Clip | null>(null);
+  const [playingYouTube, setPlayingYouTube] = useState<{ title: string; videoId: string } | null>(null);
+
+  // Pasting a link is the common case for a full-match video — the file is
+  // already on the club's YouTube channel and re-uploading a two-gigabyte
+  // recording into storage would be daft.
+  const [showLink, setShowLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkTitle, setLinkTitle] = useState("");
+  const [savingLink, setSavingLink] = useState(false);
 
   async function load() {
     setError("");
@@ -190,11 +200,42 @@ function HighlightsCard({ matchId }: { matchId: string }) {
     }
   }
 
+  async function handleAddLink() {
+    const id = parseYouTubeId(linkUrl);
+    if (!id) {
+      setError("That doesn't look like a YouTube link.");
+      return;
+    }
+    setSavingLink(true);
+    setError("");
+    try {
+      // Written to the same clips table as an uploaded file, tagged to this
+      // fixture — so it appears here, in the Analysis library, and in the
+      // Manager module's Highlights tab, without being entered three times.
+      await addYouTubeClip({
+        title: linkTitle.trim() || "Match highlights",
+        url: linkUrl,
+        youtubeId: id,
+        matchId,
+      });
+      setLinkUrl("");
+      setLinkTitle("");
+      setShowLink(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save that link.");
+    } finally {
+      setSavingLink(false);
+    }
+  }
+
   async function handlePlay(c: DbClip) {
-    // A YouTube-linked highlight has no stored file to stream, so it opens on
-    // YouTube itself rather than in the in-app annotating player.
+    // A YouTube-linked highlight has no stored file to stream, so it plays in
+    // the embed modal rather than the in-app annotating player (annotation
+    // needs to read frames off the video, which a cross-origin iframe won't
+    // allow).
     if (c.source === "youtube" && c.youtube_id) {
-      window.open(youTubeWatchUrl(c.youtube_id), "_blank");
+      setPlayingYouTube({ title: c.title, videoId: c.youtube_id });
       return;
     }
     const url = await getClipUrl(c.file_path);
@@ -214,7 +255,8 @@ function HighlightsCard({ matchId }: { matchId: string }) {
         <Film size={18} className="text-neutral-400" />
       </CardHeader>
       <p className="mb-3 text-xs text-neutral-400">
-        Upload clips or highlights for this fixture — they'll show up here and in the Analysis clip library, ready to review or annotate.
+        Upload a clip, or paste a YouTube link if the footage is already on the club channel. Either way it shows up here, in the
+        Analysis clip library and in the Manager module's Highlights tab.
       </p>
 
       {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
@@ -234,6 +276,9 @@ function HighlightsCard({ matchId }: { matchId: string }) {
               <button onClick={() => handlePlay(c)} className="flex-1 truncate text-left hover:text-club-primary">
                 {c.title}
               </button>
+              {c.source === "youtube" && (
+                <Youtube size={13} className="shrink-0 text-red-400" aria-label="YouTube link" />
+              )}
               <button onClick={() => handleDelete(c)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10">
                 <Trash2 size={13} />
               </button>
@@ -242,19 +287,61 @@ function HighlightsCard({ matchId }: { matchId: string }) {
         </ul>
       )}
 
-      <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
-        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-        {uploading ? "Uploading…" : "Upload Highlight"}
-        <input
-          type="file"
-          accept="video/*"
-          className="hidden"
-          disabled={uploading}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
-        />
-      </label>
+      <div className="flex flex-wrap gap-2">
+        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800">
+          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+          {uploading ? "Uploading…" : "Upload Highlight"}
+          <input
+            type="file"
+            accept="video/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+          />
+        </label>
+        <button
+          onClick={() => { setShowLink((v) => !v); setError(""); }}
+          className="flex w-fit items-center gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800"
+        >
+          <Youtube size={13} /> {showLink ? "Cancel" : "Add YouTube Link"}
+        </button>
+      </div>
+
+      {showLink && (
+        <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-navy-600/40 p-3 dark:bg-navy-800/40">
+          <input
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="Paste the YouTube link"
+            className="w-full rounded-lg border border-white/10 bg-navy-600 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+          />
+          <input
+            value={linkTitle}
+            onChange={(e) => setLinkTitle(e.target.value)}
+            placeholder="Title (optional)"
+            className="w-full rounded-lg border border-white/10 bg-navy-600 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+          />
+          <button
+            onClick={handleAddLink}
+            disabled={savingLink || !linkUrl.trim()}
+            className="flex items-center gap-1.5 rounded-xl bg-club-primary px-3 py-1.5 text-xs font-medium text-navy-950 disabled:opacity-60"
+          >
+            {savingLink ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
+          </button>
+          <p className="text-[11px] text-neutral-500">
+            Watch links, share links, Shorts and embed links all work.
+          </p>
+        </div>
+      )}
 
       {playing && <VideoPlayer clip={playing} onClose={() => setPlaying(null)} sourceClipId={playing.id} />}
+      {playingYouTube && (
+        <YouTubePlayer
+          title={playingYouTube.title}
+          videoId={playingYouTube.videoId}
+          onClose={() => setPlayingYouTube(null)}
+        />
+      )}
     </Card>
   );
 }
