@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { GpsImport } from "@/components/analysis/gps-import";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/analysis/video-player";
 import { youTubeWatchUrl } from "@/lib/youtube";
@@ -312,6 +313,9 @@ export default function AnalysisDashboardPage() {
               ))
             )}
           </div>
+
+          {/* Physical output, read straight off a Pitchero GPS report. */}
+          <GpsImport importedBy={null} />
 
           {/* Categorised video reels */}
           <Card>
