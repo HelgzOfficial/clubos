@@ -22,13 +22,13 @@ import {
 } from "@/lib/match-availability-db";
 import {
   fetchLineup, saveLineup, emptyLineup, FORMATION_NAMES, layoutFor,
-  iFasList, teamSheetText, squadListText,
-  type DbLineup,
+  iFasList, teamSheetText, squadListText, slotName, isTrialistSlot, newTrialistId,
+  type DbLineup, type LineupSlot,
 } from "@/lib/lineups-db";
 import { FormationPitch, type PitchOccupant } from "@/components/manager/formation-pitch";
 import {
   ArrowLeft, ShieldAlert, Check, X, Loader2, Copy, Printer, Mail,
-  ChevronUp, ChevronDown, Star, Send,
+  ChevronUp, ChevronDown, Star, Send, UserPlus,
 } from "lucide-react";
 
 export default function LineupPage() {
@@ -53,6 +53,12 @@ export default function LineupPage() {
   const [output, setOutput] = useState<"ifas" | "sheet" | "social">("ifas");
   // The player tapped but not yet placed — the touch alternative to dragging.
   const [pending, setPending] = useState("");
+
+  // A trialist is someone on trial who has no player record yet. They live in
+  // this line-up only.
+  const [showTrialist, setShowTrialist] = useState(false);
+  const [trialistName, setTrialistName] = useState("");
+  const [trialistShirt, setTrialistShirt] = useState("");
 
   useEffect(() => {
     if (!allowed) return;
@@ -126,9 +132,10 @@ export default function LineupPage() {
       const p = players.find((x) => x.id === s.playerId);
       return {
         playerId: s.playerId,
-        name: p?.name ?? "Unknown",
+        name: slotName(players, s),
         squadNumber: s.shirt ?? p?.squad_number ?? null,
         isCaptain: lineup.captain_id === s.playerId,
+        isTrialist: isTrialistSlot(s),
       };
     });
   }, [lineup, layout, players]);
@@ -152,7 +159,13 @@ export default function LineupPage() {
         ? next.map((s) => (s.playerId === occupant.playerId ? { ...s, position: fromCode } : s))
         : next.filter((s) => s.playerId !== occupant.playerId);
     }
-    next = [...next, { playerId, position: code, shirt: player?.squad_number ?? null }];
+    // Re-use the existing slot if there is one, so a trialist keeps their name
+    // and anyone's manually-set shirt number survives being moved.
+    const existing = lineup.starters.find((s) => s.playerId === playerId)
+      ?? lineup.subs.find((s) => s.playerId === playerId);
+    next = [...next, existing
+      ? { ...existing, position: code }
+      : { playerId, position: code, shirt: player?.squad_number ?? null }];
     next.sort((a, b) => (order.get(a.position) ?? 99) - (order.get(b.position) ?? 99));
 
     const evicted = occupant && !fromCode ? occupant.playerId : null;
@@ -204,6 +217,43 @@ export default function LineupPage() {
     if (!lineup) return;
     setPending((prev) => (prev === player.id ? "" : prev));
     update({ subs: [...lineup.subs, { playerId: player.id, position: "SUB", shirt: player.squad_number }] });
+  }
+
+  // Adds someone who isn't in the squad. Nothing is written to the players
+  // table — a lad on a week's trial shouldn't turn up in registrations,
+  // contracts or the season's appearance stats, and if he signs he gets
+  // entered properly then.
+  function addTrialist(toXI: boolean) {
+    if (!lineup) return;
+    const name = trialistName.trim();
+    if (!name) return;
+    const shirt = trialistShirt.trim() === "" ? null : Number(trialistShirt);
+    const slot: LineupSlot = {
+      playerId: newTrialistId(),
+      position: toXI ? "" : "SUB",
+      shirt: shirt !== null && Number.isFinite(shirt) ? shirt : null,
+      name,
+      isTrialist: true,
+    };
+
+    if (toXI) {
+      const code = firstFreeCode(lineup);
+      if (!code) {
+        setError("The XI is full — take someone out first, or add the trialist to the bench.");
+        return;
+      }
+      const order = new Map(layout.map((sl, i) => [sl.code, i]));
+      const next = [...lineup.starters, { ...slot, position: code }];
+      next.sort((a, b) => (order.get(a.position) ?? 99) - (order.get(b.position) ?? 99));
+      update({ starters: next });
+    } else {
+      update({ subs: [...lineup.subs, slot] });
+    }
+
+    setTrialistName("");
+    setTrialistShirt("");
+    setShowTrialist(false);
+    setError("");
   }
 
   function removeSlot(playerId: string) {
@@ -360,8 +410,13 @@ export default function LineupPage() {
                         {p && <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />}
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">
-                            {p?.name ?? "Unknown"}
+                            {slotName(players, s)}
                             {lineup.captain_id === s.playerId && <span className="text-club-primary"> (C)</span>}
+                            {isTrialistSlot(s) && (
+                              <span className="ml-1.5 rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                                Trialist
+                              </span>
+                            )}
                           </p>
                           {/* A slot code rather than free text, so the list and
                               the pitch can't drift apart. Changing it here does
@@ -415,7 +470,14 @@ export default function LineupPage() {
                       <li key={s.playerId} className="flex items-center gap-2 py-2">
                         <span className="w-5 shrink-0 text-xs text-neutral-500 tabular-nums">{i + 1}</span>
                         {p && <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />}
-                        <span className="min-w-0 flex-1 truncate text-sm">{p?.name ?? "Unknown"}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {slotName(players, s)}
+                          {isTrialistSlot(s) && (
+                            <span className="ml-1.5 rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                              Trialist
+                            </span>
+                          )}
+                        </span>
                         <button
                           onClick={() => removeSlot(s.playerId)}
                           className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
@@ -459,7 +521,57 @@ export default function LineupPage() {
 
             {/* Squad */}
             <Card>
-              <CardHeader><CardTitle>Squad</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Squad</CardTitle>
+                <button
+                  onClick={() => { setShowTrialist((v) => !v); setError(""); }}
+                  className="flex touch-manipulation items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800"
+                >
+                  <UserPlus size={13} /> {showTrialist ? "Cancel" : "Add trialist"}
+                </button>
+              </CardHeader>
+
+              {showTrialist && (
+                <div className="mb-3 space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                  <p className="text-xs text-amber-100">
+                    Someone on trial who isn&apos;t in the squad. They&apos;ll appear on this team sheet only — no player
+                    record is created, so they stay out of registrations, contracts and season stats.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={trialistName}
+                      onChange={(e) => setTrialistName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") addTrialist(true); }}
+                      placeholder="Name"
+                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-navy-600 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30 dark:bg-navy-800"
+                    />
+                    <input
+                      value={trialistShirt}
+                      onChange={(e) => setTrialistShirt(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                      inputMode="numeric"
+                      placeholder="No."
+                      className="w-16 shrink-0 rounded-lg border border-white/10 bg-navy-600 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30 dark:bg-navy-800"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => addTrialist(true)}
+                      disabled={!trialistName.trim() || lineup.starters.length >= 11}
+                      className="flex touch-manipulation items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-semibold text-navy-950 disabled:opacity-50"
+                    >
+                      <UserPlus size={13} /> Into the XI
+                    </button>
+                    <button
+                      onClick={() => addTrialist(false)}
+                      disabled={!trialistName.trim()}
+                      className="flex touch-manipulation items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 disabled:opacity-50 dark:hover:bg-navy-800"
+                    >
+                      On the bench
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <p className="mb-2 text-xs text-neutral-400">
                 Combines each player&apos;s own reply with medical, suspensions and booked time off. Anyone flagged is
                 still selectable — a doubtful player often plays, and that&apos;s your call, not the app&apos;s.
