@@ -228,11 +228,12 @@ export default function LoginPage() {
     router.replace("/dashboard");
   }
 
+  // Supabase's code length is a project setting (6 by default, up to 10), so
+  // accept the range rather than assuming six.
   function handleOtpChange(value: string) {
-    const digits = value.replace(/[^0-9]/g, "").slice(0, 6);
+    const digits = value.replace(/[^0-9]/g, "").slice(0, 10);
     setOtpCode(digits);
     setError("");
-    if (digits.length === 6) verifyOtp(digits);
   }
 
   function closeOtp() {
@@ -327,7 +328,7 @@ export default function LoginPage() {
           otpStep === "email" ? (
             <form onSubmit={sendOtp} className="space-y-4">
               <p className="text-sm text-neutral-400">
-                We&apos;ll email you a 6-digit code. Type it here rather than tapping the link — that&apos;s what keeps
+                We&apos;ll email you a sign-in code. Type it here rather than tapping the link — that&apos;s what keeps
                 you signed in if you&apos;ve added ClubOS to your home screen.
               </p>
               <div>
@@ -368,7 +369,7 @@ export default function LoginPage() {
             <div className="space-y-4">
               <p className="text-sm text-neutral-400">Code sent to {otpEmail}.</p>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-neutral-400">6-digit code</label>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-400">Sign-in code</label>
                 <input
                   ref={otpRef}
                   value={otpCode}
@@ -377,6 +378,7 @@ export default function LoginPage() {
                   autoComplete="one-time-code"
                   placeholder="000000"
                   disabled={otpVerifying}
+                  onKeyDown={(e) => { if (e.key === "Enter" && otpCode.length >= 6) verifyOtp(otpCode); }}
                   className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-3 text-center text-2xl font-semibold tracking-[0.4em] tabular-nums outline-none focus:ring-2 focus:ring-club-primary/30 disabled:opacity-60"
                 />
               </div>
@@ -386,11 +388,14 @@ export default function LoginPage() {
                   <p>{error}</p>
                 </div>
               )}
-              {otpVerifying && (
-                <p className="flex items-center justify-center gap-2 text-sm text-neutral-400">
-                  <Loader2 size={15} className="animate-spin" /> Signing you in…
-                </p>
-              )}
+              <button
+                onClick={() => verifyOtp(otpCode)}
+                disabled={otpVerifying || otpCode.length < 6}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary px-4 py-2.5 text-sm font-medium text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                {otpVerifying ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
+                {otpVerifying ? "Signing you in…" : "Sign In"}
+              </button>
               <div className="flex items-center justify-between gap-2 text-xs">
                 <button
                   onClick={() => { setOtpStep("email"); setOtpCode(""); setError(""); }}
