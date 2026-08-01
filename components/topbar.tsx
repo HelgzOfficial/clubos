@@ -5,6 +5,7 @@ import { Search, Sparkles, LogOut } from "lucide-react";
 import { MessageBell } from "@/components/medical/message-bell";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNav } from "./mobile-nav";
+import { LiveClock } from "./live-clock";
 import { useAuth } from "@/lib/auth";
 
 function initialsFromEmail(email?: string | null) {
@@ -32,6 +33,7 @@ export function Topbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <LiveClock />
         <button
           className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-navy-700 dark:bg-navy-900 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
           aria-label="AI Assistant"
