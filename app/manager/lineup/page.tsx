@@ -21,10 +21,11 @@ import {
   type DbMatchAvailability,
 } from "@/lib/match-availability-db";
 import {
-  fetchLineup, saveLineup, emptyLineup, FORMATIONS, FORMATION_NAMES,
+  fetchLineup, saveLineup, emptyLineup, FORMATION_NAMES, layoutFor,
   iFasList, teamSheetText, squadListText,
-  type DbLineup, type LineupSlot,
+  type DbLineup,
 } from "@/lib/lineups-db";
+import { FormationPitch, type PitchOccupant } from "@/components/manager/formation-pitch";
 import {
   ArrowLeft, ShieldAlert, Check, X, Loader2, Copy, Printer, Mail,
   ChevronUp, ChevronDown, Star, Send,
@@ -50,6 +51,8 @@ export default function LineupPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const [output, setOutput] = useState<"ifas" | "sheet" | "social">("ifas");
+  // The player tapped but not yet placed — the touch alternative to dragging.
+  const [pending, setPending] = useState("");
 
   useEffect(() => {
     if (!allowed) return;
@@ -98,7 +101,6 @@ export default function LineupPage() {
   }, [matchId]);
 
   const match = matches.find((m) => m.id === matchId) ?? null;
-  const positions = lineup ? FORMATIONS[lineup.formation] ?? FORMATIONS["4-4-2"] : [];
 
   const selectedIds = useMemo(() => {
     if (!lineup) return new Set<string>();
@@ -109,23 +111,104 @@ export default function LineupPage() {
     setLineup((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
+  const layout = useMemo(() => layoutFor(lineup?.formation ?? "4-4-2"), [lineup?.formation]);
+
+  // The pitch and the XI list are two views of the same array. A starter's
+  // `position` is the slot code, so the mapping survives saving and reloading
+  // and doesn't depend on array order.
+  const occupants: (PitchOccupant | null)[] = useMemo(() => {
+    if (!lineup) return layout.map(() => null);
+    const taken = new Set<string>();
+    return layout.map((slot) => {
+      const s = lineup.starters.find((x) => x.position === slot.code && !taken.has(x.playerId));
+      if (!s) return null;
+      taken.add(s.playerId);
+      const p = players.find((x) => x.id === s.playerId);
+      return {
+        playerId: s.playerId,
+        name: p?.name ?? "Unknown",
+        squadNumber: s.shirt ?? p?.squad_number ?? null,
+        isCaptain: lineup.captain_id === s.playerId,
+      };
+    });
+  }, [lineup, layout, players]);
+
+  function firstFreeCode(l: DbLineup): string | null {
+    const used = new Set(l.starters.map((s) => s.position));
+    return layoutFor(l.formation).find((s) => !used.has(s.code))?.code ?? null;
+  }
+
+  // Puts a player in a slot. Coming from another slot, the two swap; coming
+  // from the squad list, whoever was there drops out of the XI.
+  function assignToSlot(code: string, playerId: string, fromCode?: string) {
+    if (!lineup || !playerId) return;
+    const order = new Map(layout.map((s, i) => [s.code, i]));
+    const player = players.find((p) => p.id === playerId);
+    const occupant = lineup.starters.find((s) => s.position === code && s.playerId !== playerId);
+
+    let next = lineup.starters.filter((s) => s.playerId !== playerId);
+    if (occupant) {
+      next = fromCode
+        ? next.map((s) => (s.playerId === occupant.playerId ? { ...s, position: fromCode } : s))
+        : next.filter((s) => s.playerId !== occupant.playerId);
+    }
+    next = [...next, { playerId, position: code, shirt: player?.squad_number ?? null }];
+    next.sort((a, b) => (order.get(a.position) ?? 99) - (order.get(b.position) ?? 99));
+
+    const evicted = occupant && !fromCode ? occupant.playerId : null;
+    update({
+      starters: next,
+      subs: lineup.subs.filter((s) => s.playerId !== playerId),
+      captain_id: lineup.captain_id === evicted ? null : lineup.captain_id,
+    });
+    setPending("");
+  }
+
+  // A tap on a slot means "place the player I'm holding" if there is one, and
+  // "pick up whoever is standing here" if there isn't.
+  function handleTapSlot(code: string) {
+    if (!lineup) return;
+    if (pending) {
+      const fromCode = lineup.starters.find((s) => s.playerId === pending)?.position;
+      assignToSlot(code, pending, fromCode);
+      return;
+    }
+    const who = lineup.starters.find((s) => s.position === code);
+    setPending(who ? who.playerId : "");
+  }
+
+  // Formation codes differ between shapes, so an existing XI is remapped by
+  // position on the pitch rather than being thrown away.
+  function changeFormation(formation: string) {
+    if (!lineup) return;
+    const nextLayout = layoutFor(formation);
+    const ordered = [...lineup.starters].sort(
+      (a, b) =>
+        (layout.findIndex((s) => s.code === a.position) + 1 || 99) -
+        (layout.findIndex((s) => s.code === b.position) + 1 || 99)
+    );
+    update({
+      formation,
+      starters: ordered.map((s, i) => ({ ...s, position: nextLayout[i]?.code ?? s.position })),
+    });
+  }
+
   function addStarter(player: DbPlayer) {
     if (!lineup || lineup.starters.length >= 11) return;
-    const slot: LineupSlot = {
-      playerId: player.id,
-      position: positions[lineup.starters.length] ?? "",
-      shirt: player.squad_number,
-    };
-    update({ starters: [...lineup.starters, slot] });
+    const code = firstFreeCode(lineup);
+    if (!code) return;
+    assignToSlot(code, player.id);
   }
 
   function addSub(player: DbPlayer) {
     if (!lineup) return;
+    setPending((prev) => (prev === player.id ? "" : prev));
     update({ subs: [...lineup.subs, { playerId: player.id, position: "SUB", shirt: player.squad_number }] });
   }
 
   function removeSlot(playerId: string) {
     if (!lineup) return;
+    setPending((prev) => (prev === playerId ? "" : prev));
     update({
       starters: lineup.starters.filter((s) => s.playerId !== playerId),
       subs: lineup.subs.filter((s) => s.playerId !== playerId),
@@ -133,18 +216,18 @@ export default function LineupPage() {
     });
   }
 
+  // Moving up or down the list swaps the two players' slots on the pitch as
+  // well, so the list and the diagram never disagree.
   function moveStarter(index: number, delta: -1 | 1) {
     if (!lineup) return;
     const next = [...lineup.starters];
     const target = index + delta;
     if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
+    const a = next[index];
+    const b = next[target];
+    next[index] = { ...b, position: a.position };
+    next[target] = { ...a, position: b.position };
     update({ starters: next });
-  }
-
-  function setSlotPosition(playerId: string, position: string) {
-    if (!lineup) return;
-    update({ starters: lineup.starters.map((s) => (s.playerId === playerId ? { ...s, position } : s)) });
   }
 
   async function handleSave(publish: boolean) {
@@ -237,7 +320,7 @@ export default function LineupPage() {
               </select>
               <select
                 value={lineup.formation}
-                onChange={(e) => update({ formation: e.target.value })}
+                onChange={(e) => changeFormation(e.target.value)}
                 className="rounded-lg border border-white/10 bg-navy-600 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
               >
                 {FORMATION_NAMES.map((f) => <option key={f} value={f}>{f}</option>)}
@@ -254,8 +337,19 @@ export default function LineupPage() {
                 <span className="text-sm text-neutral-400 tabular-nums">{lineup.starters.length}/11</span>
               </CardHeader>
 
+              <div className="mb-4">
+                <FormationPitch
+                  layout={layout}
+                  occupants={occupants}
+                  pendingName={pending ? players.find((p) => p.id === pending)?.name : undefined}
+                  onAssign={assignToSlot}
+                  onTapSlot={handleTapSlot}
+                  onClear={removeSlot}
+                />
+              </div>
+
               {lineup.starters.length === 0 ? (
-                <p className="text-sm text-neutral-400">Tap players below to build the XI.</p>
+                <p className="text-sm text-neutral-400">Drag players from the squad onto the pitch to build the XI.</p>
               ) : (
                 <ul className="divide-y divide-white/10">
                   {lineup.starters.map((s, i) => {
@@ -269,12 +363,19 @@ export default function LineupPage() {
                             {p?.name ?? "Unknown"}
                             {lineup.captain_id === s.playerId && <span className="text-club-primary"> (C)</span>}
                           </p>
-                          <input
+                          {/* A slot code rather than free text, so the list and
+                              the pitch can't drift apart. Changing it here does
+                              the same swap as dragging a shirt. */}
+                          <select
                             value={s.position}
-                            onChange={(e) => setSlotPosition(s.playerId, e.target.value)}
-                            placeholder="Position"
+                            onChange={(e) => assignToSlot(e.target.value, s.playerId, s.position)}
                             className="mt-0.5 w-20 rounded border border-white/10 bg-navy-600 px-1.5 py-0.5 text-[11px] outline-none dark:bg-navy-800"
-                          />
+                          >
+                            {!layout.some((l) => l.code === s.position) && (
+                              <option value={s.position}>{s.position || "—"}</option>
+                            )}
+                            {layout.map((l) => <option key={l.code} value={l.code}>{l.code}</option>)}
+                          </select>
                         </div>
                         <button
                           onClick={() => update({ captain_id: lineup.captain_id === s.playerId ? null : s.playerId })}
@@ -372,7 +473,15 @@ export default function LineupPage() {
                       })
                     : null;
                   return (
-                    <li key={p.id} className="flex items-center gap-2.5 py-2">
+                    <li
+                      key={p.id}
+                      draggable
+                      onDragStart={(e) => { e.dataTransfer.setData("text/plain", `${p.id}|`); e.dataTransfer.effectAllowed = "move"; }}
+                      onClick={() => setPending((prev) => (prev === p.id ? "" : p.id))}
+                      className={`flex cursor-grab items-center gap-2.5 rounded-lg py-2 ${
+                        pending === p.id ? "bg-club-primary/15 ring-1 ring-club-primary/40" : ""
+                      }`}
+                    >
                       <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{p.name}</p>
@@ -390,14 +499,14 @@ export default function LineupPage() {
                         </span>
                       )}
                       <button
-                        onClick={() => addStarter(p)}
+                        onClick={(e) => { e.stopPropagation(); addStarter(p); }}
                         disabled={lineup.starters.length >= 11}
                         className="shrink-0 touch-manipulation rounded-lg border border-white/10 px-2 py-1 text-[11px] hover:bg-navy-600 disabled:opacity-40 dark:hover:bg-navy-800"
                       >
                         XI
                       </button>
                       <button
-                        onClick={() => addSub(p)}
+                        onClick={(e) => { e.stopPropagation(); addSub(p); }}
                         className="shrink-0 touch-manipulation rounded-lg border border-white/10 px-2 py-1 text-[11px] hover:bg-navy-600 dark:hover:bg-navy-800"
                       >
                         Sub
