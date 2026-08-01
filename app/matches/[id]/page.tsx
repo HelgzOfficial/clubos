@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fetchMatch, type DbMatch } from "@/lib/matches-db";
+import { fetchMatch, deleteMatchCompletely, type DbMatch } from "@/lib/matches-db";
 import {
   fetchMatchDetails, addLineupEntry, deleteLineupEntry,
   addGoal, deleteGoal, addSubstitution, deleteSubstitution,
@@ -47,6 +47,7 @@ function formatDate(iso: string) {
 
 export default function MatchDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [match, setMatch] = useState<DbMatch | null | undefined>(undefined);
   const [lineup, setLineup] = useState<DbLineupEntry[]>([]);
   const [goals, setGoals] = useState<DbGoal[]>([]);
@@ -54,6 +55,7 @@ export default function MatchDetailPage() {
   const [reports, setReports] = useState<DbMatchReport[]>([]);
   const [stats, setStats] = useState<DbMatchStats | null>(null);
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     const m = await fetchMatch(params.id);
@@ -82,6 +84,37 @@ export default function MatchDetailPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  // Deleting from the fixture's own page, which is where you're standing when
+  // you realise a fixture is a duplicate or was never played. Takes every
+  // record tied to it and then recomputes season totals from what's left, so
+  // averages don't keep counting a game that no longer exists.
+  async function handleDeleteFixture() {
+    if (!match) return;
+    const label = `${match.is_home ? "vs" : "@"} ${match.opponent}`;
+    const ok = window.confirm(
+      `Delete ${label}?\n\n` +
+        "This also removes everything recorded against it — team sheet, goals, substitutions, match stats, " +
+        "player stats, availability, documents, reports and photos. Season totals and averages are then " +
+        "recalculated from what's left.\n\n" +
+        "Uploaded highlight clips are kept but unlinked from the fixture.\n\n" +
+        "This can't be undone."
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    setError("");
+    try {
+      await deleteMatchCompletely(match.id);
+      // Best-effort: a failed recompute shouldn't strand someone on a page for
+      // a fixture that's already gone.
+      await syncPlayerStatsFromMatches().catch(() => {});
+      router.replace("/matches");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't delete this fixture.");
+      setDeleting(false);
+    }
+  }
 
   if (match === undefined) {
     return (
@@ -124,6 +157,7 @@ export default function MatchDetailPage() {
           )}
           <Badge variant={match.is_home ? "green" : "neutral"}>{match.is_home ? "Home" : "Away"}</Badge>
           {hasScore && <span className="text-xl font-semibold">{match.home_score} – {match.away_score}</span>}
+          <DeleteFixtureButton onDelete={handleDeleteFixture} deleting={deleting} />
         </div>
       </div>
 
@@ -912,5 +946,25 @@ function TeamSelectionSection({ match }: { match: DbMatch }) {
         </div>
       )}
     </Card>
+  );
+}
+
+// Separate so the permission check sits in one place. Deleting a fixture takes
+// a season's worth of work with it, so it's limited to whoever can edit
+// matches and kept visually distinct from everything else on the page.
+function DeleteFixtureButton({ onDelete, deleting }: { onDelete: () => void; deleting: boolean }) {
+  const { canWrite } = usePermissions();
+  if (!canWrite("matches")) return null;
+
+  return (
+    <button
+      onClick={onDelete}
+      disabled={deleting}
+      title="Delete this fixture and everything recorded against it"
+      className="flex touch-manipulation items-center gap-1.5 rounded-xl border border-red-500/40 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+    >
+      {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+      {deleting ? "Deleting…" : "Delete fixture"}
+    </button>
   );
 }
