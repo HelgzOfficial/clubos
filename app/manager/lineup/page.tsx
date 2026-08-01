@@ -23,12 +23,13 @@ import {
 import {
   fetchLineup, saveLineup, emptyLineup, FORMATION_NAMES, layoutFor,
   iFasList, teamSheetText, squadListText, slotName, isTrialistSlot, newTrialistId,
+  syncLineupToMatchCentre, countMatchCentreLineup,
   type DbLineup, type LineupSlot,
 } from "@/lib/lineups-db";
 import { FormationPitch, type PitchOccupant } from "@/components/manager/formation-pitch";
 import {
   ArrowLeft, ShieldAlert, Check, X, Loader2, Copy, Printer, Mail,
-  ChevronUp, ChevronDown, Star, Send, UserPlus,
+  ChevronUp, ChevronDown, Star, Send, UserPlus, RefreshCw,
 } from "lucide-react";
 
 export default function LineupPage() {
@@ -53,6 +54,7 @@ export default function LineupPage() {
   const [output, setOutput] = useState<"ifas" | "sheet" | "social">("ifas");
   // The player tapped but not yet placed — the touch alternative to dragging.
   const [pending, setPending] = useState("");
+  const [syncNote, setSyncNote] = useState("");
 
   // A trialist is someone on trial who has no player record yet. They live in
   // this line-up only.
@@ -282,16 +284,64 @@ export default function LineupPage() {
 
   async function handleSave(publish: boolean) {
     if (!lineup) return;
+
+    // Publishing overwrites whatever Match Centre currently holds for this
+    // fixture. Asking first, but only when there's actually something there to
+    // lose — a confirm dialog on an empty fixture is just an extra tap.
+    if (publish) {
+      try {
+        const existing = await countMatchCentreLineup(lineup.match_id);
+        if (existing > 0) {
+          const ok = window.confirm(
+            `Match Centre already has ${existing} ${existing === 1 ? "player" : "players"} listed for this fixture.\n\n` +
+              "Publishing replaces that list with this selection. Continue?"
+          );
+          if (!ok) return;
+        }
+      } catch {
+        // If the check itself fails, carry on — the publish will surface any
+        // real problem, and blocking on a failed count would be worse.
+      }
+    }
+
     setSaving(true);
     setError("");
+    setSyncNote("");
     try {
       const saved = await saveLineup(
         { ...lineup, published_at: publish ? new Date().toISOString() : lineup.published_at },
         appUser?.name ?? null
       );
-      setLineup({ ...saved, starters: saved.starters ?? [], subs: saved.subs ?? [] });
+      const next = { ...saved, starters: saved.starters ?? [], subs: saved.subs ?? [] };
+      setLineup(next);
+
+      if (publish) {
+        // The one place the team is entered. Everywhere else reads it.
+        const written = await syncLineupToMatchCentre(next, players);
+        setSyncNote(
+          `Published. ${written} ${written === 1 ? "name is" : "names are"} now on the fixture in Match Centre, ` +
+            "the players' companion and the analysis pages."
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line-up.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Re-push a published side without changing the published timestamp — for
+  // when someone has edited Match Centre by hand and it's drifted.
+  async function pushToMatchCentre() {
+    if (!lineup) return;
+    setSaving(true);
+    setError("");
+    setSyncNote("");
+    try {
+      const written = await syncLineupToMatchCentre(lineup, players);
+      setSyncNote(`${written} ${written === 1 ? "name" : "names"} pushed to the fixture.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't push this to the fixture.");
     } finally {
       setSaving(false);
     }
@@ -513,9 +563,28 @@ export default function LineupPage() {
                 >
                   <Send size={14} /> Publish to squad
                 </button>
+                {lineup.published_at && (
+                  <button
+                    onClick={pushToMatchCentre}
+                    disabled={saving || lineup.starters.length === 0}
+                    title="Write this selection to the fixture again"
+                    className="flex touch-manipulation items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-200 hover:bg-navy-600 disabled:opacity-60 dark:hover:bg-navy-800"
+                  >
+                    <RefreshCw size={14} /> Re-push to fixture
+                  </button>
+                )}
               </div>
+
+              {syncNote && (
+                <div className="mt-2 flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-300">
+                  <Check size={13} className="mt-0.5 shrink-0" />
+                  <p>{syncNote}</p>
+                </div>
+              )}
+
               <p className="mt-2 text-xs text-neutral-500">
-                A draft is yours alone. Publishing is what makes it visible to players.
+                A draft is yours alone. Publishing makes it visible to players and writes the XI and bench onto the
+                fixture itself, so Match Centre, the companion and the analysis pages all show the same team.
               </p>
             </Card>
 
