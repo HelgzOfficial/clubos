@@ -10,6 +10,9 @@ export type PitchOccupant = {
   name: string;
   squadNumber: number | null;
   isCaptain: boolean;
+  // Trialists get a marker on the pitch too — it's the one thing about a name
+  // on a team sheet you don't want to have to remember.
+  isTrialist?: boolean;
 };
 
 // Just the surname, so the label under a shirt stays readable at pitch scale.
@@ -101,8 +104,12 @@ export function FormationPitch({
                   className={`flex flex-col items-center ${highlighted ? "scale-110" : ""} transition-transform`}
                 >
                   <ShirtMarker isGoalkeeper={isKeeper} squadNumber={who.squadNumber ?? undefined} size={34} />
-                  <span className="mt-0.5 max-w-[70px] truncate rounded bg-navy-950/75 px-1 text-[9px] font-semibold leading-tight text-white">
-                    {shortName(who.name)}{who.isCaptain ? " (C)" : ""}
+                  <span
+                    className={`mt-0.5 max-w-[70px] truncate rounded px-1 text-[9px] font-semibold leading-tight text-white ${
+                      who.isTrialist ? "bg-amber-500/90 text-navy-950 ring-1 ring-amber-300" : "bg-navy-950/75"
+                    }`}
+                  >
+                    {shortName(who.name)}{who.isCaptain ? " (C)" : ""}{who.isTrialist ? " ·T" : ""}
                   </span>
                 </div>
               ) : (
