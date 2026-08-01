@@ -1,0 +1,17 @@
+{
+  "name": "AFC Whyteleafe Player Portal",
+  "short_name": "Portal",
+  "description": "Your fixtures, availability, training and messages with the medical team.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#141F3D",
+  "theme_color": "#f59e0b",
+  "icons": [
+    { "src": "/icon-portal-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-portal-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-portal-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
