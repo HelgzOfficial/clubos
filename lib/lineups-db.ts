@@ -140,6 +140,25 @@ export async function fetchLineup(matchId: string): Promise<DbLineup | null> {
   };
 }
 
+// Every selection made this season, newest fixture first once joined to the
+// fixture list. Used by the manager module's Selections tab.
+export async function fetchAllLineups(): Promise<DbLineup[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("match_lineups")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => {
+    const r = row as DbLineup;
+    return {
+      ...r,
+      starters: Array.isArray(r.starters) ? r.starters : [],
+      subs: Array.isArray(r.subs) ? r.subs : [],
+    };
+  });
+}
+
 export async function saveLineup(
   lineup: DbLineup,
   updatedBy: string | null
