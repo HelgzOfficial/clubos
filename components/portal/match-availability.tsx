@@ -172,6 +172,35 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
   );
 }
 
+// Kept so a companion page that still imports the old list-of-fixtures
+// component compiles and works. It simply stacks the per-match confirm blocks,
+// which is what the list used to be — the deadline and club-override rules
+// come along for free rather than being duplicated.
+export function MatchAvailability({ playerId, matches }: { playerId: string; matches: DbMatch[] }) {
+  const fixtures = matches
+    .filter((m) => new Date(m.kickoff).getTime() >= Date.now() && m.status !== "cancelled")
+    .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime())
+    .slice(0, 5);
+
+  if (fixtures.length === 0) return <p className="text-sm text-neutral-400">No upcoming fixtures.</p>;
+
+  return (
+    <ul className="space-y-3">
+      {fixtures.map((m) => (
+        <li key={m.id} className="rounded-xl border border-white/10 p-3">
+          <p className="mb-2 truncate text-sm font-medium">
+            {m.is_home ? "vs" : "@"} {m.opponent}
+            <span className="ml-1.5 font-normal text-neutral-500">
+              {new Date(m.kickoff).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            </span>
+          </p>
+          <MatchAvailabilityConfirm playerId={playerId} match={m} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // The published XI for the next fixture. Nothing is shown until the manager
 // publishes — a draft is theirs alone.
 //
