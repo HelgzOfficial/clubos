@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { ManagerHighlights } from "@/components/manager/highlights";
+import { PastSelections } from "@/components/manager/past-selections";
 import { KickoffCountdown } from "@/components/kickoff-countdown";
 import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { usePermissions } from "@/lib/permissions";
@@ -28,14 +29,15 @@ import {
 } from "@/lib/match-availability-db";
 import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
-  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film,
+  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film, ClipboardList,
 } from "lucide-react";
 
-type Tab = "overview" | "availability" | "discipline" | "contracts" | "registrations" | "previous" | "highlights" | "opposition";
+type Tab = "overview" | "availability" | "selections" | "discipline" | "contracts" | "registrations" | "previous" | "highlights" | "opposition";
 
 const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: "overview", label: "Overview", icon: ClipboardCheck },
   { key: "availability", label: "Availability", icon: Users },
+  { key: "selections", label: "Team Selections", icon: ClipboardList },
   { key: "discipline", label: "Discipline", icon: Square },
   { key: "contracts", label: "Contracts", icon: FileSignature },
   { key: "registrations", label: "Registrations", icon: ShieldAlert },
@@ -348,6 +350,8 @@ export default function ManagerPage() {
           availability={availability}
           onChanged={load}
         />
+      ) : tab === "selections" ? (
+        <PastSelections matches={matches} players={players} crestLookup={crestLookup} />
       ) : tab === "discipline" ? (
         <DisciplineTab players={players} matches={matches} cards={cards} onChanged={load} />
       ) : tab === "contracts" ? (
