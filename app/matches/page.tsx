@@ -9,15 +9,15 @@ import { CrestManager } from "@/components/crest-manager";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  fetchMatches, createMatch, updateMatch, deleteMatch, triggerFixtureSync,
+  fetchMatches, createMatch, updateMatch, deleteMatchCompletely, triggerFixtureSync,
   playedMatches, upcomingMatches, type DbMatch,
 } from "@/lib/matches-db";
 import { supabaseConfigured } from "@/lib/supabase";
 import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
-import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
 import { usePermissions } from "@/lib/permissions";
+import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { RefreshCw, Plus, X, AlertCircle, Trash2, Check, Pencil, Upload, Shield } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -105,6 +105,7 @@ export default function MatchesPage() {
   const [league, setLeague] = useState<DbLeagueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteNote, setDeleteNote] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -189,9 +190,48 @@ export default function MatchesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Remove this match?")) return;
-    await deleteMatch(id);
-    await load();
+    const m = matches.find((x) => x.id === id);
+    const label = m ? `${m.is_home ? "vs" : "@"} ${m.opponent}` : "this fixture";
+
+    // Spelling out what goes is the difference between an informed decision
+    // and a nasty surprise. Deleting a played fixture takes its goals, its
+    // stats and its team sheet with it, and there is no undo.
+    const ok = window.confirm(
+      `Delete ${label}?\n\n` +
+        "This also removes everything recorded against it — team sheet, goals, substitutions, match stats, " +
+        "player stats, availability, documents, reports and photos. Season totals and averages are then " +
+        "recalculated from what's left.\n\n" +
+        "Uploaded highlight clips are kept but unlinked from the fixture.\n\n" +
+        "This can't be undone."
+    );
+    if (!ok) return;
+
+    setDeleteNote("");
+    setError("");
+    try {
+      const result = await deleteMatchCompletely(id);
+
+      // A full recompute rather than an adjustment, so averages, appearances,
+      // goals and clean sheets all settle to whatever the remaining fixtures
+      // actually say. Season analytics are computed live from matches, so
+      // they correct themselves on the next load.
+      let recalcNote = "";
+      try {
+        const sync = await syncPlayerStatsFromMatches();
+        recalcNote = ` Player stats recalculated across ${sync.matchesCounted} remaining ${sync.matchesCounted === 1 ? "fixture" : "fixtures"}.`;
+      } catch {
+        recalcNote = " Player stats couldn't be recalculated automatically — open Player Stats and press Recalculate.";
+      }
+
+      setDeleteNote(
+        `Deleted ${label}.` +
+          (result.total > 0 ? ` ${result.total} linked ${result.total === 1 ? "record" : "records"} removed.` : "") +
+          recalcNote
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't delete that fixture.");
+    }
   }
 
   function startResultEdit(m: DbMatch) {
@@ -276,6 +316,15 @@ export default function MatchesPage() {
         runs automatically once a day, so postponements or new cup dates the club publishes will show up here without you needing to do
         anything.
       </p>
+
+      {deleteNote && (
+        <Card className="mb-4 border-emerald-500/30 bg-emerald-500/10">
+          <div className="flex items-start gap-2">
+            <Check size={15} className="mt-0.5 shrink-0 text-emerald-300" />
+            <p className="text-sm text-emerald-200">{deleteNote}</p>
+          </div>
+        </Card>
+      )}
 
       {loading ? (
         <p className="text-sm text-neutral-400">Loading matches…</p>
