@@ -45,6 +45,7 @@ import {
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
 import { PortalPushToggle } from "@/components/portal/push-toggle";
 import { InstallPrompt } from "@/components/portal/install-prompt";
+import { KickoffCountdown } from "@/components/kickoff-countdown";
 import { MatchPhotos } from "@/components/documents/match-photos";
 import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
 import { MyAbsences } from "@/components/portal/my-absences";
@@ -466,7 +467,10 @@ export default function PortalPage() {
         )}
 
         <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Next Match</p>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Next Match</p>
+            {nextMatch && <KickoffCountdown kickoff={nextMatch.kickoff} />}
+          </div>
           {!nextMatch ? (
             <p className="text-sm text-neutral-400">No upcoming fixture scheduled yet.</p>
           ) : (
