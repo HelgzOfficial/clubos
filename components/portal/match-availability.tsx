@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Loader2, HelpCircle, X as XIcon, Star } from "lucide-react";
-import { TeamCrest, useCrestLookup } from "@/components/team-crest";
-import { upcomingMatches, type DbMatch } from "@/lib/matches-db";
+import type { DbMatch } from "@/lib/matches-db";
 import {
-  fetchAvailabilityForPlayer, setAvailability, effectiveAvailability, SOURCE_LABEL,
+  fetchAvailabilityForPlayer, setAvailability, effectiveAvailability,
   type DbMatchAvailability, type AvailabilityStatus,
 } from "@/lib/match-availability-db";
 import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
@@ -20,31 +19,29 @@ const OPTIONS: { status: AvailabilityStatus; label: string; icon: typeof Check; 
   { status: "unavailable", label: "Can't play", icon: XIcon, on: "bg-red-500 text-white" },
 ];
 
-function when(m: DbMatch) {
-  return new Date(m.kickoff).toLocaleString("en-GB", {
-    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-  });
+// Confirming availability for one fixture, shown on that match's page.
+//
+// The deadline is real: replies close 48 hours before kick-off, because a
+// manager naming a side on Thursday can't have answers arriving on Saturday
+// morning. After it passes the answer is shown but locked, and anyone who
+// didn't reply is told to speak to the manager rather than left with a dead
+// button.
+export const AVAILABILITY_DEADLINE_HOURS = 48;
+
+export function deadlineFor(kickoff: string): Date {
+  return new Date(new Date(kickoff).getTime() - AVAILABILITY_DEADLINE_HOURS * 3600_000);
 }
 
-// A player answering "can you play" for the next few fixtures.
-//
-// Three answers rather than two: at this level "probably, depends on work" is
-// the honest reply more often than not, and forcing it into yes/no just means
-// the manager gets a yes and a phone call later.
-export function MatchAvailability({ playerId, matches }: { playerId: string; matches: DbMatch[] }) {
-  const [rows, setRows] = useState<DbMatchAvailability[]>([]);
-  // The club's own records — injuries, suspensions and booked time off. They
-  // outrank whatever the player tapped, so the card says so rather than
-  // pretending the answer still stands.
+export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string; match: DbMatch }) {
+  const [row, setRow] = useState<DbMatchAvailability | undefined>(undefined);
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
   const [absences, setAbsences] = useState<DbPlayerAbsence[]>([]);
   const [suspensions, setSuspensions] = useState<DbSuspension[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [noteFor, setNoteFor] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState("");
-  const crestLookup = useCrestLookup();
+  const [note, setNote] = useState("");
+  const [editingNote, setEditingNote] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,7 +52,9 @@ export function MatchAvailability({ playerId, matches }: { playerId: string; mat
         fetchPlayerAbsences().catch(() => [] as DbPlayerAbsence[]),
         fetchSuspensions().catch(() => [] as DbSuspension[]),
       ]);
-      setRows(replies);
+      const mine = replies.find((r) => r.match_id === match.id);
+      setRow(mine);
+      setNote(mine?.note ?? "");
       setInjuries(inj);
       setAbsences(abs);
       setSuspensions(sus);
@@ -63,119 +62,112 @@ export function MatchAvailability({ playerId, matches }: { playerId: string; mat
       const msg = e instanceof Error ? e.message : "";
       setError(
         /relation|does not exist|schema cache/i.test(msg)
-          ? "Match availability isn't set up yet."
-          : msg || "Couldn't load your replies."
+          ? "Availability isn't set up yet — the club needs to run the setup step."
+          : msg || "Couldn't load your reply."
       );
     } finally {
       setLoading(false);
     }
-  }, [playerId]);
+  }, [playerId, match.id]);
 
   useEffect(() => { load(); }, [load]);
 
-  const fixtures = upcomingMatches(matches).slice(0, 5);
+  const kickoff = new Date(match.kickoff);
+  const deadline = deadlineFor(match.kickoff);
+  const now = new Date();
+  const closed = now > deadline;
+  const played = now > kickoff;
 
-  async function answer(matchId: string, status: AvailabilityStatus, note?: string) {
-    setBusyId(matchId);
+  const effective = effectiveAvailability(playerId, match, { reply: row, injuries, absences, suspensions });
+  const clubSays = effective.source !== "player" && effective.source !== "none";
+
+  async function answer(status: AvailabilityStatus, withNote?: string) {
+    setBusy(true);
     setError("");
     try {
-      const saved = await setAvailability({ matchId, playerId, status, note });
-      setRows((prev) => [...prev.filter((r) => r.match_id !== matchId), saved]);
+      setRow(await setAvailability({ matchId: match.id, playerId, status, note: withNote ?? note }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save that.");
     } finally {
-      setBusyId(null);
+      setBusy(false);
     }
   }
 
   if (loading) return <p className="text-sm text-neutral-400">Loading…</p>;
-
-  if (fixtures.length === 0) {
-    return <p className="text-sm text-neutral-400">No upcoming fixtures.</p>;
+  if (played) {
+    return (
+      <p className="text-sm text-neutral-400">
+        This one has been played.{row ? ` You were down as ${row.status === "unavailable" ? "unavailable" : row.status}.` : ""}
+      </p>
+    );
   }
 
   return (
     <div>
-      <p className="mb-3 text-xs text-neutral-400">
-        Let the manager know as early as you can. You can change your answer any time.
-      </p>
+      {clubSays ? (
+        <div className={`mb-3 rounded-xl px-3 py-2.5 text-sm ${
+          effective.status === "unavailable" ? "bg-red-500/10 text-red-200" : "bg-amber-500/10 text-amber-200"
+        }`}>
+          The club has you down as {effective.status === "unavailable" ? "unavailable" : "doubtful"} for this match —
+          {" "}{effective.detail}. Nothing to do; the manager already knows.
+        </div>
+      ) : (
+        <p className="mb-3 text-xs text-neutral-400">
+          {closed
+            ? "Replies for this match are closed."
+            : `Please answer by ${deadline.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} — 48 hours before kick-off.`}
+        </p>
+      )}
 
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
 
-      <ul className="space-y-3">
-        {fixtures.map((m) => {
-          const row = rows.find((r) => r.match_id === m.id);
-          const effective = effectiveAvailability(playerId, m, {
-            reply: row, injuries, absences, suspensions,
-          });
-          const clubSays = effective.source !== "player" && effective.source !== "none";
-          return (
-            <li key={m.id} className="rounded-xl border border-white/10 p-3">
-              <div className="mb-2 flex items-center gap-2.5">
-                <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{m.is_home ? "vs" : "@"} {m.opponent}</p>
-                  <p className="truncate text-[11px] text-neutral-500">
-                    {when(m)}{m.venue ? ` · ${m.venue}` : ""}
-                  </p>
-                </div>
-              </div>
+      <div className="flex gap-1.5">
+        {OPTIONS.map(({ status, label, icon: Icon, on }) => (
+          <button
+            key={status}
+            onClick={() => answer(status)}
+            disabled={busy || closed || clubSays}
+            className={`flex flex-1 touch-manipulation items-center justify-center gap-1.5 rounded-xl px-2 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
+              row?.status === status ? on : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+            }`}
+          >
+            {busy && row?.status !== status ? <Loader2 size={14} className="animate-spin" /> : <Icon size={14} />}
+            {label}
+          </button>
+        ))}
+      </div>
 
-              {clubSays && (
-                <div className={`mb-2 rounded-lg px-2.5 py-2 text-[11px] ${
-                  effective.status === "unavailable" ? "bg-red-500/10 text-red-200" : "bg-amber-500/10 text-amber-200"
-                }`}>
-                  The club has you down as {effective.status === "unavailable" ? "unavailable" : "doubtful"} for this
-                  one — {effective.detail}. Nothing to do; it&apos;s already on the manager&apos;s list.
-                </div>
-              )}
+      {closed && !row && !clubSays && (
+        <p className="mt-2 text-xs text-amber-300">
+          You didn&apos;t reply before the deadline. Speak to the manager directly if you&apos;re available.
+        </p>
+      )}
 
-              <div className="flex gap-1.5">
-                {OPTIONS.map(({ status, label, icon: Icon, on }) => (
-                  <button
-                    key={status}
-                    onClick={() => answer(m.id, status, row?.note ?? undefined)}
-                    disabled={busyId === m.id}
-                    className={`flex flex-1 touch-manipulation items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-medium transition-colors disabled:opacity-60 ${
-                      row?.status === status ? on : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
-                    }`}
-                  >
-                    {busyId === m.id && row?.status !== status ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {noteFor === m.id ? (
-                <div className="mt-2 flex gap-2">
-                  <input
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="e.g. working till 1, can make a 3pm start"
-                    className="flex-1 rounded-lg border border-white/10 bg-navy-600 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
-                  />
-                  <button
-                    onClick={async () => {
-                      await answer(m.id, row?.status ?? "doubtful", noteText);
-                      setNoteFor(null);
-                    }}
-                    className="touch-manipulation rounded-lg bg-club-primary px-2.5 py-1.5 text-xs font-medium text-navy-950"
-                  >
-                    Save
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setNoteFor(m.id); setNoteText(row?.note ?? ""); }}
-                  className="mt-1.5 touch-manipulation text-[11px] text-neutral-500 hover:text-neutral-300"
-                >
-                  {row?.note ? `“${row.note}” · edit` : "Add a note"}
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {!closed && !clubSays && (
+        editingNote ? (
+          <div className="mt-2 flex gap-2">
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. working till 1, can make a 3pm start"
+              className="flex-1 rounded-lg border border-white/10 bg-navy-600 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+            />
+            <button
+              onClick={async () => { await answer(row?.status ?? "doubtful", note); setEditingNote(false); }}
+              className="touch-manipulation rounded-lg bg-club-primary px-2.5 py-1.5 text-xs font-medium text-navy-950"
+            >
+              Save
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setEditingNote(true)}
+            className="mt-2 touch-manipulation text-xs text-neutral-500 hover:text-neutral-300"
+          >
+            {row?.note ? `“${row.note}” · edit note` : "Add a note for the manager"}
+          </button>
+        )
+      )}
     </div>
   );
 }
