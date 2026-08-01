@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { PitchPosition } from "@/components/pitch-position";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { PlayerMetricsCard } from "@/components/players/player-metrics-card";
+import { PlayerGpsCard } from "@/components/players/gps-card";
 import {
   fetchPlayer, updatePlayer, deletePlayer, updatePlayerStats, updatePlayerPositions, POSITION_OPTIONS,
   type DbPlayer, type Availability, type PitchPoint,
@@ -288,6 +289,9 @@ export default function PlayerProfilePage() {
           <SeasonStatsCard player={player} onChanged={(p) => setPlayer(p)} />
 
           <PlayerMetricsCard playerId={player.id} />
+
+          {/* Renders nothing until a GPS report has been imported for them. */}
+          <PlayerGpsCard playerId={player.id} />
         </div>
 
         <Card>
