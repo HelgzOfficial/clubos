@@ -47,7 +47,7 @@ import { PortalPushToggle } from "@/components/portal/push-toggle";
 import { MatchPhotos } from "@/components/documents/match-photos";
 import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
 import { MyAbsences } from "@/components/portal/my-absences";
-import { MatchAvailability, PublishedLineup } from "@/components/portal/match-availability";
+import { PublishedLineup } from "@/components/portal/match-availability";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -809,12 +809,6 @@ export default function PortalPage() {
         {/* Sits next to the notification card, above the profile section: both
             are "things about you that you maintain", and an emergency contact
             nobody can find is the same as not having one. */}
-        {player && (
-          <Collapsible title="Am I Available?" icon={<Check size={16} />}>
-            <MatchAvailability playerId={player.id} matches={allMatches} />
-          </Collapsible>
-        )}
-
         <Collapsible title="Team Named" icon={<ClipboardList size={16} />}>
           <PublishedLineup match={matches[0] ?? null} />
         </Collapsible>
