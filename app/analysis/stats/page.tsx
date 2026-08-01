@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { StatsImport } from "@/components/analysis/stats-import";
+import { InjuryRiskTracker } from "@/components/analysis/injury-risk-tracker";
 import { usePermissions } from "@/lib/permissions";
 import { useIsMobileOrTablet } from "@/lib/use-media-query";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
@@ -23,15 +24,16 @@ import {
   type DbPlayerMatchStats, type DbOpponentPlayerStats, type StatValues, type PlayerSeasonAggregate,
 } from "@/lib/player-match-stats-db";
 import {
-  ArrowLeft, Save, Plus, X, Sliders, Trophy, GitCompare, ClipboardList, ScanLine,
+  ArrowLeft, Save, Plus, X, Sliders, Trophy, GitCompare, ClipboardList, ScanLine, ShieldAlert,
   Check, Loader2, AlertCircle, EyeOff, ChevronDown,
 } from "lucide-react";
 
-type Tab = "enter" | "import" | "metrics" | "rankings" | "compare";
+type Tab = "enter" | "import" | "risk" | "metrics" | "rankings" | "compare";
 
 const TABS: { key: Tab; label: string; icon: typeof Save }[] = [
   { key: "enter", label: "Enter Stats", icon: ClipboardList },
   { key: "import", label: "Import", icon: ScanLine },
+  { key: "risk", label: "Injury Risk", icon: ShieldAlert },
   { key: "rankings", label: "Rankings", icon: Trophy },
   { key: "compare", label: "Compare", icon: GitCompare },
   { key: "metrics", label: "Metrics", icon: Sliders },
@@ -140,6 +142,8 @@ export default function PlayerStatsPage() {
           players={players} matches={matches} metrics={activeMetrics}
           onSaved={async () => { flashSuccess("Stats imported."); setAllStats(await fetchAllPlayerMatchStats()); }}
         />
+      ) : tab === "risk" ? (
+        <InjuryRiskTracker players={players} />
       ) : tab === "rankings" ? (
         <RankingsTab metrics={activeMetrics} aggregates={aggregates} playerById={playerById} />
       ) : tab === "compare" ? (
