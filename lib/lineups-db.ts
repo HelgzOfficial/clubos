@@ -168,6 +168,70 @@ export async function saveLineup(
 }
 
 // ---------------------------------------------------------------------------
+// Pushing the selected side into the fixture itself
+//
+// The manager picks the team once. Everywhere else in the app that shows a
+// starting XI — Match Centre, the players' companion, the analysis pages —
+// reads `match_lineup`, so publishing writes it there rather than expecting
+// somebody to type the same eleven names in twice. Typing it twice is how the
+// two ended up disagreeing, and a team sheet nobody trusts is worse than none.
+// ---------------------------------------------------------------------------
+
+// How many rows are already in Match Centre for this fixture. Used to warn
+// before overwriting something that was entered by hand.
+export async function countMatchCentreLineup(matchId: string): Promise<number> {
+  if (!supabase) return 0;
+  const { count, error } = await supabase
+    .from("match_lineup")
+    .select("id", { count: "exact", head: true })
+    .eq("match_id", matchId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function syncLineupToMatchCentre(
+  lineup: DbLineup,
+  players: DbPlayer[]
+): Promise<number> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  // Replace rather than merge. A partial update would leave last week's
+  // substitute sitting in this week's XI if the squad shrank, and nobody
+  // would spot it.
+  const { error: clearError } = await supabase
+    .from("match_lineup")
+    .delete()
+    .eq("match_id", lineup.match_id);
+  if (clearError) throw clearError;
+
+  const rows = [
+    ...lineup.starters.map((s, i) => ({
+      match_id: lineup.match_id,
+      is_starting: true,
+      shirt_number: s.shirt ?? players.find((p) => p.id === s.playerId)?.squad_number ?? null,
+      player_name: slotName(players, s) + (lineup.captain_id === s.playerId ? " (C)" : ""),
+      position: s.position || null,
+      sort_order: i,
+    })),
+    ...lineup.subs.map((s, i) => ({
+      match_id: lineup.match_id,
+      is_starting: false,
+      shirt_number: s.shirt ?? players.find((p) => p.id === s.playerId)?.squad_number ?? null,
+      player_name: slotName(players, s),
+      position: null,
+      // Keeps substitutes below the XI in the same ordered list.
+      sort_order: 100 + i,
+    })),
+  ];
+
+  if (rows.length === 0) return 0;
+
+  const { error } = await supabase.from("match_lineup").insert(rows);
+  if (error) throw error;
+  return rows.length;
+}
+
+// ---------------------------------------------------------------------------
 // Output formats
 // ---------------------------------------------------------------------------
 
