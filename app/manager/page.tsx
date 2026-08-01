@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { ManagerHighlights } from "@/components/manager/highlights";
+import { KickoffCountdown } from "@/components/kickoff-countdown";
 import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { usePermissions } from "@/lib/permissions";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
@@ -250,7 +251,10 @@ export default function ManagerPage() {
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle>Next Match</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Next Match</CardTitle>
+                {nextMatch && <KickoffCountdown kickoff={nextMatch.kickoff} />}
+              </CardHeader>
               {!nextMatch ? (
                 <p className="text-sm text-neutral-400">No upcoming fixture.</p>
               ) : (
