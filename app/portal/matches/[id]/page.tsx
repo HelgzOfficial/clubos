@@ -16,6 +16,8 @@ import { YouTubePlayer } from "@/components/analysis/youtube-player";
 import { DirectionsLinks } from "@/components/directions-links";
 import { TeamCrest } from "@/components/team-crest";
 import { Collapsible } from "@/components/ui/collapsible";
+import { MatchAvailabilityConfirm } from "@/components/portal/match-availability";
+import { fetchPlayerByEmail, type DbPlayer } from "@/lib/players-db";
 import { Badge } from "@/components/ui/badge";
 import type { Clip } from "@/lib/analysis-types";
 import { ArrowLeft, FileText, Download, Users, Goal, RefreshCw, Film, Play } from "lucide-react";
@@ -39,6 +41,9 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
   const [match, setMatch] = useState<DbMatch | null>(null);
   const [lineup, setLineup] = useState<DbLineupEntry[]>([]);
   const [goals, setGoals] = useState<DbGoal[]>([]);
+  // Needed to know whose availability to record. A portal user is always a
+  // player, matched on the email they signed in with.
+  const [player, setPlayer] = useState<DbPlayer | null>(null);
   const [subs, setSubs] = useState<DbSubstitution[]>([]);
   const [docs, setDocs] = useState<DbMatchDocument[]>([]);
   const [clips, setClips] = useState<DbClip[]>([]);
@@ -61,6 +66,15 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
         setMatch(m);
         setLineup(details.lineup);
         setGoals(details.goals);
+
+        const email = userData.user?.email;
+        if (email) {
+          try {
+            setPlayer(await fetchPlayerByEmail(email));
+          } catch {
+            // Availability is a bonus here; the match detail still renders.
+          }
+        }
         setSubs(details.substitutions);
         setDocs(d);
         setClips(c);
@@ -151,6 +165,16 @@ export default function PortalMatchPage({ params }: { params: { id: string } }) 
               </p>
               <div className="mt-2 flex justify-center"><DirectionsLinks venue={match.venue} /></div>
             </div>
+
+            {/* The one thing a player can actually do here. Everything below
+                is read-only — the XI, goals and substitutions are the club's
+                record, not something a player edits. */}
+            {player && !played && (
+              <div className="rounded-card border border-club-primary/30 bg-club-primary/5 p-4">
+                <p className="mb-1 text-sm font-medium">Are you available?</p>
+                <MatchAvailabilityConfirm playerId={player.id} match={match} />
+              </div>
+            )}
 
             {goals.length > 0 && (
               <Collapsible title="Goals" icon={<Goal size={16} />} defaultOpen>
