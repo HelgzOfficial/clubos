@@ -5,6 +5,7 @@ import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club as clubFallback } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
+import { InstallPrompt } from "@/components/portal/install-prompt";
 import { Mail, AlertCircle, CheckCircle2, Users } from "lucide-react";
 
 // Deliberately amber rather than the club green used on the staff sign-in.
@@ -43,7 +44,13 @@ export default function PortalLoginPage() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-navy-800 px-4 text-white dark:bg-navy-950">
-      <div className="w-full max-w-sm overflow-hidden rounded-card border border-amber-500/40 bg-navy-700 shadow-softDark dark:bg-navy-900">
+      <div className="w-full max-w-sm">
+        {/* Also offered before sign-in — a player installing the app is more
+            likely to do it while they're waiting for the magic link to arrive
+            than after they've already got where they were going. */}
+        <InstallPrompt />
+
+      <div className="w-full overflow-hidden rounded-card border border-amber-500/40 bg-navy-700 shadow-softDark dark:bg-navy-900">
         {/* An amber band across the top, so it reads as the players' app even
             from a glance at a phone in someone else's hand. */}
         <div className="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-navy-950">
@@ -107,6 +114,7 @@ export default function PortalLoginPage() {
             </form>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
