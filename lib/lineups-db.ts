@@ -8,7 +8,26 @@ export type LineupSlot = {
   // forced into a fixed vocabulary.
   position: string;
   shirt: number | null;
+  // Set only for trialists. A trialist has no row in `players` — deliberately,
+  // because someone on a week's look isn't a squad member and shouldn't appear
+  // in registrations, contracts, medical or the season's stats. So the name
+  // travels with the line-up instead of being looked up.
+  name?: string | null;
+  isTrialist?: boolean;
 };
+
+// Trialist ids are generated here rather than by the database, since nothing
+// is inserted anywhere — they only ever exist inside a line-up's jsonb.
+export const TRIALIST_PREFIX = "trialist:";
+
+export function isTrialistSlot(slot: LineupSlot): boolean {
+  return slot.isTrialist === true || slot.playerId.startsWith(TRIALIST_PREFIX);
+}
+
+export function newTrialistId(): string {
+  // Not crypto — it only has to be unique within one team sheet.
+  return `${TRIALIST_PREFIX}${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
 
 export type DbLineup = {
   match_id: string;
@@ -152,8 +171,12 @@ export async function saveLineup(
 // Output formats
 // ---------------------------------------------------------------------------
 
-function nameOf(players: DbPlayer[], id: string): string {
-  return players.find((p) => p.id === id)?.name ?? "Unknown player";
+// A trialist carries their own name; a squad player is looked up. Everything
+// downstream goes through this, so the output formats never have to care which
+// kind of person they're printing.
+export function slotName(players: DbPlayer[], slot: LineupSlot): string {
+  if (isTrialistSlot(slot)) return slot.name?.trim() || "Trialist";
+  return players.find((p) => p.id === slot.playerId)?.name ?? "Unknown player";
 }
 function shirtOf(players: DbPlayer[], slot: LineupSlot): string {
   const n = slot.shirt ?? players.find((p) => p.id === slot.playerId)?.squad_number;
@@ -166,14 +189,24 @@ function shirtOf(players: DbPlayer[], slot: LineupSlot): string {
 export function iFasList(lineup: DbLineup, players: DbPlayer[]): string {
   const lines: string[] = [];
   lineup.starters.forEach((s, i) => {
-    lines.push(`${i + 1}. ${shirtOf(players, s)} ${nameOf(players, s.playerId)}`.replace(/\s+/g, " ").trim());
+    lines.push(`${i + 1}. ${shirtOf(players, s)} ${slotName(players, s)}`.replace(/\s+/g, " ").trim());
   });
   if (lineup.subs.length > 0) {
     lines.push("");
     lines.push("SUBS");
     lineup.subs.forEach((s, i) => {
-      lines.push(`${i + 1}. ${shirtOf(players, s)} ${nameOf(players, s.playerId)}`.replace(/\s+/g, " ").trim());
+      lines.push(`${i + 1}. ${shirtOf(players, s)} ${slotName(players, s)}`.replace(/\s+/g, " ").trim());
     });
+  }
+
+  // A trialist isn't registered, so there's nobody to click in iFAS. Saying so
+  // here is the difference between a thirty-second fix at the ground and a
+  // manager hunting for a name that was never going to be in the list.
+  const trialists = [...lineup.starters, ...lineup.subs].filter(isTrialistSlot);
+  if (trialists.length > 0) {
+    lines.push("");
+    lines.push("NOT IN iFAS — REGISTER FIRST");
+    trialists.forEach((t) => lines.push(`- ${slotName(players, t)}`));
   }
   return lines.join("\n");
 }
@@ -197,13 +230,14 @@ export function teamSheetText(
   ];
   for (const s of lineup.starters) {
     const captain = lineup.captain_id === s.playerId ? " (C)" : "";
-    lines.push(`${shirtOf(players, s).padStart(2, " ")}  ${s.position.padEnd(4, " ")}  ${nameOf(players, s.playerId)}${captain}`);
+    const trialist = isTrialistSlot(s) ? " (trialist)" : "";
+    lines.push(`${shirtOf(players, s).padStart(2, " ")}  ${s.position.padEnd(4, " ")}  ${slotName(players, s)}${captain}${trialist}`);
   }
   if (lineup.subs.length > 0) {
     lines.push("");
     lines.push("SUBSTITUTES");
     for (const s of lineup.subs) {
-      lines.push(`${shirtOf(players, s).padStart(2, " ")}        ${nameOf(players, s.playerId)}`);
+      lines.push(`${shirtOf(players, s).padStart(2, " ")}        ${slotName(players, s)}`);
     }
   }
   if (lineup.notes) {
@@ -226,9 +260,9 @@ export function squadListText(
   });
   const starters = lineup.starters.map((s) => {
     const captain = lineup.captain_id === s.playerId ? " (C)" : "";
-    return `${nameOf(players, s.playerId)}${captain}`;
+    return `${slotName(players, s)}${captain}`;
   });
-  const subs = lineup.subs.map((s) => nameOf(players, s.playerId));
+  const subs = lineup.subs.map((s) => slotName(players, s));
 
   const lines = [
     `TEAM NEWS`,
