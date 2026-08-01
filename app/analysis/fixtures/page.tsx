@@ -164,7 +164,7 @@ export default function AnalysisFixturesPage() {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant={competitionVariant(competitionKind(m.competition))}>
+                    <Badge variant={competitionVariant[competitionKind(m.competition)]}>
                       {competitionKind(m.competition)}
                     </Badge>
                     {r && (
