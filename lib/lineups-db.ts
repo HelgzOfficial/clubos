@@ -36,6 +36,58 @@ export const FORMATIONS: Record<string, string[]> = {
 
 export const FORMATION_NAMES = Object.keys(FORMATIONS);
 
+// Where each position sits on the pitch, as percentages. x runs left to right,
+// y runs from your own goal line (0) to the opponent's (100) — the same
+// convention the player-profile pitch uses, so the two look identical.
+//
+// The order matches FORMATIONS exactly: slot i on the pitch is starter i in
+// the line-up, which is what keeps the team sheet and the diagram in step.
+export type PitchSlot = { code: string; x: number; y: number };
+
+export const FORMATION_LAYOUTS: Record<string, PitchSlot[]> = {
+  "4-4-2": [
+    { code: "GK", x: 50, y: 7 },
+    { code: "RB", x: 85, y: 26 }, { code: "RCB", x: 63, y: 20 }, { code: "LCB", x: 37, y: 20 }, { code: "LB", x: 15, y: 26 },
+    { code: "RM", x: 85, y: 56 }, { code: "RCM", x: 63, y: 52 }, { code: "LCM", x: 37, y: 52 }, { code: "LM", x: 15, y: 56 },
+    { code: "RS", x: 60, y: 83 }, { code: "LS", x: 40, y: 83 },
+  ],
+  "4-3-3": [
+    { code: "GK", x: 50, y: 7 },
+    { code: "RB", x: 85, y: 26 }, { code: "RCB", x: 63, y: 20 }, { code: "LCB", x: 37, y: 20 }, { code: "LB", x: 15, y: 26 },
+    { code: "CDM", x: 50, y: 44 }, { code: "RCM", x: 68, y: 56 }, { code: "LCM", x: 32, y: 56 },
+    { code: "RW", x: 82, y: 79 }, { code: "ST", x: 50, y: 87 }, { code: "LW", x: 18, y: 79 },
+  ],
+  "4-2-3-1": [
+    { code: "GK", x: 50, y: 7 },
+    { code: "RB", x: 85, y: 26 }, { code: "RCB", x: 63, y: 20 }, { code: "LCB", x: 37, y: 20 }, { code: "LB", x: 15, y: 26 },
+    { code: "RDM", x: 62, y: 44 }, { code: "LDM", x: 38, y: 44 },
+    { code: "RAM", x: 80, y: 67 }, { code: "CAM", x: 50, y: 67 }, { code: "LAM", x: 20, y: 67 },
+    { code: "ST", x: 50, y: 87 },
+  ],
+  "3-5-2": [
+    { code: "GK", x: 50, y: 7 },
+    { code: "RCB", x: 70, y: 22 }, { code: "CB", x: 50, y: 18 }, { code: "LCB", x: 30, y: 22 },
+    { code: "RWB", x: 88, y: 52 }, { code: "RCM", x: 65, y: 50 }, { code: "CM", x: 50, y: 44 }, { code: "LCM", x: 35, y: 50 }, { code: "LWB", x: 12, y: 52 },
+    { code: "RS", x: 60, y: 84 }, { code: "LS", x: 40, y: 84 },
+  ],
+  "5-3-2": [
+    { code: "GK", x: 50, y: 7 },
+    { code: "RWB", x: 88, y: 33 }, { code: "RCB", x: 70, y: 20 }, { code: "CB", x: 50, y: 17 }, { code: "LCB", x: 30, y: 20 }, { code: "LWB", x: 12, y: 33 },
+    { code: "RCM", x: 66, y: 55 }, { code: "CM", x: 50, y: 49 }, { code: "LCM", x: 34, y: 55 },
+    { code: "RS", x: 60, y: 84 }, { code: "LS", x: 40, y: 84 },
+  ],
+  "4-5-1": [
+    { code: "GK", x: 50, y: 7 },
+    { code: "RB", x: 85, y: 26 }, { code: "RCB", x: 63, y: 20 }, { code: "LCB", x: 37, y: 20 }, { code: "LB", x: 15, y: 26 },
+    { code: "RM", x: 86, y: 58 }, { code: "RCM", x: 65, y: 52 }, { code: "CM", x: 50, y: 47 }, { code: "LCM", x: 35, y: 52 }, { code: "LM", x: 14, y: 58 },
+    { code: "ST", x: 50, y: 86 },
+  ],
+};
+
+export function layoutFor(formation: string): PitchSlot[] {
+  return FORMATION_LAYOUTS[formation] ?? FORMATION_LAYOUTS["4-4-2"];
+}
+
 export function emptyLineup(matchId: string): DbLineup {
   return {
     match_id: matchId,
