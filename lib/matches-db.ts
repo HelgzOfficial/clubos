@@ -86,6 +86,83 @@ export async function deleteMatch(id: string) {
   if (error) throw error;
 }
 
+// Every table that hangs off a fixture. Listed explicitly rather than relying
+// on database cascades, because these tables were added over months and not
+// all of them were created with ON DELETE CASCADE — which means a plain
+// delete either fails on a foreign key or, worse, succeeds and leaves goals
+// and stats pointing at a fixture that no longer exists. Those orphans then
+// quietly skew every average in the app.
+//
+// Tables missing here would be the bug, so any new fixture-linked table needs
+// adding to this list.
+const MATCH_CHILD_TABLES = [
+  "match_lineup",          // the XI shown in Match Centre
+  "match_lineups",         // the manager's saved selection
+  "match_goals",
+  "match_substitutions",
+  "match_stats",
+  "player_match_stats",
+  "match_availability",
+  "match_documents",
+  "match_document_views",
+  "match_reports",
+  "match_photos",
+  "match_packs",
+] as const;
+
+export type DeleteMatchResult = {
+  removed: Record<string, number>;
+  total: number;
+  // Tables that don't exist in this project yet — not an error, just SQL that
+  // hasn't been run.
+  skipped: string[];
+};
+
+// Removes a fixture and everything recorded against it. Returns what went, so
+// the confirmation can say "48 rows" rather than leaving someone wondering
+// whether it worked.
+export async function deleteMatchCompletely(id: string): Promise<DeleteMatchResult> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const removed: Record<string, number> = {};
+  const skipped: string[] = [];
+  let total = 0;
+
+  for (const table of MATCH_CHILD_TABLES) {
+    const { count, error } = await supabase
+      .from(table)
+      .delete({ count: "exact" })
+      .eq("match_id", id);
+
+    if (error) {
+      // A table that was never created isn't a failure — the club simply
+      // hasn't run that SQL. Anything else is real and should stop us, since
+      // half-deleting a fixture is worse than not deleting it.
+      if (/relation|does not exist|schema cache|column/i.test(error.message)) {
+        skipped.push(table);
+        continue;
+      }
+      throw new Error(`Couldn't clear ${table}: ${error.message}`);
+    }
+    if (count && count > 0) {
+      removed[table] = count;
+      total += count;
+    }
+  }
+
+  // Clips are linked but nullable — a highlight might be worth keeping even
+  // once the fixture record has gone, so they're unlinked rather than binned.
+  const { error: clipError } = await supabase.from("clips").update({ match_id: null }).eq("match_id", id);
+  if (clipError && !/relation|does not exist|schema cache/i.test(clipError.message)) {
+    throw new Error(`Couldn't unlink clips: ${clipError.message}`);
+  }
+
+  const { error } = await supabase.from("matches").delete().eq("id", id);
+  if (error) throw error;
+
+  return { removed, total, skipped };
+}
+
 export async function triggerFixtureSync(): Promise<{ synced?: number; error?: string }> {
   try {
     const res = await fetch("/api/sync-fixtures", { method: "POST" });
