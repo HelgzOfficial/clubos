@@ -76,7 +76,7 @@ export default function PortalLoginPage() {
     setEmail(address);
     setStep("code");
     setCooldown(RESEND_SECONDS);
-    setNotice(`We've sent a 6-digit code to ${address}.`);
+    setNotice(`We've sent a sign-in code to ${address}.`);
   }
 
   async function verify(token: string) {
@@ -104,13 +104,14 @@ export default function PortalLoginPage() {
     router.replace(portalHome(isPlayerHost()));
   }
 
+  // Supabase's code length is a project setting (6 by default, up to 10), so
+  // the app accepts the range rather than assuming. Hard-capping at six meant
+  // an 8-digit code simply couldn't be typed, and the failure looked like a
+  // wrong code rather than a mismatched setting.
   function handleCodeChange(value: string) {
-    const digits = value.replace(/[^0-9]/g, "").slice(0, 6);
+    const digits = value.replace(/[^0-9]/g, "").slice(0, 10);
     setCode(digits);
     setError("");
-    // Six digits is the whole code, so there's no reason to make someone
-    // reach for a button as well.
-    if (digits.length === 6) verify(digits);
   }
 
   return (
@@ -155,7 +156,7 @@ export default function PortalLoginPage() {
                     placeholder="the email on your player profile"
                   />
                   <p className="mt-1.5 text-[11px] text-neutral-500">
-                    Use the same email your club has on file for you. No password — we&apos;ll email you a 6-digit code.
+                    Use the same email your club has on file for you. No password — we&apos;ll email you a sign-in code.
                   </p>
                 </div>
 
@@ -180,7 +181,7 @@ export default function PortalLoginPage() {
                 )}
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">6-digit code</label>
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-400">Sign-in code</label>
                   <input
                     ref={codeRef}
                     value={code}
@@ -189,12 +190,22 @@ export default function PortalLoginPage() {
                     autoComplete="one-time-code"
                     placeholder="000000"
                     disabled={verifying}
+                    onKeyDown={(e) => { if (e.key === "Enter" && code.length >= 6) verify(code); }}
                     className="w-full rounded-xl border border-white/10 bg-navy-600 px-3 py-3 text-center text-2xl font-semibold tracking-[0.4em] tabular-nums outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/30 disabled:opacity-60 dark:bg-navy-800"
                   />
                   <p className="mt-1.5 text-[11px] text-neutral-500">
                     Type the code here rather than tapping the link in the email — that&apos;s what keeps you signed in
                     on this app.
                   </p>
+
+                  <button
+                    onClick={() => verify(code)}
+                    disabled={verifying || code.length < 6}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {verifying ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
+                    {verifying ? "Signing you in…" : "Sign in"}
+                  </button>
                 </div>
 
                 {error && <ErrorBox message={error} />}
