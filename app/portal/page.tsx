@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { SessionPlanLibrary } from "@/components/training/session-plan-library";
 import { PortalPushToggle } from "@/components/portal/push-toggle";
+import { InstallPrompt } from "@/components/portal/install-prompt";
 import { MatchPhotos } from "@/components/documents/match-photos";
 import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
 import { MyAbsences } from "@/components/portal/my-absences";
@@ -400,6 +401,10 @@ export default function PortalPage() {
       </div>
 
       <div className="mx-auto max-w-lg space-y-4 px-4 pt-4">
+        {/* Hides itself once the portal is running from the home screen, and
+            stays hidden if a player dismisses it. */}
+        <InstallPrompt />
+
         {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
 
         {/* ---- Dashboard: always visible, no dropdown. The player's own card,
