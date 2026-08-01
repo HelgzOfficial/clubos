@@ -29,6 +29,8 @@ import { fetchClubSettings } from "@/lib/club-settings-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
+import { LineupEditor } from "@/components/manager/lineup-editor";
+import { usePermissions } from "@/lib/permissions";
 import { PitchMapInput, type PitchPoint } from "@/components/analysis/pitch-map";
 import { fetchClipsForMatch, uploadClip, addYouTubeClip, getClipUrl, deleteClip, type DbClip } from "@/lib/clips-db";
 import { VideoPlayer } from "@/components/analysis/video-player";
@@ -36,7 +38,7 @@ import { YouTubePlayer } from "@/components/analysis/youtube-player";
 import { parseYouTubeId } from "@/lib/youtube";
 import type { Clip } from "@/lib/analysis-types";
 import {
-  ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin, Film, Play, Youtube,
+  ArrowLeft, Plus, Trash2, Upload, FileText, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Maximize2, MapPin, Film, Play, Youtube, ChevronUp, ChevronDown,
 } from "lucide-react";
 
 function formatDate(iso: string) {
@@ -145,6 +147,12 @@ export default function MatchDetailPage() {
 
       <div id="highlights" className="mb-5 scroll-mt-6">
         <HighlightsCard matchId={match.id} />
+      </div>
+
+      {/* The same team-selection screen as the manager module — one component,
+          not a copy, so the two can't drift apart. Manager and owner only. */}
+      <div id="selection" className="mb-5 scroll-mt-6">
+        <TeamSelectionSection match={match} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -865,6 +873,43 @@ function MatchDocumentsCard({ matchId }: { matchId: string }) {
           getDownloadUrl={() => getMatchDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
           onClose={() => setViewing(null)}
         />
+      )}
+    </Card>
+  );
+}
+
+// ---- Team selection, for the manager and owner ----
+function TeamSelectionSection({ match }: { match: DbMatch }) {
+  const { can, appUser, loading } = usePermissions();
+  const [open, setOpen] = useState(false);
+  const [clubName, setClubName] = useState(club.name);
+
+  useEffect(() => {
+    fetchClubSettings(club).then((s) => setClubName(s.name)).catch(() => {});
+  }, []);
+
+  // Nothing at all for anyone without manager access — a collapsed card
+  // labelled "team selection" that refuses to open is worse than no card.
+  if (loading || !can("manager")) return null;
+
+  return (
+    <Card>
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 text-left">
+        <CardTitle>Team Selection</CardTitle>
+        <span className="flex-1" />
+        <span className="text-xs text-neutral-500">{open ? "Hide" : "Pick the side"}</span>
+        {open ? <ChevronUp size={16} className="text-neutral-400" /> : <ChevronDown size={16} className="text-neutral-400" />}
+      </button>
+
+      {open && (
+        <div className="mt-4">
+          <LineupEditor
+            matchId={match.id}
+            match={match}
+            clubName={clubName}
+            editorName={appUser?.name ?? null}
+          />
+        </div>
       )}
     </Card>
   );
