@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { DragEvent } from "react";
 import { ShirtMarker } from "@/components/shirt-marker";
+import { X } from "lucide-react";
 import type { PitchSlot } from "@/lib/lineups-db";
 
 export type PitchOccupant = {
@@ -101,8 +102,19 @@ export function FormationPitch({
                   onDragStart={(e) => handleDragStart(e, who.playerId, slot.code)}
                   onClick={(e) => { e.stopPropagation(); onTapSlot(slot.code); }}
                   onDoubleClick={(e) => { e.stopPropagation(); onClear(who.playerId); }}
-                  className={`flex flex-col items-center ${highlighted ? "scale-110" : ""} transition-transform`}
+                  className={`relative flex flex-col items-center ${highlighted ? "scale-110" : ""} transition-transform`}
                 >
+                  {/* A visible way out. Double-tap worked but nobody discovers
+                      it, and a manager who can't see how to undo a drag stops
+                      trusting the whole screen. */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onClear(who.playerId); }}
+                    aria-label={`Remove ${who.name}`}
+                    title={`Remove ${who.name}`}
+                    className="absolute -right-2 -top-1.5 z-10 flex h-5 w-5 touch-manipulation items-center justify-center rounded-full border border-white/30 bg-navy-950/85 text-white shadow-md hover:bg-red-500"
+                  >
+                    <X size={11} />
+                  </button>
                   <ShirtMarker isGoalkeeper={isKeeper} squadNumber={who.squadNumber ?? undefined} size={34} />
                   <span
                     className={`mt-0.5 max-w-[70px] truncate rounded px-1 text-[9px] font-semibold leading-tight text-white ${
@@ -131,7 +143,7 @@ export function FormationPitch({
       <p className="mt-2 text-center text-xs text-neutral-400">
         {pendingName
           ? `${pendingName} picked up — tap a position to place them.`
-          : "Drag a player onto a position, or tap a player then tap a position. Drag shirt to shirt to swap. Double-tap a shirt to take them out."}
+          : "Drag a player onto a position, or tap a player then tap a position. Drag shirt to shirt to swap. Tap the × on a shirt to take that player out."}
       </p>
     </div>
   );
