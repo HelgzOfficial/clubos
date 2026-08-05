@@ -47,6 +47,7 @@ export default function PlayerProfilePage() {
   const [positionLabel, setPositionLabel] = useState(POSITION_OPTIONS[0].label);
   const [nationality, setNationality] = useState("");
   const [dob, setDob] = useState("");
+  const [passportName, setPassportName] = useState("");
   const [availability, setAvailability] = useState<Availability>("green");
   const [availabilityNote, setAvailabilityNote] = useState("");
   const [email, setEmail] = useState("");
@@ -61,6 +62,7 @@ export default function PlayerProfilePage() {
       setPositionLabel(p.position);
       setNationality(p.nationality);
       setDob(p.dob ?? "");
+      setPassportName(p.passport_name ?? "");
       setAvailability(p.availability);
       setAvailabilityNote(p.availability_note);
       setEmail(p.email ?? "");
@@ -87,6 +89,7 @@ export default function PlayerProfilePage() {
         positionGroup: option.group,
         nationality: nationality.trim(),
         dob,
+        passportName,
         availability,
         availabilityNote: availabilityNote.trim(),
         email: email.trim(),
@@ -221,6 +224,18 @@ export default function PlayerProfilePage() {
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Date of birth</label>
                 <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
               </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Passport name</label>
+                <input
+                  value={passportName}
+                  onChange={(e) => setPassportName(e.target.value)}
+                  placeholder="Leave blank if it's the same as above"
+                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
+                />
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  The full name exactly as it appears on their passport — what registration and team sheets need.
+                </p>
+              </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">Availability</label>
                 <select value={availability} onChange={(e) => setAvailability(e.target.value as Availability)} className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
@@ -282,6 +297,12 @@ export default function PlayerProfilePage() {
               <div>
                 <p className="text-xs text-neutral-400">Squad Number</p>
                 <p className="font-medium">#{player.squad_number}</p>
+              </div>
+              <div className="col-span-2 sm:col-span-3">
+                <p className="text-xs text-neutral-400">Passport Name</p>
+                <p className="font-medium">
+                  {player.passport_name || <span className="text-neutral-500">Same as above</span>}
+                </p>
               </div>
             </div>
           </Card>
