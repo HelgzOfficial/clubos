@@ -9,7 +9,8 @@ import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
 import type { DbMatch } from "@/lib/matches-db";
 import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
 import { fetchPlayerAbsences, type DbPlayerAbsence } from "@/lib/player-absences-db";
-import { fetchSuspensions, type DbSuspension } from "@/lib/manager-db";
+import { fetchSuspensions, fetchRegistrations, type DbSuspension, type DbRegistration } from "@/lib/manager-db";
+import { competitionKind } from "@/lib/competition-kind";
 import {
   fetchAvailabilityForMatch, effectiveAvailability, AVAILABILITY_LABEL, AVAILABILITY_TONE, SOURCE_LABEL,
   type DbMatchAvailability,
@@ -21,7 +22,7 @@ import {
   type DbLineup, type LineupSlot,
 } from "@/lib/lineups-db";
 import {
-  Check, X, Loader2, Copy, Printer, Mail, ChevronUp, ChevronDown, Star, Send, UserPlus, RefreshCw,
+  Check, X, Loader2, Copy, Printer, Mail, ChevronUp, ChevronDown, Star, Send, UserPlus, RefreshCw, Lock, AlertTriangle,
 } from "lucide-react";
 
 // The whole team-selection experience — pitch, drag and drop, formation
@@ -48,6 +49,7 @@ export function LineupEditor({
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
   const [absences, setAbsences] = useState<DbPlayerAbsence[]>([]);
   const [suspensions, setSuspensions] = useState<DbSuspension[]>([]);
+  const [registrations, setRegistrations] = useState<DbRegistration[]>([]);
   const [availability, setAvailability] = useState<DbMatchAvailability[]>([]);
 
   const [lineup, setLineup] = useState<DbLineup | null>(null);
@@ -65,13 +67,19 @@ export function LineupEditor({
 
   // Squad-wide context loads once; it doesn't change when the fixture does.
   useEffect(() => {
-    Promise.allSettled([fetchPlayers(), fetchActiveInjuries(), fetchPlayerAbsences(), fetchSuspensions()])
-      .then(([p, inj, abs, sus]) => {
-        if (p.status === "fulfilled") setPlayers(p.value);
-        if (inj.status === "fulfilled") setInjuries(inj.value);
-        if (abs.status === "fulfilled") setAbsences(abs.value);
-        if (sus.status === "fulfilled") setSuspensions(sus.value);
-      });
+    Promise.allSettled([
+      fetchPlayers(), fetchActiveInjuries(), fetchPlayerAbsences(), fetchSuspensions(), fetchRegistrations(),
+    ]).then(([p, inj, abs, sus, reg]) => {
+      if (p.status === "fulfilled") setPlayers(p.value);
+      if (inj.status === "fulfilled") setInjuries(inj.value);
+      if (abs.status === "fulfilled") setAbsences(abs.value);
+      if (sus.status === "fulfilled") setSuspensions(sus.value);
+      // Registrations are their own table and may not be set up yet. If the
+      // fetch fails we deliberately end up with an empty list, which means
+      // nobody is treated as unregistered — refusing to pick a whole squad
+      // because a table is missing would be a far worse failure.
+      if (reg.status === "fulfilled") setRegistrations(reg.value);
+    });
   }, []);
 
   const loadLineup = useCallback(async (id: string) => {
@@ -109,6 +117,47 @@ export function LineupEditor({
     setLineup((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
+  // League rules cap the bench at five. Cups and friendlies vary by
+  // competition, so those are left uncapped rather than guessed at.
+  const isLeague = match ? competitionKind(match.competition) === "league" : false;
+  const maxSubs = isLeague ? 5 : null;
+  const benchFull = maxSubs !== null && lineup !== null && lineup.subs.length >= maxSubs;
+
+  // Who can't be picked, and why. Suspensions, injuries and booked time off
+  // all arrive through effectiveAvailability; registration is separate,
+  // because an unregistered player is ineligible regardless of how fit and
+  // willing he is.
+  type Block = { blocked: boolean; reason: string };
+  function eligibility(playerId: string): Block {
+    const reg = registrations.find((r) => r.player_id === playerId);
+    if (reg && reg.registered === false) {
+      return { blocked: true, reason: "Not registered" };
+    }
+    if (!match) return { blocked: false, reason: "" };
+
+    const eff = effectiveAvailability(playerId, match, {
+      reply: availability.find((a) => a.player_id === playerId),
+      injuries, suspensions, absences,
+    });
+    if (eff.status === "unavailable") {
+      return { blocked: true, reason: eff.detail || SOURCE_LABEL[eff.source] || "Unavailable" };
+    }
+    return { blocked: false, reason: "" };
+  }
+
+  // Anyone already in the side who has since become ineligible. Selections are
+  // saved days ahead of a fixture, and an injury or a suspension landing on
+  // the Thursday shouldn't sit silently in a published team.
+  const ineligibleSelected = useMemo(() => {
+    if (!lineup) return [] as { playerId: string; reason: string }[];
+    return [...lineup.starters, ...lineup.subs]
+      .filter((s) => !isTrialistSlot(s))
+      .map((s) => ({ playerId: s.playerId, ...eligibility(s.playerId) }))
+      .filter((x) => x.blocked)
+      .map((x) => ({ playerId: x.playerId, reason: x.reason }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineup, registrations, availability, injuries, suspensions, absences, match]);
+
   const layout = useMemo(() => layoutFor(lineup?.formation ?? "4-4-2"), [lineup?.formation]);
 
   // The pitch and the XI list are two views of the same array. A starter's
@@ -139,6 +188,20 @@ export function LineupEditor({
 
   function assignToSlot(code: string, playerId: string, fromCode?: string) {
     if (!lineup || !playerId) return;
+
+    // Moving someone already in the side around the pitch is always allowed —
+    // the check is on bringing a new player in.
+    const alreadyIn = lineup.starters.some((s) => s.playerId === playerId) || lineup.subs.some((s) => s.playerId === playerId);
+    if (!alreadyIn) {
+      const check = eligibility(playerId);
+      if (check.blocked) {
+        const p = players.find((x) => x.id === playerId);
+        setError(`${p?.name ?? "That player"} can't be selected — ${check.reason.toLowerCase()}.`);
+        setPending("");
+        return;
+      }
+    }
+
     const order = new Map(layout.map((s, i) => [s.code, i]));
     const player = players.find((p) => p.id === playerId);
     const occupant = lineup.starters.find((s) => s.position === code && s.playerId !== playerId);
@@ -194,6 +257,16 @@ export function LineupEditor({
 
   function addSub(player: DbPlayer) {
     if (!lineup) return;
+    const check = eligibility(player.id);
+    if (check.blocked) {
+      setError(`${player.name} can't be selected — ${check.reason.toLowerCase()}.`);
+      return;
+    }
+    if (maxSubs !== null && lineup.subs.length >= maxSubs) {
+      setError(`League fixtures allow a maximum of ${maxSubs} substitutes — take one off the bench first.`);
+      return;
+    }
+    setError("");
     setPending((prev) => (prev === player.id ? "" : prev));
     update({ subs: [...lineup.subs, { playerId: player.id, position: "SUB", shirt: player.squad_number }] });
   }
@@ -224,6 +297,10 @@ export function LineupEditor({
       next.sort((a, b) => (order.get(a.position) ?? 99) - (order.get(b.position) ?? 99));
       update({ starters: next });
     } else {
+      if (maxSubs !== null && lineup.subs.length >= maxSubs) {
+        setError(`League fixtures allow a maximum of ${maxSubs} substitutes — take one off the bench first.`);
+        return;
+      }
       update({ subs: [...lineup.subs, slot] });
     }
     setTrialistName("");
@@ -368,6 +445,27 @@ export function LineupEditor({
             <span className="text-sm tabular-nums text-neutral-400">{lineup.starters.length}/11</span>
           </CardHeader>
 
+          {ineligibleSelected.length > 0 && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  {ineligibleSelected.length === 1 ? "A selected player is" : `${ineligibleSelected.length} selected players are`} no longer eligible.
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {ineligibleSelected.map((x) => (
+                    <li key={x.playerId}>
+                      {players.find((p) => p.id === x.playerId)?.name ?? "Unknown player"} — {x.reason}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-red-300/70">
+                  This happens when something changes after a side is picked. Take them out before publishing.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mb-4">
             <FormationPitch
               layout={layout}
@@ -436,7 +534,8 @@ export function LineupEditor({
           )}
 
           <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-            Substitutes ({lineup.subs.length})
+            Substitutes ({lineup.subs.length}{maxSubs !== null ? `/${maxSubs}` : ""})
+            {benchFull && <span className="ml-1.5 normal-case text-amber-300">bench full</span>}
           </p>
           {lineup.subs.length === 0 ? (
             <p className="text-sm text-neutral-400">No substitutes named.</p>
@@ -570,8 +669,9 @@ export function LineupEditor({
           )}
 
           <p className="mb-2 text-xs text-neutral-400">
-            Combines each player&apos;s own reply with medical, suspensions and booked time off. Anyone flagged is
-            still selectable — a doubtful player often plays, and that&apos;s your call, not the app&apos;s.
+            Combines each player&apos;s own reply with medical, suspensions, booked time off and registration. Anyone
+            suspended, injured, away or unregistered is locked and can&apos;t be picked. Doubtful players stay
+            selectable — a doubtful player often plays, and that&apos;s your call, not the app&apos;s.
           </p>
 
           <ul className="divide-y divide-white/10">
@@ -582,42 +682,71 @@ export function LineupEditor({
                     injuries, suspensions, absences,
                   })
                 : null;
+              const block = eligibility(p.id);
               return (
                 <li
                   key={p.id}
-                  draggable
-                  onDragStart={(e) => { e.dataTransfer.setData("text/plain", `${p.id}|`); e.dataTransfer.effectAllowed = "move"; }}
-                  onClick={() => setPending((prev) => (prev === p.id ? "" : p.id))}
-                  className={`flex cursor-grab items-center gap-2.5 rounded-lg py-2 ${
-                    pending === p.id ? "bg-club-primary/15 ring-1 ring-club-primary/40" : ""
+                  draggable={!block.blocked}
+                  onDragStart={(e) => {
+                    // An ineligible player can't be dragged either, or the
+                    // rule would only hold for the buttons.
+                    if (block.blocked) { e.preventDefault(); return; }
+                    e.dataTransfer.setData("text/plain", `${p.id}|`);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onClick={() => {
+                    if (block.blocked) {
+                      setError(`${p.name} can't be selected — ${block.reason.toLowerCase()}.`);
+                      return;
+                    }
+                    setPending((prev) => (prev === p.id ? "" : p.id));
+                  }}
+                  title={block.blocked ? `Can't be selected — ${block.reason}` : undefined}
+                  className={`flex items-center gap-2.5 rounded-lg py-2 ${
+                    block.blocked
+                      ? "cursor-not-allowed opacity-50"
+                      : pending === p.id
+                        ? "cursor-grab bg-club-primary/15 ring-1 ring-club-primary/40"
+                        : "cursor-grab"
                   }`}
                 >
                   <PlayerAvatar playerId={p.id} initials={p.initials} photoUrl={p.photo_url} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{p.name}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                      {block.blocked && <Lock size={11} className="shrink-0 text-neutral-500" />}
+                      {p.name}
+                    </p>
                     <p className="truncate text-[11px] text-neutral-500">
                       #{p.squad_number} · {p.position}
-                      {eff && eff.detail ? ` · ${eff.detail}` : ""}
+                      {block.blocked ? ` · ${block.reason}` : eff && eff.detail ? ` · ${eff.detail}` : ""}
                     </p>
                   </div>
-                  {eff && eff.status !== "unknown" && (
-                    <span
-                      title={`${SOURCE_LABEL[eff.source]}${eff.detail ? ` · ${eff.detail}` : ""}`}
-                      className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-medium ${AVAILABILITY_TONE[eff.status]}`}
-                    >
-                      {AVAILABILITY_LABEL[eff.status]}
+                  {block.blocked ? (
+                    <span className="shrink-0 rounded-lg bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+                      Ineligible
                     </span>
+                  ) : (
+                    eff && eff.status !== "unknown" && (
+                      <span
+                        title={`${SOURCE_LABEL[eff.source]}${eff.detail ? ` · ${eff.detail}` : ""}`}
+                        className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-medium ${AVAILABILITY_TONE[eff.status]}`}
+                      >
+                        {AVAILABILITY_LABEL[eff.status]}
+                      </span>
+                    )
                   )}
                   <button
                     onClick={(e) => { e.stopPropagation(); addStarter(p); }}
-                    disabled={lineup.starters.length >= 11}
+                    disabled={block.blocked || lineup.starters.length >= 11}
                     className="shrink-0 touch-manipulation rounded-lg border border-white/10 px-2 py-1 text-[11px] hover:bg-navy-600 disabled:opacity-40 dark:hover:bg-navy-800"
                   >
                     XI
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); addSub(p); }}
-                    className="shrink-0 touch-manipulation rounded-lg border border-white/10 px-2 py-1 text-[11px] hover:bg-navy-600 dark:hover:bg-navy-800"
+                    disabled={block.blocked || benchFull}
+                    title={benchFull ? `Bench is full (${maxSubs} maximum)` : undefined}
+                    className="shrink-0 touch-manipulation rounded-lg border border-white/10 px-2 py-1 text-[11px] hover:bg-navy-600 disabled:opacity-40 dark:hover:bg-navy-800"
                   >
                     Sub
                   </button>
