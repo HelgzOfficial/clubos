@@ -17,7 +17,7 @@ import {
 } from "@/lib/match-availability-db";
 import {
   fetchLineup, saveLineup, emptyLineup, FORMATION_NAMES, layoutFor,
-  iFasList, teamSheetText, squadListText, slotName, isTrialistSlot, newTrialistId,
+  iFasList, teamSheetText, squadListText, passportList, slotName, isTrialistSlot, newTrialistId,
   syncLineupToMatchCentre, countMatchCentreLineup,
   type DbLineup, type LineupSlot,
 } from "@/lib/lineups-db";
@@ -58,7 +58,7 @@ export function LineupEditor({
   const [error, setError] = useState("");
   const [syncNote, setSyncNote] = useState("");
   const [copied, setCopied] = useState("");
-  const [output, setOutput] = useState<"ifas" | "sheet" | "social">("ifas");
+  const [output, setOutput] = useState<"ifas" | "sheet" | "passport" | "social">("ifas");
   const [pending, setPending] = useState("");
 
   const [showTrialist, setShowTrialist] = useState(false);
@@ -398,6 +398,7 @@ export function LineupEditor({
     if (!lineup || !match) return "";
     if (output === "ifas") return iFasList(lineup, players);
     if (output === "sheet") return teamSheetText(lineup, players, match, clubName);
+    if (output === "passport") return passportList(lineup, players);
     return squadListText(lineup, players, match, clubName);
   }, [lineup, match, players, clubName, output]);
 
@@ -765,6 +766,7 @@ export function LineupEditor({
             {([
               { key: "ifas" as const, label: "For iFAS" },
               { key: "sheet" as const, label: "Team sheet" },
+              { key: "passport" as const, label: "Passport names" },
               { key: "social" as const, label: "Social media" },
             ]).map((o) => (
               <button
@@ -784,7 +786,9 @@ export function LineupEditor({
               ? "Numbered in team-sheet order so you can keep your place while clicking each player in iFAS."
               : output === "sheet"
                 ? "Full sheet with positions and captain, for printing or the dressing room."
-                : "Names only, ready to paste into a post or email."}
+                : output === "passport"
+                  ? "Names exactly as they appear on each player's passport, for the official team sheet. Anyone without one recorded is flagged rather than guessed at."
+                  : "Names only, ready to paste into a post or email."}
           </p>
 
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-navy-600 p-3 font-mono text-xs leading-relaxed dark:bg-navy-800">
