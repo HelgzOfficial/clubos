@@ -990,6 +990,9 @@ function RegistrationsTab({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
+    // registrationNumber is no longer collected in the form, but it's still
+    // carried through so an existing number already on file isn't wiped the
+    // next time someone saves a registration.
     registered: false, registrationDate: "", registrationNumber: "", competitions: "",
     itcRequired: false, itcReceived: false, notes: "",
   });
@@ -1050,8 +1053,7 @@ function RegistrationsTab({
                       Registration date
                       <input type="date" value={form.registrationDate} onChange={(e) => setForm({ ...form, registrationDate: e.target.value })} className={`${inputClass} mt-1`} />
                     </label>
-                    <input value={form.registrationNumber} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} placeholder="Registration number" className={inputClass} />
-                    <input value={form.competitions} onChange={(e) => setForm({ ...form, competitions: e.target.value })} placeholder="Eligible competitions" className={`${inputClass} sm:col-span-2`} />
+                    <input value={form.competitions} onChange={(e) => setForm({ ...form, competitions: e.target.value })} placeholder="Eligible competitions" className={inputClass} />
                     <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes" className={`${inputClass} sm:col-span-2`} />
                   </div>
                   <div className="mt-2 flex flex-wrap gap-4 text-xs text-neutral-400">
@@ -1079,8 +1081,8 @@ function RegistrationsTab({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{p.name}</p>
                     <p className="truncate text-[11px] text-neutral-500">
-                      {r?.registration_number ? `No. ${r.registration_number}` : "No registration number"}
-                      {r?.registration_date ? ` · ${shortDate(r.registration_date)}` : ""}
+                      {r?.registration_date ? `Registered ${shortDate(r.registration_date)}` : "No registration date"}
+                      {r?.competitions ? ` · ${r.competitions}` : ""}
                       {r?.itc_required && !r?.itc_received ? " · ITC outstanding" : ""}
                     </p>
                   </div>
