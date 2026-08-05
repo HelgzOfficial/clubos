@@ -294,6 +294,54 @@ export function iFasList(lineup: DbLineup, players: DbPlayer[]): string {
   return lines.join("\n");
 }
 
+// Passport names, numbered in team-sheet order.
+//
+// The name on a passport often isn't the name a player goes by, and league
+// paperwork wants the passport version — getting it wrong is how a player ends
+// up ineligible on a technicality. Anyone whose passport name hasn't been
+// filled in is flagged rather than silently falling back, because a quiet
+// fallback here is exactly the mistake this list exists to prevent.
+export function passportList(lineup: DbLineup, players: DbPlayer[]): string {
+  const missing: string[] = [];
+
+  function passportOf(slot: LineupSlot): string {
+    if (isTrialistSlot(slot)) {
+      missing.push(slot.name?.trim() || "Trialist");
+      return `${slot.name?.trim() || "Trialist"}  ← trialist, check passport`;
+    }
+    const p = players.find((x) => x.id === slot.playerId);
+    const passport = p?.passport_name?.trim();
+    if (!passport) {
+      const everyday = p?.name ?? "Unknown player";
+      missing.push(everyday);
+      return `${everyday}  ← no passport name on file`;
+    }
+    return passport;
+  }
+
+  const lines: string[] = ["STARTING XI"];
+  lineup.starters.forEach((s, i) => {
+    lines.push(`${String(i + 1).padStart(2, " ")}. ${shirtOf(players, s).padStart(2, " ")}  ${passportOf(s)}`);
+  });
+
+  if (lineup.subs.length > 0) {
+    lines.push("");
+    lines.push("SUBSTITUTES");
+    lineup.subs.forEach((s, i) => {
+      lines.push(`${String(i + 1).padStart(2, " ")}. ${shirtOf(players, s).padStart(2, " ")}  ${passportOf(s)}`);
+    });
+  }
+
+  if (missing.length > 0) {
+    lines.push("");
+    lines.push(`⚠ ${missing.length} ${missing.length === 1 ? "player has" : "players have"} no passport name recorded:`);
+    missing.forEach((n) => lines.push(`   ${n}`));
+    lines.push("   Add it on their player profile before submitting this.");
+  }
+
+  return lines.join("\n");
+}
+
 // A proper team sheet, with positions and the captain marked.
 export function teamSheetText(
   lineup: DbLineup,
