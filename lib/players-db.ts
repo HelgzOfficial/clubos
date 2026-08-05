@@ -18,6 +18,9 @@ export type DbPlayer = {
   nationality: string;
   dob: string | null;
   address: string | null;
+  // The name exactly as it appears on the passport, which often isn't the name
+  // a player goes by. Null when the two are the same.
+  passport_name: string | null;
   pitch_x: number;
   pitch_y: number;
   pitch_positions: PitchPoint[];
@@ -54,6 +57,9 @@ export type PlayerInput = {
   // Home address — admin detail, only surfaced in the Medical module.
   // Optional so the squad-creation form doesn't have to collect it.
   address?: string | null;
+  // Optional for the same reason — it's registration paperwork, not something
+  // to demand while someone is adding a squad in a hurry.
+  passportName?: string | null;
 };
 
 export const POSITION_OPTIONS: { label: string; group: PositionGroup }[] = [
@@ -139,6 +145,7 @@ export async function updatePlayer(id: string, input: Partial<PlayerInput>) {
   if (input.email !== undefined) patch.email = input.email.trim() || null;
   if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
   if (input.address !== undefined) patch.address = input.address?.trim() || null;
+  if (input.passportName !== undefined) patch.passport_name = input.passportName?.trim() || null;
 
   const { data, error } = await supabase.from("players").update(patch).eq("id", id).select().single();
   if (error) throw error;
