@@ -8,7 +8,7 @@ import { club as clubFallback } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
-import { fetchPlayerByEmail, type DbPlayer } from "@/lib/players-db";
+import { findPlayerByEmail, type DbPlayer } from "@/lib/players-db";
 import {
   fetchMatchDocuments, getMatchDocumentUrl, getMatchDocumentDownloadUrl, recordDocumentView, type DbMatchDocument,
 } from "@/lib/match-documents-db";
@@ -82,6 +82,12 @@ export default function PortalPage() {
   const [branding, setBranding] = useState(clubFallback);
   const [player, setPlayer] = useState<DbPlayer | null>(null);
   const [notLinked, setNotLinked] = useState(false);
+  // What actually went wrong, and the address we searched for — both shown on
+  // screen, because "we couldn't find you" tells a player nothing they can act
+  // on and tells the club nothing they can fix.
+  const [linkReason, setLinkReason] = useState<"no-match" | "no-players-visible" | "error" | null>(null);
+  const [signedInEmail, setSignedInEmail] = useState("");
+  const [linkDetail, setLinkDetail] = useState("");
   const [error, setError] = useState("");
 
   const [matches, setMatches] = useState<DbMatch[]>([]);
@@ -138,9 +144,18 @@ export default function PortalPage() {
       const email = userData.user?.email;
       if (!email) { router.replace("/portal/login"); return; }
 
+      setSignedInEmail(email);
+
       try {
-        const p = await fetchPlayerByEmail(email);
-        if (!p) { setNotLinked(true); setLoading(false); return; }
+        const lookup = await findPlayerByEmail(email);
+        if (!lookup.player) {
+          setLinkReason(lookup.reason);
+          setLinkDetail(lookup.detail ?? "");
+          setNotLinked(true);
+          setLoading(false);
+          return;
+        }
+        const p = lookup.player;
         setPlayer(p);
 
         const now = Date.now();
@@ -364,12 +379,46 @@ export default function PortalPage() {
   }
   if (notLinked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-navy-800 dark:bg-navy-950 px-4 text-white">
-        <div className="w-full max-w-sm rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-6 shadow-softDark text-center">
+      <div className="flex min-h-screen items-center justify-center bg-navy-800 px-4 text-white dark:bg-navy-950">
+        <div className="w-full max-w-sm rounded-card border border-white/10 bg-navy-700 p-6 text-center shadow-softDark dark:bg-navy-900">
           <AlertCircle size={20} className="mx-auto mb-2 text-amber-300" />
-          <p className="font-medium">We couldn&apos;t find a player profile with that email</p>
-          <p className="mt-1.5 text-sm text-neutral-400">Ask your club to add your email to your player profile, then try again.</p>
-          <button onClick={handleSignOut} className="mt-4 text-sm text-neutral-400 hover:text-white underline underline-offset-2">Sign out</button>
+
+          {linkReason === "no-players-visible" ? (
+            <>
+              <p className="font-medium">Your club&apos;s squad list isn&apos;t reachable</p>
+              <p className="mt-1.5 text-sm text-neutral-400">
+                You&apos;re signed in fine, but the app can&apos;t read the squad. That&apos;s a settings problem at the
+                club&apos;s end, not anything you&apos;ve done. Show them this screen.
+              </p>
+            </>
+          ) : linkReason === "error" ? (
+            <>
+              <p className="font-medium">Something went wrong looking you up</p>
+              <p className="mt-1.5 text-sm text-neutral-400">Try again in a minute. If it keeps happening, show your club this screen.</p>
+              {linkDetail && <p className="mt-2 break-words text-[11px] text-neutral-600">{linkDetail}</p>}
+            </>
+          ) : (
+            <>
+              <p className="font-medium">We couldn&apos;t find a player profile with that email</p>
+              <p className="mt-1.5 text-sm text-neutral-400">
+                Ask your club to put this exact address on your player profile, then sign in again.
+              </p>
+            </>
+          )}
+
+          {/* The address actually signed in with. Nine times out of ten the
+              club has a different one on file — a work address, an old one, a
+              typo — and seeing both side by side ends the guesswork. */}
+          {signedInEmail && (
+            <p className="mt-3 rounded-lg border border-white/10 bg-navy-600/50 px-2.5 py-2 text-xs dark:bg-navy-800/50">
+              <span className="block text-[10px] uppercase tracking-wide text-neutral-500">Signed in as</span>
+              <span className="break-all font-medium">{signedInEmail}</span>
+            </p>
+          )}
+
+          <button onClick={handleSignOut} className="mt-4 text-sm text-neutral-400 underline underline-offset-2 hover:text-white">
+            Sign out
+          </button>
         </div>
       </div>
     );
