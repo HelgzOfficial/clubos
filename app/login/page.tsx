@@ -8,10 +8,12 @@ import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
 import { submitAccessRequest } from "@/lib/access-requests-db";
 import { isPasswordRecovery, markPasswordRecovery, clearPasswordRecovery } from "@/lib/password-recovery";
+import { useAuth } from "@/lib/auth";
 import { LogIn, AlertCircle, KeyRound, UserPlus, ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { session } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -67,7 +69,16 @@ export default function LoginPage() {
 
     // The flag is set at module load, before Supabase strips the token out of
     // the URL, so it survives when the hash check below no longer can.
-    if (isPasswordRecovery()) setSettingPassword(true);
+    //
+    // Only honoured alongside a session, though. A recovery link is what
+    // creates the session, so a signed-out person can't be mid-recovery — and
+    // showing them a "set a password" form instead of the sign-in form would
+    // leave them unable to log in at all. That was a real bug, not a
+    // hypothetical.
+    if (isPasswordRecovery()) {
+      if (session) setSettingPassword(true);
+      else clearPasswordRecovery();
+    }
 
     const hash = window.location.hash;
     const params = new URLSearchParams(window.location.search);
@@ -100,7 +111,9 @@ export default function LoginPage() {
         }
       });
     }
-  }, []);
+    // Re-runs when the session resolves, because on a fresh load the session
+    // isn't known yet on the first pass.
+  }, [session]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
