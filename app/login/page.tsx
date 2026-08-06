@@ -7,6 +7,7 @@ import { club } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
 import { submitAccessRequest } from "@/lib/access-requests-db";
+import { isPasswordRecovery, markPasswordRecovery, clearPasswordRecovery } from "@/lib/password-recovery";
 import { LogIn, AlertCircle, KeyRound, UserPlus, ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
@@ -64,6 +65,10 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window === "undefined" || !supabase) return;
 
+    // The flag is set at module load, before Supabase strips the token out of
+    // the URL, so it survives when the hash check below no longer can.
+    if (isPasswordRecovery()) setSettingPassword(true);
+
     const hash = window.location.hash;
     const params = new URLSearchParams(window.location.search);
 
@@ -72,6 +77,7 @@ export default function LoginPage() {
     // (#access_token=...&type=invite) or a PKCE "?code=..." link. Handling
     // both means an invite works regardless of that setting.
     if (hash.includes("type=invite") || hash.includes("type=recovery") || hash.includes("type=signup")) {
+      markPasswordRecovery();
       setSettingPassword(true);
       return;
     }
@@ -89,6 +95,7 @@ export default function LoginPage() {
         if (error) {
           setError(error.message);
         } else {
+          markPasswordRecovery();
           setSettingPassword(true);
         }
       });
@@ -144,6 +151,10 @@ export default function LoginPage() {
       setError(error.message);
       return;
     }
+    // The password now exists, so the hold comes off. Clearing before the
+    // redirect matters — leave it set and the guard bounces them straight back
+    // to this screen.
+    clearPasswordRecovery();
     setPasswordSaved(true);
     setTimeout(() => router.replace("/dashboard"), 1200);
   }
@@ -197,7 +208,10 @@ export default function LoginPage() {
           </div>
         ) : settingPassword ? (
           <form onSubmit={handleSetPassword} className="space-y-4">
-            <p className="text-sm text-neutral-400">You&apos;ve been invited — set a password to finish signing in.</p>
+            <p className="text-sm text-neutral-400">
+              Set a password to finish signing in. Staff accounts need one, so there&apos;s no way past this screen —
+              you can&apos;t reach the app until it&apos;s saved.
+            </p>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-neutral-400">New password</label>
               <input
