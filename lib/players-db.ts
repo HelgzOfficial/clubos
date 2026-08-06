@@ -95,11 +95,46 @@ export async function fetchPlayer(id: string): Promise<DbPlayer | null> {
 
 // Used by the player portal to match a logged-in auth email back to a squad
 // profile — players log in with the same email stored on their player record.
+export type PlayerLookup =
+  | { player: DbPlayer; reason: null }
+  // Why the lookup failed, so the portal can say something more useful than
+  // "we couldn't find you". Each of these needs a different fix and they are
+  // otherwise indistinguishable from a player's point of view.
+  | { player: null; reason: "no-match" | "no-players-visible" | "error"; detail?: string };
+
+// Matches a signed-in player to their squad record.
+//
+// Deliberately forgiving. Supabase stores the sign-in address lowercased and
+// trimmed, but a club typing an email into a player profile may add a capital
+// or a trailing space, and neither should lock a player out of their own app.
+export async function findPlayerByEmail(email: string): Promise<PlayerLookup> {
+  if (!supabase) return { player: null, reason: "error", detail: "Supabase is not configured." };
+
+  const target = email.trim().toLowerCase();
+
+  const { data, error } = await supabase.from("players").select("*").ilike("email", target).limit(1);
+  if (error) return { player: null, reason: "error", detail: error.message };
+  if (data && data.length > 0) return { player: data[0] as DbPlayer, reason: null };
+
+  // Nothing on an exact (case-insensitive) match. Scan the squad and compare
+  // trimmed values — this catches an address stored with stray whitespace,
+  // which ilike won't match and which is invisible in the admin form.
+  const { data: all, error: allError } = await supabase.from("players").select("*");
+  if (allError) return { player: null, reason: "error", detail: allError.message };
+
+  // No players visible at all means a permissions problem rather than a
+  // missing email — worth separating, because the fix is completely different.
+  if (!all || all.length === 0) return { player: null, reason: "no-players-visible" };
+
+  const match = (all as DbPlayer[]).find(
+    (p) => (p.email ?? "").trim().toLowerCase() === target
+  );
+  return match ? { player: match, reason: null } : { player: null, reason: "no-match" };
+}
+
+// Kept for existing callers.
 export async function fetchPlayerByEmail(email: string): Promise<DbPlayer | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase.from("players").select("*").ilike("email", email).limit(1);
-  if (error || !data || data.length === 0) return null;
-  return data[0] as DbPlayer;
+  return (await findPlayerByEmail(email)).player;
 }
 
 export async function createPlayer(input: Omit<PlayerInput, "availability" | "availabilityNote">) {
