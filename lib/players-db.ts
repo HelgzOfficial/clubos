@@ -21,6 +21,9 @@ export type DbPlayer = {
   // The name exactly as it appears on the passport, which often isn't the name
   // a player goes by. Null when the two are the same.
   passport_name: string | null;
+  // Free text on purpose — clubs use S/M/L, numeric sizes, or "M shirt, L
+  // shorts". Forcing a dropdown would just mean everyone picks the wrong one.
+  kit_size: string | null;
   pitch_x: number;
   pitch_y: number;
   pitch_positions: PitchPoint[];
@@ -60,6 +63,7 @@ export type PlayerInput = {
   // Optional for the same reason — it's registration paperwork, not something
   // to demand while someone is adding a squad in a hurry.
   passportName?: string | null;
+  kitSize?: string | null;
 };
 
 export const POSITION_OPTIONS: { label: string; group: PositionGroup }[] = [
@@ -181,6 +185,7 @@ export async function updatePlayer(id: string, input: Partial<PlayerInput>) {
   if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
   if (input.address !== undefined) patch.address = input.address?.trim() || null;
   if (input.passportName !== undefined) patch.passport_name = input.passportName?.trim() || null;
+  if (input.kitSize !== undefined) patch.kit_size = input.kitSize?.trim() || null;
 
   const { data, error } = await supabase.from("players").update(patch).eq("id", id).select().single();
   if (error) throw error;
