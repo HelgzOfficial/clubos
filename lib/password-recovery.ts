@@ -29,6 +29,32 @@ if (typeof window !== "undefined") {
   }
 }
 
+// A recovery is only meaningful while there's a session — the link is what
+// creates one. So a signed-out user can never legitimately be mid-recovery,
+// and any flag still lying around at that point is stale. Calling this on the
+// sign-out path makes every stuck case heal itself rather than locking someone
+// out of their own account.
+export function clearStaleRecovery(hasSession: boolean): void {
+  if (!hasSession) clearPasswordRecovery();
+}
+
+const EVENT = "clubos-recovery-change";
+
+// Lets the sign-in guard react the moment the flag changes, rather than only
+// on a full page load. Without this, clearing the flag after a password was
+// saved left the guard still holding the old value and bouncing the user back
+// to the sign-in screen for ever.
+export function onPasswordRecoveryChange(fn: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(EVENT, fn);
+  return () => window.removeEventListener(EVENT, fn);
+}
+
+function announce(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(EVENT));
+}
+
 export function markPasswordRecovery(): void {
   if (typeof window === "undefined") return;
   try {
@@ -36,6 +62,7 @@ export function markPasswordRecovery(): void {
   } catch {
     /* ignore */
   }
+  announce();
 }
 
 export function isPasswordRecovery(): boolean {
@@ -54,4 +81,5 @@ export function clearPasswordRecovery(): void {
   } catch {
     /* ignore */
   }
+  announce();
 }
