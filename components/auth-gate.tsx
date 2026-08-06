@@ -3,8 +3,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { supabaseConfigured } from "@/lib/supabase";
+import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { isPlayerHost, isPortalPath, PORTAL_LOGIN, portalHome } from "@/lib/portal-host";
+import { isPasswordRecovery, markPasswordRecovery } from "@/lib/password-recovery";
 
 // Guards every page behind a Supabase session, but the player portal and the
 // staff app have separate front doors and must never send someone to the
@@ -25,6 +26,24 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [playerHost, setPlayerHost] = useState(false);
   useEffect(() => { setPlayerHost(isPlayerHost()); }, []);
 
+  // Whether this session came from an invite or a reset link and still owes us
+  // a password.
+  const [recovery, setRecovery] = useState(false);
+  useEffect(() => {
+    setRecovery(isPasswordRecovery());
+    if (!supabase) return;
+    // Belt and braces alongside the URL check: Supabase announces a recovery
+    // sign-in on this channel too, and the two catch slightly different cases
+    // depending on how the link was opened.
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        markPasswordRecovery();
+        setRecovery(true);
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
   const isStaffLogin = pathname === "/login";
   const isPortalLogin = pathname === PORTAL_LOGIN;
   const isLoginPage = isStaffLogin || isPortalLogin;
@@ -32,12 +51,25 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (loading || !supabaseConfigured) return;
+
     if (!session && !isLoginPage) {
       router.replace(onPortal ? PORTAL_LOGIN : "/login");
-    } else if (session && isLoginPage) {
+      return;
+    }
+
+    // Mid-recovery, the sign-in screen is where they need to be — it's the
+    // screen that asks for the new password. Sending them to the dashboard
+    // here is exactly the bug that let people through a reset link without
+    // ever typing one.
+    if (recovery && !onPortal) {
+      if (!isStaffLogin) router.replace("/login");
+      return;
+    }
+
+    if (session && isLoginPage) {
       router.replace(isPortalLogin || playerHost ? portalHome(playerHost) : "/dashboard");
     }
-  }, [session, loading, isLoginPage, isPortalLogin, onPortal, playerHost, router]);
+  }, [session, loading, isLoginPage, isStaffLogin, isPortalLogin, onPortal, playerHost, recovery, router]);
 
   if (!supabaseConfigured) {
     return isLoginPage ? <>{children}</> : <SupabaseNotConfigured />;
