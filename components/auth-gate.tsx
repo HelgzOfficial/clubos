@@ -5,7 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { isPlayerHost, isPortalPath, PORTAL_LOGIN, portalHome } from "@/lib/portal-host";
-import { isPasswordRecovery, markPasswordRecovery } from "@/lib/password-recovery";
+import {
+  isPasswordRecovery, markPasswordRecovery, clearStaleRecovery, onPasswordRecoveryChange,
+} from "@/lib/password-recovery";
 
 // Guards every page behind a Supabase session, but the player portal and the
 // staff app have separate front doors and must never send someone to the
@@ -29,20 +31,37 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // Whether this session came from an invite or a reset link and still owes us
   // a password.
   const [recovery, setRecovery] = useState(false);
+
   useEffect(() => {
-    setRecovery(isPasswordRecovery());
-    if (!supabase) return;
+    // Kept in step with the flag rather than read once. Reading it once was a
+    // trap: clearing the flag after a password was saved left this holding the
+    // old value, so the guard kept pushing the user back to the sign-in screen
+    // and they could never get in.
+    const sync = () => setRecovery(isPasswordRecovery());
+    sync();
+    const off = onPasswordRecoveryChange(sync);
+
+    if (!supabase) return off;
     // Belt and braces alongside the URL check: Supabase announces a recovery
     // sign-in on this channel too, and the two catch slightly different cases
     // depending on how the link was opened.
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        markPasswordRecovery();
-        setRecovery(true);
-      }
+      if (event === "PASSWORD_RECOVERY") markPasswordRecovery();
     });
-    return () => data.subscription.unsubscribe();
+    return () => {
+      off();
+      data.subscription.unsubscribe();
+    };
   }, []);
+
+  // A recovery only exists alongside a session, so a signed-out user can never
+  // legitimately be mid-recovery. Anything left over at that point is stale and
+  // gets cleared — which is what makes every stuck case heal itself instead of
+  // locking someone out.
+  useEffect(() => {
+    if (loading) return;
+    if (!session) clearStaleRecovery(false);
+  }, [session, loading]);
 
   const isStaffLogin = pathname === "/login";
   const isPortalLogin = pathname === PORTAL_LOGIN;
@@ -61,7 +80,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // screen that asks for the new password. Sending them to the dashboard
     // here is exactly the bug that let people through a reset link without
     // ever typing one.
-    if (recovery && !onPortal) {
+    if (session && recovery && !onPortal) {
       if (!isStaffLogin) router.replace("/login");
       return;
     }
