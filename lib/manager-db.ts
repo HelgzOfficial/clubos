@@ -18,6 +18,10 @@ export type DbSuspension = {
   matches_served: number;
   competition: string | null;
   notes: string | null;
+  // Set when a card threshold raised this ban rather than a person entering
+  // it. Both are null on hand-entered suspensions.
+  threshold_id: string | null;
+  auto_trigger_count: number | null;
   created_at: string;
 };
 
