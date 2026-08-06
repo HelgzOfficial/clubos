@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { ManagerHighlights } from "@/components/manager/highlights";
 import { PastSelections } from "@/components/manager/past-selections";
+import { PlayerStatsTable } from "@/components/manager/player-stats-table";
+import { CardThresholds } from "@/components/manager/card-thresholds";
+import { fetchThresholds, syncAutomaticSuspensions } from "@/lib/card-thresholds-db";
 import { KickoffCountdown } from "@/components/kickoff-countdown";
 import { TeamCrest, useCrestLookup } from "@/components/team-crest";
 import { usePermissions } from "@/lib/permissions";
@@ -29,16 +32,18 @@ import {
 } from "@/lib/match-availability-db";
 import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
-  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film, ClipboardList,
+  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film, ClipboardList, BarChart3, Gavel,
 } from "lucide-react";
 
-type Tab = "overview" | "availability" | "selections" | "discipline" | "contracts" | "registrations" | "previous" | "highlights" | "opposition";
+type Tab = "overview" | "availability" | "selections" | "stats" | "discipline" | "thresholds" | "contracts" | "registrations" | "previous" | "highlights" | "opposition";
 
 const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: "overview", label: "Overview", icon: ClipboardCheck },
   { key: "availability", label: "Availability", icon: Users },
   { key: "selections", label: "Team Selections", icon: ClipboardList },
+  { key: "stats", label: "Player Stats", icon: BarChart3 },
   { key: "discipline", label: "Discipline", icon: Square },
+  { key: "thresholds", label: "Card Thresholds", icon: Gavel },
   { key: "contracts", label: "Contracts", icon: FileSignature },
   { key: "registrations", label: "Registrations", icon: ShieldAlert },
   { key: "previous", label: "Previous Matches", icon: Swords },
@@ -352,8 +357,15 @@ export default function ManagerPage() {
         />
       ) : tab === "selections" ? (
         <PastSelections matches={matches} players={players} crestLookup={crestLookup} />
+      ) : tab === "stats" ? (
+        <PlayerStatsTable players={players} cards={cards} matches={matches} />
+      ) : tab === "thresholds" ? (
+        <CardThresholds
+          players={players} cards={cards} matches={matches} suspensions={suspensions}
+          onChanged={load}
+        />
       ) : tab === "discipline" ? (
-        <DisciplineTab players={players} matches={matches} cards={cards} onChanged={load} />
+        <DisciplineTab players={players} matches={matches} cards={cards} suspensions={suspensions} onChanged={load} />
       ) : tab === "contracts" ? (
         <ContractsTab players={players} contracts={contracts} editorName={appUser?.name ?? null} onChanged={load} />
       ) : tab === "registrations" ? (
@@ -714,14 +726,16 @@ function AvailabilityTab({
 // Discipline
 // ---------------------------------------------------------------------------
 function DisciplineTab({
-  players, matches, cards, onChanged,
+  players, matches, cards, suspensions, onChanged,
 }: {
   players: DbPlayer[];
   matches: DbMatch[];
   cards: DbPlayerCard[];
+  suspensions: DbSuspension[];
   onChanged: () => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [autoNote, setAutoNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -736,9 +750,32 @@ function DisciplineTab({
     setSaving(true);
     setError("");
     try {
-      await createCard({ ...form, matchId: form.matchId || null });
+      const card = await createCard({ ...form, matchId: form.matchId || null });
       setShowAdd(false);
       setForm({ playerId: "", matchId: "", card: "yellow", secondYellow: false, minute: "", reason: "" });
+      setAutoNote("");
+
+      // Check the thresholds straight away, so a ban lands the moment the card
+      // is recorded rather than whenever somebody next opens another tab.
+      // Best-effort: a club that hasn't run the thresholds SQL should still be
+      // able to log cards.
+      try {
+        const rules = await fetchThresholds();
+        const raised = await syncAutomaticSuspensions(
+          [form.playerId], rules, [...cards, card], matches, suspensions
+        );
+        if (raised.length > 0) {
+          const p = players.find((x) => x.id === form.playerId);
+          setAutoNote(
+            `${p?.name ?? "That player"} is now suspended — ${raised
+              .map((r) => `${r.rule.label} (${r.rule.matches_banned} match${r.rule.matches_banned === 1 ? "" : "es"})`)
+              .join(", ")}. They can no longer be picked.`
+          );
+        }
+      } catch {
+        /* thresholds not set up, or unreachable — logging the card still worked */
+      }
+
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't record that card.");
@@ -751,6 +788,14 @@ function DisciplineTab({
 
   return (
     <div className="space-y-5">
+      {autoNote && (
+        <Card className="border-red-500/30 bg-red-500/10">
+          <div className="flex items-start gap-2">
+            <Gavel size={15} className="mt-0.5 shrink-0 text-red-300" />
+            <p className="text-sm text-red-200">{autoNote}</p>
+          </div>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Season Discipline</CardTitle>
