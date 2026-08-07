@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchStatMetrics, formatMetricValue, CATEGORY_LABELS, type StatMetric } from "@/lib/stat-metrics-db";
@@ -63,7 +64,7 @@ export function PlayerMetricsCard({ playerId }: { playerId: string }) {
                 key={v}
                 onClick={() => setMode(v)}
                 className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                  mode === v ? "bg-club-primary text-navy-950" : "text-neutral-400 hover:text-white"
+                  tabState(mode === v, "plain")
                 }`}
               >
                 {v === "average" ? "Per game" : "Total"}
