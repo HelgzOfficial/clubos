@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { tabState } from "@/lib/tab-styles";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { useIsMobileOrTablet } from "@/lib/use-media-query";
@@ -61,9 +62,7 @@ function MatchLists({
               key={t.key}
               onClick={() => onTabChange(t.key)}
               className={`touch-manipulation flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === t.key
-                  ? "bg-club-primary text-navy-950"
-                  : "bg-navy-600 dark:bg-navy-800 text-neutral-400 hover:text-white"
+                tabState(activeTab === t.key)
               }`}
             >
               {t.label}
