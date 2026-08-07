@@ -4,6 +4,10 @@ export type ClubSettings = {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
+  // The base dark tone the whole app's background, cards, panels and borders
+  // are generated from (see lib/theme-ramp.ts) — this is what makes the
+  // *whole* colour scheme editable, not just the accent buttons/badges above.
+  surfaceColor: string;
 };
 
 // NOTE: this is a per-browser LOCAL CACHE only, used purely to paint
