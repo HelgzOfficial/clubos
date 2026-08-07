@@ -54,7 +54,7 @@ export function PlayerMetricsCard({ playerId }: { playerId: string }) {
   }, [metrics, agg]);
 
   return (
-    <Card>
+    <Card tone="club">
       <CardHeader>
         <CardTitle>Performance Metrics</CardTitle>
         {agg && (
