@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { navState } from "@/lib/tab-styles";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ClubBadge } from "@/components/team-crest";
 import { Menu, X, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
@@ -73,16 +74,7 @@ export function MobileNav() {
           <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col bg-navy-700 dark:bg-navy-950 shadow-softDark">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-5">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-navy-800">
-                  <Image
-                    src="/club-badge.png"
-                    alt={`${branding.name} crest`}
-                    fill
-                    sizes="36px"
-                    className="object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
-                </div>
+                <ClubBadge name={branding.name} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold leading-tight text-white">{branding.name}</p>
                   <p className="text-xs text-club-primary">ClubOS</p>
@@ -106,9 +98,7 @@ export function MobileNav() {
                     href={href}
                     className={cn(
                       "touch-manipulation flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors",
-                      active
-                        ? "bg-navy-600 dark:bg-navy-800 text-club-primary"
-                        : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                      navState(active)
                     )}
                   >
                     <Icon size={19} strokeWidth={1.75} />
@@ -124,9 +114,7 @@ export function MobileNav() {
                   href="/settings"
                   className={cn(
                     "touch-manipulation flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors",
-                    pathname === "/settings"
-                      ? "bg-navy-600 dark:bg-navy-800 text-white"
-                      : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                    navState(pathname === "/settings")
                   )}
                 >
                   <Settings size={19} strokeWidth={1.75} />
