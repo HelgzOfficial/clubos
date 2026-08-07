@@ -42,7 +42,7 @@ export function PlayerGpsCard({ playerId }: { playerId: string }) {
   }).filter((b) => b.best !== null);
 
   return (
-    <Card>
+    <Card tone="club">
       <CardHeader>
         <CardTitle>GPS</CardTitle>
         <Activity size={18} className="text-neutral-400" />
