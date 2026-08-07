@@ -20,18 +20,30 @@ function loadCrests(): Promise<CrestLookup> {
   return crestPromise;
 }
 
-// Call after uploading or removing a crest so the next render re-fetches.
+// Components already on screen when a crest changes need telling. The sidebar
+// in particular never unmounts, so without this the club badge would only
+// appear after a full page reload.
+const subscribers = new Set<() => void>();
+
+// Call after uploading or removing a crest so every mounted badge re-fetches.
 export function invalidateCrestCache() {
   crestPromise = null;
+  for (const notify of subscribers) notify();
 }
 
 export function useCrestLookup(): CrestLookup | null {
   const [lookup, setLookup] = useState<CrestLookup | null>(null);
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setVersion((v) => v + 1);
+    subscribers.add(bump);
+    return () => { subscribers.delete(bump); };
+  }, []);
   useEffect(() => {
     let cancelled = false;
     loadCrests().then((l) => { if (!cancelled) setLookup(l); });
     return () => { cancelled = true; };
-  }, []);
+  }, [version]);
   return lookup;
 }
 
@@ -92,6 +104,42 @@ export function TeamCrest({
       style={{ backgroundColor: crestColor(name) }}
     >
       {crestInitials(name)}
+    </span>
+  );
+}
+
+// Our own club's badge, for the sidebar and mobile menu. It resolves in three
+// steps: the crest uploaded through Match Centre -> Crests (so changing it
+// updates every device at once), then the bundled /club-badge.png, then
+// initials — which means the header never looks broken, whatever is or isn't
+// set up yet.
+export function ClubBadge({
+  name, className = "",
+}: {
+  name: string;
+  className?: string;
+}) {
+  const lookup = useCrestLookup();
+  const uploaded = crestFor(lookup, "team", name);
+  const [bundledFailed, setBundledFailed] = useState(false);
+  const src = uploaded ?? (bundledFailed ? null : "/club-badge.png");
+
+  return (
+    <span
+      title={name}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-navy-800 ${className}`}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={`${name} crest`}
+          className="h-full w-full object-contain p-0.5"
+          onError={() => setBundledFailed(true)}
+        />
+      ) : (
+        <span className="text-[10px] font-bold leading-none text-white/95">{crestInitials(name)}</span>
+      )}
     </span>
   );
 }
