@@ -9,12 +9,8 @@ export type CardTone = "default" | "club";
 // class list and let stylesheet order silently decide the winner.
 const TONES: Record<CardTone, string> = {
   default: "border-white/10 bg-navy-700 dark:bg-navy-900",
-  // The tint is a gradient rather than a background colour on purpose. A
-  // gradient is a background *image*, so it paints on top of the panel's own
-  // colour — the club wash sits over the dark panel instead of replacing it
-  // and letting the page background show through a semi-transparent hole.
-  club:
-    "border-club-primary/30 bg-navy-700 dark:bg-navy-900 bg-gradient-to-b from-club-primary/10 to-club-primary/10",
+  // Solid club Primary, exactly the colour set in Settings > Appearance.
+  club: "border-club-primary bg-club-primary text-navy-950",
 };
 
 export function Card({
@@ -24,6 +20,13 @@ export function Card({
 }: HTMLAttributes<HTMLDivElement> & { tone?: CardTone }) {
   return (
     <div
+      // The tone is also exposed as an attribute so app/globals.css can flip
+      // the text inside back to dark. The writing in these panels is set by
+      // dozens of `text-neutral-*` classes spread across several files, all
+      // chosen to be legible on a dark panel; on a filled Primary panel they'd
+      // be pale-on-pale. Handling that in one CSS rule keeps it from becoming
+      // an edit in every file that renders something inside a card.
+      data-card-tone={tone}
       className={cn(
         "rounded-card border shadow-soft dark:shadow-softDark p-5 transition-colors",
         TONES[tone],
