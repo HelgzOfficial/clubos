@@ -36,6 +36,29 @@ const config: Config = {
           950: "rgb(var(--navy-950-rgb) / <alpha-value>)",
         },
       },
+      // Only `text-*` utilities are remapped here — deliberately not the
+      // shared `colors` block. `white` in particular is used far more often
+      // for hairline borders and dividers (border-white/10, divide-white/10)
+      // than for writing, and those should stay neutral white regardless of
+      // what colour the club picks for its text. Extending textColor alone
+      // re-colours `text-white` and `text-neutral-*` without touching a
+      // single border.
+      textColor: {
+        white: "rgb(var(--text-strong-rgb) / <alpha-value>)",
+        neutral: {
+          50: "rgb(var(--text-50-rgb) / <alpha-value>)",
+          100: "rgb(var(--text-100-rgb) / <alpha-value>)",
+          200: "rgb(var(--text-200-rgb) / <alpha-value>)",
+          300: "rgb(var(--text-300-rgb) / <alpha-value>)",
+          400: "rgb(var(--text-400-rgb) / <alpha-value>)",
+          500: "rgb(var(--text-500-rgb) / <alpha-value>)",
+          600: "rgb(var(--text-600-rgb) / <alpha-value>)",
+          700: "rgb(var(--text-700-rgb) / <alpha-value>)",
+          800: "rgb(var(--text-800-rgb) / <alpha-value>)",
+          900: "rgb(var(--text-900-rgb) / <alpha-value>)",
+          950: "rgb(var(--text-950-rgb) / <alpha-value>)",
+        },
+      },
       borderRadius: {
         card: "18px",
       },
