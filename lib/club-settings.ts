@@ -8,6 +8,10 @@ export type ClubSettings = {
   // are generated from (see lib/theme-ramp.ts) — this is what makes the
   // *whole* colour scheme editable, not just the accent buttons/badges above.
   surfaceColor: string;
+  // The colour of the writing itself. Headings and body copy use it at full
+  // strength; hints, labels and captions are blended toward surfaceColor so
+  // the loud/quiet hierarchy survives whatever colour a club picks.
+  textColor: string;
 };
 
 // NOTE: this is a per-browser LOCAL CACHE only, used purely to paint
