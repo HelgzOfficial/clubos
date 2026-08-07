@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, Fragment, type ReactNode } from "react";
+import { tabState } from "@/lib/tab-styles";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
@@ -782,9 +783,7 @@ export default function DashboardPage() {
                     key={w.key}
                     onClick={() => setActiveWidgetTab(w.key)}
                     className={`touch-manipulation shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                      activeWidgetTab === w.key
-                        ? "bg-club-primary text-navy-950"
-                        : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
+                      tabState(activeWidgetTab === w.key)
                     }`}
                   >
                     {tabLabel(w.key)}
