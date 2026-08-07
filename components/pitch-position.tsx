@@ -59,7 +59,7 @@ export function PitchPosition({
           >
             <ShirtMarker isGoalkeeper={!!isGoalkeeper} squadNumber={squadNumber} />
             {p.code && (
-              <span className="mt-0.5 rounded bg-navy-950/70 px-1 text-[9px] font-semibold leading-tight text-white">{p.code}</span>
+              <span className="mt-0.5 rounded bg-club-primary px-1 text-[9px] font-semibold leading-tight text-navy-950">{p.code}</span>
             )}
           </div>
         ))}
