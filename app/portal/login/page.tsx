@@ -10,9 +10,11 @@ import { InstallPrompt } from "@/components/portal/install-prompt";
 import { isPlayerHost, portalHome } from "@/lib/portal-host";
 import { Mail, AlertCircle, CheckCircle2, Users, ArrowLeft, Loader2, KeyRound } from "lucide-react";
 
-// Deliberately amber rather than the club green used on the staff sign-in.
-// Both apps live on the same domain family, and a player who lands on the
-// wrong one just sees "sign in" and assumes their link is broken.
+// Colours come from the club's own palette (Settings > Appearance), the same
+// one the staff app uses, so the two never drift apart. What still tells the
+// two apart is the wording and the "Players only" line — both apps live on
+// the same domain family, and a player who lands on the wrong one otherwise
+// just sees "sign in" and assumes their link is broken.
 //
 // The sign-in is a typed code rather than a tapped link, and that is not a
 // style choice. Tapping a link in the Mail app opens Safari — so the session
@@ -119,8 +121,8 @@ export default function PortalLoginPage() {
       <div className="w-full max-w-sm">
         <InstallPrompt />
 
-        <div className="w-full overflow-hidden rounded-card border border-amber-500/40 bg-navy-700 shadow-softDark dark:bg-navy-900">
-          <div className="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-navy-950">
+        <div className="w-full overflow-hidden rounded-card border border-club-primary/40 bg-navy-700 shadow-softDark dark:bg-navy-900">
+          <div className="flex items-center justify-center gap-2 bg-club-primary px-4 py-2 text-navy-950">
             <Users size={14} />
             <span className="text-xs font-bold uppercase tracking-[0.14em]">Player Portal</span>
           </div>
@@ -128,17 +130,17 @@ export default function PortalLoginPage() {
           <div className="p-6">
             <div className="mb-6 flex flex-col items-center text-center">
               <div
-                className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-navy-950 ring-2 ring-amber-500/60"
+                className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-navy-950 ring-2 ring-club-primary/60"
                 style={{ backgroundColor: club.primaryColor }}
               >
                 {club.crestInitials}
               </div>
               <h1 className="text-xl font-semibold">{club.name}</h1>
-              <p className="mt-1 text-sm text-amber-200/70">Players only — staff sign in on the main app.</p>
+              <p className="mt-1 text-sm text-club-primary/70">Players only — staff sign in on the main app.</p>
             </div>
 
             {!supabaseConfigured ? (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+              <div className="flex items-start gap-2 rounded-xl border border-club-primary/30 bg-club-primary/10 p-3 text-sm text-club-primary">
                 <AlertCircle size={16} className="mt-0.5 shrink-0" />
                 <p>The portal isn&apos;t connected yet — ask your club admin to finish setting it up.</p>
               </div>
@@ -152,7 +154,7 @@ export default function PortalLoginPage() {
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-navy-600 px-3 py-2 text-sm outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/30 dark:bg-navy-800"
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 px-3 py-2 text-sm outline-none focus:border-club-primary/50 focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
                     placeholder="the email on your player profile"
                   />
                   <p className="mt-1.5 text-[11px] text-neutral-500">
@@ -165,7 +167,7 @@ export default function PortalLoginPage() {
                 <button
                   type="submit"
                   disabled={sending || !email.trim()}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary px-4 py-2.5 text-sm font-semibold text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
                   {sending ? <Loader2 size={15} className="animate-spin" /> : <Mail size={15} />}
                   {sending ? "Sending…" : "Send Code"}
@@ -191,7 +193,7 @@ export default function PortalLoginPage() {
                     placeholder="000000"
                     disabled={verifying}
                     onKeyDown={(e) => { if (e.key === "Enter" && code.length >= 6) verify(code); }}
-                    className="w-full rounded-xl border border-white/10 bg-navy-600 px-3 py-3 text-center text-2xl font-semibold tracking-[0.4em] tabular-nums outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/30 disabled:opacity-60 dark:bg-navy-800"
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 px-3 py-3 text-center text-2xl font-semibold tracking-[0.4em] tabular-nums outline-none focus:border-club-primary/50 focus:ring-2 focus:ring-club-primary/30 disabled:opacity-60 dark:bg-navy-800"
                   />
                   <p className="mt-1.5 text-[11px] text-neutral-500">
                     Type the code here rather than tapping the link in the email — that&apos;s what keeps you signed in
@@ -201,7 +203,7 @@ export default function PortalLoginPage() {
                   <button
                     onClick={() => verify(code)}
                     disabled={verifying || code.length < 6}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-club-primary px-4 py-2.5 text-sm font-semibold text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
                     {verifying ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
                     {verifying ? "Signing you in…" : "Sign in"}
@@ -226,7 +228,7 @@ export default function PortalLoginPage() {
                   <button
                     onClick={() => sendCode()}
                     disabled={cooldown > 0 || sending}
-                    className="flex items-center gap-1.5 text-amber-300 hover:text-amber-200 disabled:text-neutral-500"
+                    className="flex items-center gap-1.5 text-club-primary hover:opacity-80 disabled:text-neutral-500"
                   >
                     <KeyRound size={13} /> {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
                   </button>
