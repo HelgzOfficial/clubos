@@ -66,3 +66,87 @@ body {
 * {
   -webkit-font-smoothing: antialiased;
 }
+
+/* Cards filled with the club's Primary colour (the players' area).
+   Everything inside them was written to be read on a dark panel — headings in
+   white, labels in pale grey — so on a filled panel it would be pale on pale.
+   These rules flip that writing to dark and lean on opacity for the quieter
+   levels, which keeps the loud/quiet hierarchy intact whatever colour the club
+   picks, instead of hard-coding a second set of greys that would only suit one
+   choice. Scoped to the attribute, so no other card in the app is affected. */
+[data-card-tone="club"] {
+  color: rgb(var(--navy-950-rgb));
+}
+
+[data-card-tone="club"] .text-white,
+[data-card-tone="club"] .text-neutral-200,
+[data-card-tone="club"] .text-neutral-300 {
+  color: rgb(var(--navy-950-rgb));
+}
+
+[data-card-tone="club"] .text-neutral-400,
+[data-card-tone="club"] .text-navy-200,
+[data-card-tone="club"] .text-navy-300 {
+  color: rgb(var(--navy-950-rgb) / 0.78);
+}
+
+[data-card-tone="club"] .text-neutral-500,
+[data-card-tone="club"] .text-neutral-600 {
+  color: rgb(var(--navy-950-rgb) / 0.62);
+}
+
+/* Accent text and hairlines drawn in the club colour would disappear against
+   a background of that same colour. */
+[data-card-tone="club"] .text-club-primary {
+  color: rgb(var(--navy-950-rgb));
+}
+
+[data-card-tone="club"] .border-white\/10,
+[data-card-tone="club"] .divide-white\/10 > * + * {
+  border-color: rgb(var(--navy-950-rgb) / 0.18);
+}
+
+/* Form fields keep their own dark background, so their text has to stay light
+   rather than inheriting the dark colour set on the card above. */
+[data-card-tone="club"] input,
+[data-card-tone="club"] select,
+[data-card-tone="club"] textarea {
+  color: rgb(var(--text-strong-rgb));
+}
+
+/* A Primary-filled button sitting on a Primary-filled card would be invisible,
+   so it inverts: dark button, Primary lettering. */
+[data-card-tone="club"] .bg-club-primary {
+  background-color: rgb(var(--navy-950-rgb));
+  color: rgb(var(--club-primary-rgb));
+}
+
+/* Status badges and callouts are drawn as a faint colour wash meant to sit on
+   a dark panel; over a filled one they'd wash out and lose their meaning.
+   Giving them a dark backing puts them back on the surface they were designed
+   for, so green still reads as green and red still reads as red. */
+[data-card-tone="club"] .bg-emerald-500\/15,
+[data-card-tone="club"] .bg-amber-500\/15,
+[data-card-tone="club"] .bg-red-500\/15,
+[data-card-tone="club"] .bg-blue-500\/15,
+[data-card-tone="club"] .bg-purple-500\/15,
+[data-card-tone="club"] .bg-white\/10,
+[data-card-tone="club"] .bg-red-500\/10,
+[data-card-tone="club"] .bg-red-500\/5,
+[data-card-tone="club"] .bg-amber-500\/10 {
+  background-color: rgb(var(--navy-950-rgb) / 0.88);
+}
+
+/* A card nested inside a filled one goes back to its own colours. */
+[data-card-tone="club"] [data-card-tone="default"],
+[data-card-tone="club"] [data-card-tone="default"] .text-white {
+  color: rgb(var(--text-strong-rgb));
+}
+
+[data-card-tone="club"] [data-card-tone="default"] .text-neutral-400 {
+  color: rgb(var(--text-400-rgb));
+}
+
+[data-card-tone="club"] [data-card-tone="default"] .text-neutral-500 {
+  color: rgb(var(--text-500-rgb));
+}
