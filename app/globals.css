@@ -3,7 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --background: 20 31 61;
+  /* The app's original navy palette, as plain "R G B" triplets. These are
+     overridden at runtime by ClubColorProvider (lib/theme-ramp.ts) from the
+     "App Background" colour set in Settings > Appearance — everything below
+     is just what paints before that JS runs, and what a club sees if they
+     never touch that field. */
+  --navy-50-rgb: 238 241 248;
+  --navy-100-rgb: 215 222 240;
+  --navy-200-rgb: 174 190 224;
+  --navy-300-rgb: 130 153 203;
+  --navy-400-rgb: 89 117 176;
+  --navy-500-rgb: 60 85 144;
+  --navy-600-rgb: 42 63 112;
+  --navy-700-rgb: 30 46 86;
+  --navy-800-rgb: 20 31 61;
+  --navy-900-rgb: 11 20 40;
+  --navy-950-rgb: 6 11 26;
+
+  --background: var(--navy-800-rgb);
   --foreground: 245 247 250;
   /* Club colours — overridden at runtime by ClubColorProvider from Settings > Appearance. */
   --club-primary-rgb: 212 175 55;
@@ -12,7 +29,7 @@
 }
 
 .dark {
-  --background: 6 11 26;
+  --background: var(--navy-950-rgb);
   --foreground: 245 247 250;
 }
 
