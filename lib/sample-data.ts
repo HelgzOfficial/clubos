@@ -10,6 +10,8 @@ export const club = {
   // The app's original dark navy — a club that never touches this field in
   // Settings > Appearance gets exactly the app's current look back.
   surfaceColor: "#0B1428",
+  // White, matching the app's original text — untouched, nothing looks different.
+  textColor: "#FFFFFF",
 };
 
 export const nextMatch = {
