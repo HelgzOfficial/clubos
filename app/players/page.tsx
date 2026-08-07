@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { tabState } from "@/lib/tab-styles";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -226,13 +227,13 @@ export default function PlayersPage() {
       <div className="mb-6 flex gap-1 rounded-xl bg-navy-600 dark:bg-navy-800 p-1 text-sm w-fit">
         <button
           onClick={() => setTab("squad")}
-          className={`rounded-lg px-3.5 py-1.5 font-medium transition-colors ${tab === "squad" ? "bg-club-primary text-navy-950" : "text-neutral-400 hover:text-white"}`}
+          className={`rounded-lg px-3.5 py-1.5 font-medium transition-colors ${tabState(tab === "squad", "plain")}`}
         >
           Squad
         </button>
         <button
           onClick={() => setTab("absences")}
-          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition-colors ${tab === "absences" ? "bg-club-primary text-navy-950" : "text-neutral-400 hover:text-white"}`}
+          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition-colors ${tabState(tab === "absences", "plain")}`}
         >
           <Plane size={14} /> Holiday / Absences
         </button>
