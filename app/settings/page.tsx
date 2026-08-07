@@ -19,6 +19,7 @@ const COLOR_FIELDS: { key: keyof ClubSettings; label: string; hint: string }[] =
   { key: "secondaryColor", label: "Secondary", hint: "Lighter accents" },
   { key: "accentColor", label: "Accent", hint: "Badges and callouts" },
   { key: "surfaceColor", label: "App Background", hint: "Page background, cards, panels & borders — the whole app, not just buttons" },
+  { key: "textColor", label: "Text", hint: "All writing. Headings use it fully; smaller labels fade toward the background" },
 ];
 
 export default function SettingsPage() {
@@ -188,9 +189,10 @@ export default function SettingsPage() {
         <Card>
           <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
           <p className="mb-4 text-xs text-neutral-400">
-            Set the app's whole colour scheme to match your club colours — Primary, Secondary and Accent cover every button,
-            badge and highlight; App Background re-colours the page background, cards and panels behind them, across every
-            module.
+            Set the app's whole colour scheme to match your club colours. Primary, Secondary and Accent cover every button,
+            badge and highlight; App Background re-colours the page background, cards and panels behind them; Text sets the
+            writing itself. These apply across every module — and to the players' portal app too, so both stay in step
+            automatically.
           </p>
 
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -218,8 +220,10 @@ export default function SettingsPage() {
                 <span className="text-sm font-semibold">{branding.name || "Your Club"}</span>
                 <span className="rounded-full bg-club-primary px-2 py-0.5 text-[10px] font-medium text-navy-950">Badge</span>
               </div>
-              <div className="mb-2 rounded-lg border border-white/10 bg-navy-800 p-2 text-xs text-neutral-300">
-                A card, like the ones used throughout the app
+              <div className="mb-2 rounded-lg border border-white/10 bg-navy-800 p-2">
+                <p className="text-xs text-white">A card, like the ones used throughout the app</p>
+                <p className="text-xs text-neutral-400">Supporting detail sits a shade quieter</p>
+                <p className="text-[11px] text-neutral-500">And the smallest labels quieter still</p>
               </div>
               <div className="flex gap-2">
                 <button
