@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import { AppShell } from "@/components/app-shell";
 import { MatchPackList } from "@/components/analysis/match-pack-list";
 import { Card } from "@/components/ui/card";
@@ -43,7 +44,7 @@ function TabSwitch({
           key={key}
           onClick={() => setTab(key)}
           className={`flex touch-manipulation items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ${
-            tab === key ? "bg-club-primary text-navy-950" : "bg-navy-600 text-neutral-400 hover:text-white dark:bg-navy-800"
+            tabState(tab === key)
           }`}
         >
           <Icon size={14} /> {label}
@@ -200,9 +201,7 @@ export default function DocumentsPage() {
             key={c}
             onClick={() => setCategory(c)}
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              category === c
-                ? "bg-club-primary text-navy-950"
-                : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
+              tabState(category === c)
             }`}
           >
             {c}
