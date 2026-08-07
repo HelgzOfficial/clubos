@@ -7,6 +7,9 @@ export const club = {
   primaryColor: "#D4AF37",
   secondaryColor: "#E6C766",
   accentColor: "#D4AF37",
+  // The app's original dark navy — a club that never touches this field in
+  // Settings > Appearance gets exactly the app's current look back.
+  surfaceColor: "#0B1428",
 };
 
 export const nextMatch = {
