@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import type { DbPlayer } from "@/lib/players-db";
@@ -270,7 +271,7 @@ export function InjuryRiskTracker({ players }: { players: DbPlayer[] }) {
               key={v.key}
               onClick={() => { setView(v.key); setError(""); setNotice(""); }}
               className={`flex touch-manipulation items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
-                view === v.key ? "bg-club-primary text-navy-950" : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+                tabState(view === v.key, "outline")
               }`}
             >
               <v.icon size={13} /> {v.label}
