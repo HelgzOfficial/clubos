@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { navState } from "@/lib/tab-styles";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ClubBadge } from "@/components/team-crest";
 import { cn } from "@/lib/utils";
 import { club } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
@@ -30,19 +31,7 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col border-r border-white/10 bg-navy-700 dark:bg-navy-950 shrink-0">
       <div className="flex items-center gap-3 px-6 py-6">
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-navy-800">
-          <Image
-            src="/club-badge.png"
-            alt={`${branding.name} crest`}
-            fill
-            sizes="36px"
-            className="object-cover"
-            onError={(e) => {
-              // Fall back to the initials chip if the crest image is ever missing.
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        </div>
+        <ClubBadge name={branding.name} />
         <div>
           <p className="text-sm font-semibold leading-tight text-white">{branding.name}</p>
           <p className="text-xs text-club-primary">ClubOS</p>
@@ -58,9 +47,7 @@ export function Sidebar() {
               href={href}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-navy-600 dark:bg-navy-800 text-club-primary"
-                  : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+                navState(active)
               )}
             >
               <Icon size={18} strokeWidth={1.75} />
@@ -76,9 +63,7 @@ export function Sidebar() {
           href="/settings"
           className={cn(
             "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-            pathname === "/settings"
-              ? "bg-navy-600 dark:bg-navy-800 text-white"
-              : "text-navy-200 dark:text-navy-300 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white"
+            navState(pathname === "/settings")
           )}
         >
           <Settings size={18} strokeWidth={1.75} />
