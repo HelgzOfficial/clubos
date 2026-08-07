@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import { Upload, Trash2, X, Loader2, ChevronLeft, ChevronRight, Image as ImageIcon } from "lucide-react";
 import { fetchMatches, playedMatches, type DbMatch } from "@/lib/matches-db";
 import {
@@ -22,7 +23,7 @@ function FilterChip({ active, onClick, label }: { active: boolean; onClick: () =
     <button
       onClick={onClick}
       className={`touch-manipulation rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-        active ? "bg-club-primary text-navy-950" : "bg-navy-600 text-neutral-400 hover:text-white dark:bg-navy-800"
+        tabState(active)
       }`}
     >
       {label}
