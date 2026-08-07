@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
@@ -861,7 +862,7 @@ export function LineupEditor({
                 key={o.key}
                 onClick={() => setOutput(o.key)}
                 className={`touch-manipulation rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  output === o.key ? "bg-club-primary text-navy-950" : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+                  tabState(output === o.key, "outline")
                 }`}
               >
                 {o.label}
