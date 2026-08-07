@@ -35,10 +35,9 @@ export const viewport: Viewport = {
   // users rely on pinch-zoom for accessibility, so this only fixes layout
   // width/scale to device size without taking that away from them.
   maximumScale: 5,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#141F3D" },
-    { media: "(prefers-color-scheme: dark)", color: "#060B1A" },
-  ],
+  // Replaced at runtime by ClubColorProvider with the club's App Background
+  // colour — a single entry, because that's the tag the provider updates.
+  themeColor: "#0B1428",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
