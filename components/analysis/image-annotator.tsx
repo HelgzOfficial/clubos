@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import { Pencil, Circle, ArrowUpRight, Eraser, Palette, X, Save, Loader2, Check, Download } from "lucide-react";
 import { useAnnotationCanvas, ANNOTATION_COLORS, type AnnotationTool } from "@/lib/use-annotation-canvas";
 import { saveAnnotatedImage } from "@/lib/annotated-images-db";
@@ -126,7 +127,7 @@ export function ImageAnnotator({
               onClick={() => setTool((prev) => (prev === t.key ? "none" : t.key))}
               title={t.label}
               className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                tool === t.key ? "bg-club-primary text-navy-950" : "bg-navy-600 dark:bg-navy-800 text-neutral-300 hover:text-white"
+                tabState(tool === t.key)
               }`}
             >
               <t.icon size={15} />
