@@ -1,379 +1,1134 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { tabState } from "@/lib/tab-styles";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AppShell } from "@/components/app-shell";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { club as clubFallback } from "@/lib/sample-data";
+import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
+import { fetchClubSettings } from "@/lib/club-settings-db";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
-import { fetchAllGoals, addGoal, updateGoalLocation, type DbGoal } from "@/lib/match-details-db";
-import { PitchMapDisplay, PitchMapInput, type PitchPoint } from "@/components/analysis/pitch-map";
-import { topScorers, topAssists } from "@/lib/season-analytics";
-import { usePermissions } from "@/lib/permissions";
-import { ArrowLeft, Plus, MapPin, X } from "lucide-react";
+import { findPlayerByEmail, type DbPlayer } from "@/lib/players-db";
+import {
+  fetchMatchDocuments, getMatchDocumentUrl, getMatchDocumentDownloadUrl, recordDocumentView, type DbMatchDocument,
+} from "@/lib/match-documents-db";
+import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
+import {
+  fetchBookings, createBooking, deleteBooking,
+  BOOKING_STEP_MINUTES, snapToBookingInterval,
+  TREATMENT_TYPE_OPTIONS, type DbTreatmentBooking, type BookingStatus,
+} from "@/lib/treatment-bookings-db";
+import { fetchOppositionReports, getOppositionReportDownloadUrl, type DbOppositionReport } from "@/lib/opposition-reports-db";
+import { fetchHeadToHead, type DbHeadToHead } from "@/lib/opposition-head-to-head-db";
+import { fetchCalendarEvents, expandEvent, type EventOccurrence, type DbCalendarEvent } from "@/lib/calendar-events-db";
+import { fetchClips, getClipUrl, type DbClip } from "@/lib/clips-db";
+import { getCountryFlag } from "@/lib/countries";
+import { personalGreeting } from "@/lib/greeting";
+import { DirectionsLinks } from "@/components/directions-links";
+import { PlayerAvatar } from "@/components/players/player-avatar";
+import { TeamCrest, useCrestLookup } from "@/components/team-crest";
+import { RecentUploadsFeed } from "@/components/recent-uploads-feed";
+import { PortalCalendarModal } from "@/components/portal/calendar-modal";
+import { PhotoLightbox } from "@/components/portal/photo-lightbox";
+import { EditDetailsModal } from "@/components/portal/edit-details-modal";
+import { DocumentViewerModal } from "@/components/document-viewer-modal";
+import { MessageThread } from "@/components/medical/message-thread";
+import { VideoPlayer } from "@/components/analysis/video-player";
+import { YouTubePlayer } from "@/components/analysis/youtube-player";
+import { Collapsible } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+import type { Clip } from "@/lib/analysis-types";
+import {
+  LogOut, FileText, AlertCircle, Download, CalendarDays, Trophy, User, HeartPulse,
+  MessageCircle, Dumbbell, Film, Plus, X, Trash2, Check, Play, Shield, Upload, Pencil, ChevronRight, Maximize2, Camera, Plane, ClipboardList,
+} from "lucide-react";
+import { SessionPlanLibrary } from "@/components/training/session-plan-library";
+import { PortalPushToggle } from "@/components/portal/push-toggle";
+import { InstallPrompt } from "@/components/portal/install-prompt";
+import { KickoffCountdown } from "@/components/kickoff-countdown";
+import { MatchPhotos } from "@/components/documents/match-photos";
+import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
+import { MyAbsences } from "@/components/portal/my-absences";
+import { PublishedLineup } from "@/components/portal/match-availability";
 
-type MapTab = "scored" | "conceded" | "assists";
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+const statusVariant: Record<BookingStatus, "green" | "amber" | "red" | "neutral" | "blue"> = {
+  requested: "blue", scheduled: "amber", completed: "green", cancelled: "neutral", "no-show": "red",
+};
+// "requested" is jargon on a player's screen — they asked, they're waiting.
+const statusLabel: Record<BookingStatus, string> = {
+  requested: "Awaiting confirmation", scheduled: "Confirmed", completed: "Completed",
+  cancelled: "Cancelled", "no-show": "Missed",
+};
+const resultColor: Record<string, string> = {
+  W: "bg-emerald-500 text-white", D: "bg-amber-400 text-navy-950", L: "bg-red-500 text-white",
+};
+// Same green/amber/red meaning as the Medical and Players modules.
+const availabilityVariant: Record<string, "green" | "amber" | "red"> = {
+  green: "green", amber: "amber", red: "red",
+};
 
-const blankAddForm = { matchId: "", team: "us" as "us" | "opponent", minute: "", scorer: "", assist: "" };
-
-export default function GoalsMapsPage() {
-  const { canWrite } = usePermissions();
-  const canEdit = canWrite("analysis");
+export default function PortalPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [branding, setBranding] = useState(clubFallback);
+  const [player, setPlayer] = useState<DbPlayer | null>(null);
+  const [notLinked, setNotLinked] = useState(false);
+  // What actually went wrong, and the address we searched for — both shown on
+  // screen, because "we couldn't find you" tells a player nothing they can act
+  // on and tells the club nothing they can fix.
+  const [linkReason, setLinkReason] = useState<"no-match" | "no-players-visible" | "error" | null>(null);
+  const [signedInEmail, setSignedInEmail] = useState("");
+  const [linkDetail, setLinkDetail] = useState("");
+  const [error, setError] = useState("");
 
   const [matches, setMatches] = useState<DbMatch[]>([]);
-  const [goals, setGoals] = useState<DbGoal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<MapTab>("scored");
+  const [recentResults, setRecentResults] = useState<DbMatch[]>([]);
+  const [scheduleTab, setScheduleTab] = useState<"upcoming" | "results">("upcoming");
+  const [docsByMatch, setDocsByMatch] = useState<Record<string, DbMatchDocument[]>>({});
+  const [openedIds, setOpenedIds] = useState<Set<string>>(new Set());
+  const [viewing, setViewing] = useState<DbMatchDocument | null>(null);
 
-  // Full manual entry — record a brand-new goal/assist, with its pitch
-  // location, directly from this page instead of going through a match's
-  // Match Centre page first.
-  const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState(blankAddForm);
-  const [addLocation, setAddLocation] = useState<PitchPoint | null>(null);
-  const [addSaving, setAddSaving] = useState(false);
-  const [addError, setAddError] = useState("");
+  const [league, setLeague] = useState<DbLeagueRow[]>([]);
 
-  // Backfill — set a location on a goal that was logged without one.
-  const [locatingGoal, setLocatingGoal] = useState<DbGoal | null>(null);
-  const [backfillPoint, setBackfillPoint] = useState<PitchPoint | null>(null);
-  const [backfillSaving, setBackfillSaving] = useState(false);
+  const [bookings, setBookings] = useState<DbTreatmentBooking[]>([]);
+  const [showBook, setShowBook] = useState(false);
+  const [treatmentType, setTreatmentType] = useState(TREATMENT_TYPE_OPTIONS[0]);
+  const [bookDate, setBookDate] = useState(todayIso());
+  const [bookTime, setBookTime] = useState("09:00");
+  const [bookDuration, setBookDuration] = useState("30");
+  const [bookNotes, setBookNotes] = useState("");
+  const [booking, setBooking] = useState(false);
+  const [bookError, setBookError] = useState("");
+  const [bookConfirmed, setBookConfirmed] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [m, g] = await Promise.all([fetchMatches(), fetchAllGoals()]);
-      setMatches(m);
-      setGoals(g);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [oppReports, setOppReports] = useState<DbOppositionReport[]>([]);
+  const [h2h, setH2h] = useState<DbHeadToHead | null>(null);
+
+  const [weekEvents, setWeekEvents] = useState<EventOccurrence[]>([]);
+  const [dashTab, setDashTab] = useState<"league" | "form">("league");
+
+  // Raw rows kept alongside the expanded occurrences so the full-calendar
+  // modal can expand any month the player pages to, not just a fixed window.
+  const [allMatches, setAllMatches] = useState<DbMatch[]>([]);
+  const [allEvents, setAllEvents] = useState<DbCalendarEvent[]>([]);
+  const [showFullCalendar, setShowFullCalendar] = useState(false);
+
+  // The Matches section below is controlled so "See all" on the dashboard can
+  // open it and jump to it.
+  const [matchesOpen, setMatchesOpen] = useState(false);
+
+  const [showEditDetails, setShowEditDetails] = useState(false);
+  const [showPhotoFull, setShowPhotoFull] = useState(false);
+
+  const [clips, setClips] = useState<DbClip[]>([]);
+  const [playingClip, setPlayingClip] = useState<Clip | null>(null);
+  const [playingYouTube, setPlayingYouTube] = useState<{ title: string; videoId: string } | null>(null);
+  const crestLookup = useCrestLookup();
 
   useEffect(() => {
-    load();
+    async function init() {
+      if (!supabase) { setLoading(false); return; }
+      setBranding(loadClubSettings(clubFallback));
+      fetchClubSettings(clubFallback).then((settings) => { setBranding(settings); saveClubSettings(settings); });
+
+      const { data: userData } = await supabase.auth.getUser();
+      const email = userData.user?.email;
+      if (!email) { router.replace("/portal/login"); return; }
+
+      setSignedInEmail(email);
+
+      try {
+        const lookup = await findPlayerByEmail(email);
+        if (!lookup.player) {
+          setLinkReason(lookup.reason);
+          setLinkDetail(lookup.detail ?? "");
+          setNotLinked(true);
+          setLoading(false);
+          return;
+        }
+        const p = lookup.player;
+        setPlayer(p);
+
+        const now = Date.now();
+        const [allMatches, lt, allBookings, events, recentClips] = await Promise.all([
+          fetchMatches(), fetchLeagueTable(), fetchBookings(), fetchCalendarEvents(), fetchClips(6),
+        ]);
+
+        setAllMatches(allMatches);
+        setAllEvents(events);
+
+        const upcoming = allMatches
+          .filter((m) => new Date(m.kickoff).getTime() >= now && m.status !== "cancelled")
+          .slice(0, 8);
+        setMatches(upcoming);
+
+        // "Played" here means the kickoff has passed — deliberately NOT
+        // "status === completed with both scores filled in". Fixtures are
+        // often left as 'scheduled' and simply drift into the past, or get a
+        // score without anyone flipping the status, so the stricter check
+        // left this list looking empty even though games had been played.
+        // Anything without a score just shows its status instead.
+        setRecentResults(
+          allMatches
+            .filter((m) => new Date(m.kickoff).getTime() < now && m.status !== "cancelled" && m.status !== "postponed")
+            .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime())
+            .slice(0, 15)
+        );
+        const docLists = await Promise.all(upcoming.map((m) => fetchMatchDocuments(m.id)));
+        const map: Record<string, DbMatchDocument[]> = {};
+        upcoming.forEach((m, i) => { map[m.id] = docLists[i]; });
+        setDocsByMatch(map);
+
+        setLeague(lt);
+        setBookings(allBookings.filter((b) => b.player_id === p.id).sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()));
+        setClips(recentClips);
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const weekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const byDateThenTime = (a: EventOccurrence, b: EventOccurrence) =>
+          a.date.localeCompare(b.date) || (a.startTime ?? "").localeCompare(b.startTime ?? "");
+        setWeekEvents(events.flatMap((e) => expandEvent(e, todayStr, weekEnd)).sort(byDateThenTime));
+
+        if (upcoming[0]) {
+          const [reports, headToHead] = await Promise.all([
+            fetchOppositionReports(upcoming[0].opponent),
+            fetchHeadToHead(upcoming[0].opponent),
+          ]);
+          setOppReports(reports);
+          setH2h(headToHead);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't load your data.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function matchLabel(matchId: string) {
-    const m = matches.find((mm) => mm.id === matchId);
-    return m ? `${m.is_home ? "vs" : "@"} ${m.opponent}` : "Unknown fixture";
-  }
+  const nextMatch = matches[0] ?? null;
 
-  const withLocation = goals.filter((g) => g.x !== null && g.y !== null);
-  const missingLocation = goals.filter((g) => g.x === null || g.y === null);
-  const scoredGoals = withLocation.filter((g) => g.team === "us");
-  const concededGoals = withLocation.filter((g) => g.team === "opponent");
-  const assistedGoals = withLocation.filter((g) => g.team === "us" && g.assist);
-
-  const points: PitchPoint[] = useMemo(() => {
-    const source = tab === "scored" ? scoredGoals : tab === "conceded" ? concededGoals : assistedGoals;
-    return source.map((g) => ({
-      x: g.x as number,
-      y: g.y as number,
-      color: tab === "conceded" ? "#EF4444" : "#22C55E",
-      label: tab === "assists"
-        ? `${g.assist} → ${g.scorer} (${g.minute ?? "?"}') — ${matchLabel(g.match_id)}`
-        : `${g.scorer} (${g.minute ?? "?"}') — ${matchLabel(g.match_id)}`,
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, goals, matches]);
-
-  const scorers = useMemo(() => topScorers(goals, 8), [goals]);
-  const assists = useMemo(() => topAssists(goals, 8), [goals]);
-
-  const tabs: { key: MapTab; label: string; count: number }[] = [
-    { key: "scored", label: "Goals Scored", count: scoredGoals.length },
-    { key: "conceded", label: "Goals Conceded", count: concededGoals.length },
-    { key: "assists", label: "Assist Map", count: assistedGoals.length },
-  ];
-
-  function openAdd() {
-    setAddForm(blankAddForm);
-    setAddLocation(null);
-    setAddError("");
-    setShowAdd(true);
-  }
-
-  async function handleAddSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!addForm.matchId) {
-      setAddError("Pick which fixture this happened in.");
-      return;
-    }
-    if (!addForm.scorer.trim()) {
-      setAddError("Enter who scored.");
-      return;
-    }
-    setAddSaving(true);
-    setAddError("");
-    try {
-      await addGoal(addForm.matchId, {
-        minute: addForm.minute,
-        team: addForm.team,
-        scorer: addForm.scorer.trim(),
-        assist: addForm.team === "us" ? addForm.assist.trim() : "",
-        x: addLocation?.x ?? null,
-        y: addLocation?.y ?? null,
+  const formGuide = useMemo(() => {
+    // recentResults is newest-first and may include played games that have no
+    // score recorded yet — those can't be a W/D/L, so they're skipped here
+    // (they still appear in the Results tab). The strip wants the most recent
+    // 5 *scored* games, shown oldest-to-newest.
+    return recentResults
+      .filter((m) => m.home_score !== null && m.away_score !== null)
+      .slice(0, 5)
+      .reverse()
+      .map((m) => {
+        const gf = m.is_home ? m.home_score! : m.away_score!;
+        const ga = m.is_home ? m.away_score! : m.home_score!;
+        const result: "W" | "D" | "L" = gf > ga ? "W" : gf < ga ? "L" : "D";
+        return { id: m.id, result, opponent: m.opponent, score: `${gf}-${ga}` };
       });
-      setShowAdd(false);
-      await load();
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Couldn't save that.");
-    } finally {
-      setAddSaving(false);
+  }, [recentResults]);
+
+  const ownRow = league.find((r) => r.is_own_club) ?? null;
+  const miniTable = useMemo(() => {
+    if (!ownRow) return league.slice(0, 5);
+    const idx = league.findIndex((r) => r.id === ownRow.id);
+    const start = Math.max(0, idx - 2);
+    return league.slice(start, start + 5);
+  }, [league, ownRow]);
+
+  // Fixtures and training/meetings merged into one chronological agenda for
+  // the dashboard calendar, grouped by day so a date heading isn't repeated
+  // for every item on it.
+  const calendarDays = useMemo(() => {
+    const weekEndMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    type AgendaItem = { key: string; time: string | null; title: string; kind: "match" | "training" | "meeting"; venue: string | null; href?: string };
+    const byDate = new Map<string, AgendaItem[]>();
+
+    const push = (date: string, item: AgendaItem) => {
+      const list = byDate.get(date);
+      if (list) list.push(item);
+      else byDate.set(date, [item]);
+    };
+
+    for (const m of matches) {
+      const d = new Date(m.kickoff);
+      if (d.getTime() > weekEndMs) continue;
+      push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, {
+        key: `match-${m.id}`,
+        time: formatTime(m.kickoff),
+        title: `${m.is_home ? "vs" : "@"} ${m.opponent}`,
+        kind: "match",
+        venue: m.venue,
+        href: `/portal/matches/${m.id}`,
+      });
     }
+    for (const e of weekEvents) {
+      push(e.date, {
+        key: e.key, time: e.startTime, title: e.title, kind: e.type, venue: e.venue,
+        href: e.type === "training" ? `/portal/training/${e.date}` : undefined,
+      });
+    }
+
+    return [...byDate.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, items]) => ({
+        date,
+        items: items.sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")),
+      }));
+  }, [matches, weekEvents]);
+
+  const playerStats = useMemo(() => {
+    if (!player) return [];
+    const base = [
+      { label: "Apps", value: player.appearances },
+      { label: "Goals", value: player.goals },
+      { label: "Assists", value: player.assists },
+      { label: "Minutes", value: player.minutes },
+    ];
+    // Clean sheets only mean something for keepers and defenders.
+    if (player.position_group === "GK" || player.position_group === "DEF") {
+      base.push({ label: "Clean sheets", value: player.clean_sheets ?? 0 });
+    }
+    return base;
+  }, [player]);
+
+  async function markOpened(doc: DbMatchDocument) {
+    if (!player) return;
+    await recordDocumentView(doc.id, player.id);
+    setOpenedIds((prev) => new Set(prev).add(doc.id));
+  }
+  function handleOpenDoc(doc: DbMatchDocument) { setViewing(doc); markOpened(doc); }
+  async function handleDownloadDoc(doc: DbMatchDocument) {
+    const url = await getMatchDocumentDownloadUrl(doc.file_path, doc.file_name);
+    window.open(url, "_blank");
+    markOpened(doc);
   }
 
-  function openBackfill(goal: DbGoal) {
-    setLocatingGoal(goal);
-    setBackfillPoint(null);
-  }
-
-  async function handleBackfillSave() {
-    if (!locatingGoal || !backfillPoint) return;
-    setBackfillSaving(true);
+  async function handleBook(e: FormEvent) {
+    e.preventDefault();
+    if (!player || !bookDate || !bookTime) return;
+    setBooking(true);
+    setBookError("");
     try {
-      await updateGoalLocation(locatingGoal.id, backfillPoint.x, backfillPoint.y);
-      setLocatingGoal(null);
-      await load();
+      const start = new Date(`${bookDate}T${snapToBookingInterval(bookTime)}:00`);
+      const end = new Date(start.getTime() + Number(bookDuration) * 60 * 1000);
+      // Deliberately a request, not a booking. No invite is sent here — the
+      // medical team confirms first, and the emails go out at that point, so
+      // nobody ends up with a calendar entry for a slot that was never agreed.
+      await createBooking({
+        playerId: player.id, injuryId: null, startTime: start.toISOString(), endTime: end.toISOString(),
+        treatmentType, notes: bookNotes.trim(), doctorName: "", doctorEmail: "",
+        status: "requested",
+      });
+      setShowBook(false);
+      setTreatmentType(TREATMENT_TYPE_OPTIONS[0]); setBookDate(todayIso()); setBookTime("09:00"); setBookDuration("30"); setBookNotes("");
+      setBookConfirmed(true);
+      setTimeout(() => setBookConfirmed(false), 4000);
+      const all = await fetchBookings();
+      setBookings(all.filter((bk) => bk.player_id === player.id).sort((a, b2) => new Date(b2.start_time).getTime() - new Date(a.start_time).getTime()));
+    } catch (e) {
+      setBookError(e instanceof Error ? e.message : "Couldn't book that slot.");
     } finally {
-      setBackfillSaving(false);
+      setBooking(false);
     }
   }
+  async function handleCancelBooking(b: DbTreatmentBooking) {
+    if (!window.confirm("Cancel this treatment booking?")) return;
+    await deleteBooking(b.id);
+    setBookings((prev) => prev.filter((x) => x.id !== b.id));
+  }
+
+  async function handlePlayClip(c: DbClip) {
+    // YouTube-linked clips play in the embed modal; uploaded files stream from
+    // storage via a signed URL.
+    if (c.source === "youtube" && c.youtube_id) {
+      setPlayingYouTube({ title: c.title, videoId: c.youtube_id });
+      return;
+    }
+    if (!c.file_path) return;
+    const url = await getClipUrl(c.file_path);
+    setPlayingClip({ id: c.id, title: c.title, url, tags: c.category ? [c.category] : [], addedAt: c.uploaded_at });
+  }
+
+  async function handleSignOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    router.replace("/portal/login");
+  }
+
+  if (!supabaseConfigured) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy-800 dark:bg-navy-950 px-4 text-white">
+        <p className="text-sm text-neutral-400">The companion app isn&apos;t connected yet.</p>
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy-800 dark:bg-navy-950 px-4 text-white">
+        <p className="text-sm text-neutral-400">Loading…</p>
+      </div>
+    );
+  }
+  if (notLinked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy-800 px-4 text-white dark:bg-navy-950">
+        <div className="w-full max-w-sm rounded-card border border-white/10 bg-navy-700 p-6 text-center shadow-softDark dark:bg-navy-900">
+          <AlertCircle size={20} className="mx-auto mb-2 text-amber-300" />
+
+          {linkReason === "no-players-visible" ? (
+            <>
+              <p className="font-medium">Your club&apos;s squad list isn&apos;t reachable</p>
+              <p className="mt-1.5 text-sm text-neutral-400">
+                You&apos;re signed in fine, but the app can&apos;t read the squad. That&apos;s a settings problem at the
+                club&apos;s end, not anything you&apos;ve done. Show them this screen.
+              </p>
+            </>
+          ) : linkReason === "error" ? (
+            <>
+              <p className="font-medium">Something went wrong looking you up</p>
+              <p className="mt-1.5 text-sm text-neutral-400">Try again in a minute. If it keeps happening, show your club this screen.</p>
+              {linkDetail && <p className="mt-2 break-words text-[11px] text-neutral-600">{linkDetail}</p>}
+            </>
+          ) : (
+            <>
+              <p className="font-medium">We couldn&apos;t find a player profile with that email</p>
+              <p className="mt-1.5 text-sm text-neutral-400">
+                Ask your club to put this exact address on your player profile, then sign in again.
+              </p>
+            </>
+          )}
+
+          {/* The address actually signed in with. Nine times out of ten the
+              club has a different one on file — a work address, an old one, a
+              typo — and seeing both side by side ends the guesswork. */}
+          {signedInEmail && (
+            <p className="mt-3 rounded-lg border border-white/10 bg-navy-600/50 px-2.5 py-2 text-xs dark:bg-navy-800/50">
+              <span className="block text-[10px] uppercase tracking-wide text-neutral-500">Signed in as</span>
+              <span className="break-all font-medium">{signedInEmail}</span>
+            </p>
+          )}
+
+          <button onClick={handleSignOut} className="mt-4 text-sm text-neutral-400 underline underline-offset-2 hover:text-white">
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const upcomingBookings = bookings.filter((b) => b.status === "scheduled" || b.status === "requested");
+  const pastBookings = bookings.filter((b) => b.status !== "scheduled" && b.status !== "requested");
 
   return (
-    <AppShell>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link href="/analysis" className="mb-1 flex items-center gap-1 text-xs text-neutral-400 hover:text-white transition-colors">
-            <ArrowLeft size={12} /> Analyst Dashboard
-          </Link>
-          <h1 className="text-2xl font-semibold">Goals &amp; Assist Maps</h1>
-          <p className="text-sm text-neutral-500">Where it's happening on the pitch — click to record a goal or assist location.</p>
-        </div>
-        {canEdit && (
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-club-primary text-navy-950 px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus size={15} /> Add Goal / Assist
+    <div className="min-h-screen bg-navy-800 dark:bg-navy-950 pb-10 text-white">
+      {/* Sticky condensed header — same navy/gold theme as the desktop app */}
+      <div className="sticky top-0 z-20 border-b border-white/10 bg-navy-700/90 dark:bg-navy-950/90 backdrop-blur px-4 py-3.5">
+        <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-navy-950 text-xs font-bold"
+              style={{ backgroundColor: branding.primaryColor }}
+            >
+              {branding.crestInitials}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight">{branding.name}</p>
+              <p className="text-[11px] text-club-primary">{personalGreeting(player?.name)}</p>
+            </div>
+          </div>
+          <button onClick={handleSignOut} className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-400 hover:text-white">
+            <LogOut size={13} /> Sign out
           </button>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-lg space-y-4 px-4 pt-4">
+        {/* Hides itself once the portal is running from the home screen, and
+            stays hidden if a player dismisses it. */}
+        <InstallPrompt />
+
+        {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
+
+        {/* ---- Dashboard: always visible, no dropdown. The player's own card,
+             their next fixture, a League/Form switcher and the calendar. All
+             the deeper detail stays in the collapsible sections below. ---- */}
+
+        {player && (
+          <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+            <div className="flex gap-3.5">
+              <button
+                onClick={() => player.photo_url && setShowPhotoFull(true)}
+                disabled={!player.photo_url}
+                title={player.photo_url ? "View photo full screen" : undefined}
+                className="relative w-[84px] shrink-0 overflow-hidden rounded-xl disabled:cursor-default"
+              >
+                <div className="aspect-[3/4] w-full">
+                  <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="card" />
+                </div>
+                <span className="absolute right-1 top-1 flex h-6 min-w-6 items-center justify-center rounded-lg bg-black/55 px-1.5 text-xs font-bold text-white backdrop-blur-sm">
+                  {player.squad_number}
+                </span>
+                {player.photo_url && (
+                  <span className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-lg bg-black/55 text-white backdrop-blur-sm">
+                    <Maximize2 size={11} />
+                  </span>
+                )}
+              </button>
+              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                <p className="truncate text-lg font-semibold leading-tight">{player.name}</p>
+                <p className="truncate text-sm text-neutral-400">{player.position}</p>
+                {player.nationality && (
+                  <p className="truncate text-xs text-neutral-500">
+                    {getCountryFlag(player.nationality)} {player.nationality}
+                  </p>
+                )}
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <Badge variant={availabilityVariant[player.availability] ?? "neutral"}>{player.availability_note}</Badge>
+                  <button
+                    onClick={() => setShowEditDetails(true)}
+                    className="touch-manipulation flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] font-medium text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+                  >
+                    <Pencil size={10} /> Edit details
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {playerStats.length > 0 && (
+              <div className={`mt-3.5 grid gap-2 border-t border-white/10 pt-3.5 text-center ${playerStats.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+                {playerStats.map((s) => (
+                  <div key={s.label}>
+                    <p className="text-lg font-semibold tabular-nums leading-tight">{s.value}</p>
+                    <p className="text-[10px] text-neutral-500">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Next Match</p>
+            {nextMatch && <KickoffCountdown kickoff={nextMatch.kickoff} />}
+          </div>
+          {!nextMatch ? (
+            <p className="text-sm text-neutral-400">No upcoming fixture scheduled yet.</p>
+          ) : (
+            <>
+              <p className="flex items-center gap-2.5 text-lg font-semibold">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-neutral-500">{nextMatch.is_home ? "vs" : "@"}</span> {nextMatch.opponent}
+                </span>
+                <TeamCrest name={nextMatch.opponent} size="md" lookup={crestLookup} />
+              </p>
+              <p className="mt-0.5 text-sm text-neutral-400">{formatDate(nextMatch.kickoff)} · {formatTime(nextMatch.kickoff)}{nextMatch.venue ? ` · ${nextMatch.venue}` : ""}</p>
+              <DirectionsLinks venue={nextMatch.venue} className="mt-2" />
+            </>
+          )}
+        </div>
+
+        {/* Next 3 fixtures — the full Matches section (with results) expands below */}
+        {matches.length > 0 && (
+          <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+            <button
+              onClick={() => {
+                setMatchesOpen(true);
+                document.getElementById("portal-matches")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="touch-manipulation mb-2.5 flex w-full items-center gap-1.5 text-left"
+            >
+              <CalendarDays size={13} className="shrink-0 text-club-primary" />
+              <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Next 3 fixtures</span>
+              <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-club-primary">
+                All matches <ChevronRight size={13} />
+              </span>
+            </button>
+            <ul className="divide-y divide-white/10">
+              {matches.slice(0, 3).map((m) => (
+                <li key={m.id}>
+                  <Link
+                    href={`/portal/matches/${m.id}`}
+                    className="flex items-center gap-2.5 py-2 text-sm transition-colors hover:text-club-primary"
+                  >
+                    <Badge variant={m.is_home ? "green" : "neutral"} className="shrink-0">{m.is_home ? "H" : "A"}</Badge>
+                    <span className="min-w-0 flex-1 truncate font-medium">{m.opponent}</span>
+                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
+                    <span className="shrink-0 text-[11px] text-neutral-400">{formatDate(m.kickoff)}</span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">{formatTime(m.kickoff)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* League / Form switcher */}
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <div className="mb-3 flex gap-1.5">
+            {(["league", "form"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setDashTab(t)}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  tabState(dashTab === t)
+                }`}
+              >
+                {t === "league" ? "League Table" : "Form Guide"}
+              </button>
+            ))}
+          </div>
+
+          {dashTab === "league" ? (
+            league.length === 0 ? (
+              <p className="text-sm text-neutral-400">League table hasn&apos;t been set up yet.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-neutral-500">
+                    <th className="pb-1.5 pr-2 font-medium">#</th>
+                    <th className="pb-1.5 pr-2 font-medium">Team</th>
+                    <th className="pb-1.5 pr-2 text-center font-medium">P</th>
+                    <th className="pb-1.5 pr-2 text-center font-medium">GD</th>
+                    <th className="pb-1.5 text-center font-medium">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {miniTable.map((r) => (
+                    <tr key={r.id} className={r.is_own_club ? "font-semibold text-club-primary" : ""}>
+                      <td className="py-1 pr-2">{r.position}</td>
+                      <td className="py-1 pr-2">
+                        <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate">{r.team}</span>
+                          <TeamCrest name={r.team} size="sm" lookup={crestLookup} />
+                        </span>
+                      </td>
+                      <td className="py-1 pr-2 text-center tabular-nums">{r.played}</td>
+                      <td className="py-1 pr-2 text-center tabular-nums">{r.goals_for - r.goals_against}</td>
+                      <td className="py-1 text-center font-semibold tabular-nums">{r.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : formGuide.length === 0 ? (
+            <p className="text-sm text-neutral-400">No scored results yet.</p>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center gap-1.5">
+                {formGuide.map((f) => (
+                  <Link
+                    key={f.id}
+                    href={`/portal/matches/${f.id}`}
+                    title={`${f.opponent} ${f.score} — view match`}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-transform hover:scale-110 ${resultColor[f.result]}`}
+                  >
+                    {f.result}
+                  </Link>
+                ))}
+                <span className="ml-1 text-[10px] text-neutral-500">oldest → newest</span>
+              </div>
+              <ul className="divide-y divide-white/10">
+                {[...formGuide].reverse().map((f) => (
+                  <li key={`fg-${f.id}`}>
+                    <Link href={`/portal/matches/${f.id}`} className="flex items-center gap-2.5 py-1.5 text-xs hover:text-club-primary transition-colors">
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold ${resultColor[f.result]}`}>{f.result}</span>
+                      <span className="min-w-0 flex-1 truncate text-neutral-300">{f.opponent}</span>
+                      <TeamCrest name={f.opponent} size="xs" lookup={crestLookup} />
+                      <span className="shrink-0 tabular-nums text-neutral-400">{f.score}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+
+        {/* Calendar — just the coming week here; the full month grid opens on tap */}
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <button
+            onClick={() => setShowFullCalendar(true)}
+            className="touch-manipulation mb-3 flex w-full items-center gap-1.5 text-left"
+          >
+            <CalendarDays size={13} className="shrink-0 text-club-primary" />
+            <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Calendar · this week</span>
+            <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-club-primary">
+              Full calendar <ChevronRight size={13} />
+            </span>
+          </button>
+          {calendarDays.length === 0 ? (
+            <p className="text-sm text-neutral-400">Nothing scheduled in the next seven days.</p>
+          ) : (
+            <div className="space-y-3">
+              {calendarDays.map((day) => (
+                <div key={day.date} className="flex gap-3">
+                  <div className="w-11 shrink-0 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-neutral-500">
+                      {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short" })}
+                    </p>
+                    <p className="text-lg font-semibold leading-tight tabular-nums">
+                      {new Date(`${day.date}T00:00:00`).getDate()}
+                    </p>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    {day.items.map((item) => {
+                      const body = (
+                        <div className={`rounded-lg border px-2.5 py-1.5 ${item.kind === "match" ? "border-club-primary/40 bg-club-primary/10" : "border-white/10"}`}>
+                          <div className="flex items-center gap-2">
+                            <p className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</p>
+                            {item.time && <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">{item.time}</span>}
+                          </div>
+                          {item.venue && <p className="truncate text-[11px] text-neutral-500">{item.venue}</p>}
+                        </div>
+                      );
+                      return item.href ? (
+                        <Link key={item.key} href={item.href} className="block transition-colors hover:brightness-125">{body}</Link>
+                      ) : (
+                        <div key={item.key}>{body}</div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent uploads — the same merged feed the desktop dashboard shows,
+            so anything new (clip, YouTube link, image, document) surfaces here
+            for players too. */}
+        <div className="rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+            <Upload size={13} /> Recent Uploads
+          </p>
+          <RecentUploadsFeed limit={6} compact />
+        </div>
+
+        <Collapsible id="portal-matches" title="Matches" icon={<CalendarDays size={16} />} open={matchesOpen} onOpenChange={setMatchesOpen}>
+          <div className="mb-3 flex gap-1.5">
+            {(["upcoming", "results"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setScheduleTab(t)}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  tabState(scheduleTab === t)
+                }`}
+              >
+                {t === "upcoming" ? "Upcoming" : "Recent Results"}
+              </button>
+            ))}
+          </div>
+
+          {scheduleTab === "upcoming" ? (
+            matches.length === 0 ? (
+              <p className="text-sm text-neutral-400">No upcoming fixtures scheduled yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {matches.map((m) => {
+                  const docs = docsByMatch[m.id] ?? [];
+                  return (
+                    <div key={m.id} className="rounded-xl border border-white/10 p-3">
+                      <Link href={`/portal/matches/${m.id}`} className="block transition-colors hover:text-club-primary">
+                        <div className="flex items-center gap-2">
+                          <p className="min-w-0 flex-1 text-sm font-medium truncate">{m.is_home ? "vs" : "@"} {m.opponent}</p>
+                          <ChevronRight size={14} className="shrink-0 text-neutral-500" />
+                        </div>
+                        <p className="mt-0.5 text-xs text-neutral-400">{formatDate(m.kickoff)} · {formatTime(m.kickoff)}{m.venue ? ` · ${m.venue}` : ""}</p>
+                      </Link>
+                      {docs.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 border-t border-white/10 pt-2.5">
+                          {docs.map((d) => (
+                            <div key={d.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-left text-xs">
+                              <button onClick={() => handleOpenDoc(d)} className="flex min-w-0 flex-1 items-center gap-1.5 hover:text-white transition-colors">
+                                <FileText size={12} className="shrink-0 text-neutral-400" />
+                                <span className="flex-1 truncate">{d.file_name}</span>
+                              </button>
+                              {openedIds.has(d.id) && <span className="shrink-0 text-[10px] text-emerald-400">Opened</span>}
+                              <button onClick={() => handleDownloadDoc(d)} title="Download" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800 hover:text-white">
+                                <Download size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : recentResults.length === 0 ? (
+            <p className="text-sm text-neutral-400">No games have been played yet.</p>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {recentResults.map((m) => {
+                const scored = m.home_score !== null && m.away_score !== null;
+                const gf = m.is_home ? m.home_score : m.away_score;
+                const ga = m.is_home ? m.away_score : m.home_score;
+                const result = scored ? (gf! > ga! ? "W" : gf! < ga! ? "L" : "D") : null;
+                return (
+                  <Link key={m.id} href={`/portal/matches/${m.id}`} className="flex items-center gap-3 py-2.5 text-sm hover:text-club-primary transition-colors">
+                    {result ? (
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${resultColor[result]}`}>{result}</span>
+                    ) : (
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-neutral-400">–</span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{m.is_home ? "vs" : "@"} {m.opponent}</span>
+                    <TeamCrest name={m.opponent} size="sm" lookup={crestLookup} />
+                    {scored ? (
+                      <span className="shrink-0 tabular-nums text-neutral-400">{gf}-{ga}</span>
+                    ) : (
+                      <span className="shrink-0 text-[11px] text-neutral-500">no score</span>
+                    )}
+                    <span className="shrink-0 text-xs text-neutral-500">{formatDate(m.kickoff)}</span>
+                  </Link>
+                );
+              })}
+            </ul>
+          )}
+        </Collapsible>
+
+        <Collapsible title="League Table & Form" icon={<Trophy size={16} />}>
+          {formGuide.length > 0 && (
+            <div className="mb-3 flex items-center gap-1.5">
+              {formGuide.map((f) => (
+                <Link
+                  key={f.id}
+                  href={`/portal/matches/${f.id}`}
+                  title={`${f.opponent} ${f.score} — view match`}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-transform hover:scale-110 ${resultColor[f.result]}`}
+                >
+                  {f.result}
+                </Link>
+              ))}
+            </div>
+          )}
+          {league.length === 0 ? (
+            <p className="text-sm text-neutral-400">League table hasn&apos;t been set up yet.</p>
+          ) : (
+            // Expanded means the whole division, not the same five rows the
+            // card above already shows.
+            <div className="overflow-x-auto touch-pan-x">
+              <table className="w-full min-w-[300px] text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-left text-neutral-500">
+                    <th className="pb-1.5 pr-2 font-medium">#</th>
+                    <th className="pb-1.5 pr-2 font-medium">Team</th>
+                    <th className="pb-1.5 px-1.5 text-center font-medium">P</th>
+                    <th className="pb-1.5 px-1.5 text-center font-medium">GD</th>
+                    <th className="pb-1.5 text-center font-medium">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {league.map((r) => (
+                    <tr
+                      key={r.id}
+                      className={`border-b border-white/5 last:border-0 ${
+                        r.is_own_club ? "bg-club-primary/10 font-semibold text-club-primary" : ""
+                      }`}
+                    >
+                      <td className="py-1.5 pr-2 tabular-nums">{r.position}</td>
+                      <td className="py-1.5 pr-2">
+                        <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate">{r.team}</span>
+                          <TeamCrest name={r.team} size="sm" lookup={crestLookup} />
+                        </span>
+                      </td>
+                      <td className="px-1.5 py-1.5 text-center tabular-nums">{r.played}</td>
+                      <td className="px-1.5 py-1.5 text-center tabular-nums">
+                        {r.goals_for - r.goals_against > 0 ? `+${r.goals_for - r.goals_against}` : r.goals_for - r.goals_against}
+                      </td>
+                      <td className="py-1.5 text-center font-semibold tabular-nums">{r.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Collapsible>
+
+        {/* Sits above the profile section rather than buried inside it — it's
+            the one setting a player is likely to want, and burying it means
+            nobody finds it. */}
+        {player && (
+          <div className="rounded-card border border-white/10 bg-navy-700 p-4 dark:bg-navy-900">
+            <p className="mb-2 text-sm font-medium">Notifications</p>
+            <PortalPushToggle playerId={player.id} email={player.email ?? null} />
+          </div>
+        )}
+
+        {/* Sits next to the notification card, above the profile section: both
+            are "things about you that you maintain", and an emergency contact
+            nobody can find is the same as not having one. */}
+        <Collapsible title="Team Named" icon={<ClipboardList size={16} />}>
+          <PublishedLineup match={matches[0] ?? null} />
+        </Collapsible>
+
+        {player && (
+          <Collapsible title="My Time Off" icon={<Plane size={16} />}>
+            <MyAbsences playerId={player.id} />
+          </Collapsible>
+        )}
+
+        {player && (
+          <Collapsible title="Emergency Contact" icon={<HeartPulse size={16} />}>
+            <PortalEmergencyContact playerId={player.id} playerName={player.name} />
+          </Collapsible>
+        )}
+
+        <Collapsible title="My Profile" icon={<User size={16} />}>
+          {player && (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between"><span className="text-neutral-500">Squad number</span><span>#{player.squad_number}</span></div>
+              <div className="flex items-center justify-between"><span className="text-neutral-500">Position</span><span>{player.position}</span></div>
+              <div className="flex items-center justify-between"><span className="text-neutral-500">Nationality</span><span>{getCountryFlag(player.nationality)} {player.nationality}</span></div>
+              {player.dob && <div className="flex items-center justify-between"><span className="text-neutral-500">Date of birth</span><span>{player.dob}</span></div>}
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-center">
+                <div><p className="text-lg font-semibold">{player.appearances}</p><p className="text-[10px] text-neutral-500">Appearances</p></div>
+                <div><p className="text-lg font-semibold">{player.goals}</p><p className="text-[10px] text-neutral-500">Goals</p></div>
+                <div><p className="text-lg font-semibold">{player.assists}</p><p className="text-[10px] text-neutral-500">Assists</p></div>
+                <div><p className="text-lg font-semibold">{player.minutes}</p><p className="text-[10px] text-neutral-500">Minutes</p></div>
+              </div>
+            </div>
+          )}
+        </Collapsible>
+
+        {nextMatch && (
+          <Collapsible title={`Opposition: ${nextMatch.opponent}`} icon={<Shield size={16} />}>
+            {h2h && (
+              <div className="mb-3 grid grid-cols-4 gap-2 text-center text-xs">
+                <div><p className="font-semibold">{h2h.played ?? "–"}</p><p className="text-neutral-500">Played</p></div>
+                <div><p className="font-semibold text-emerald-400">{h2h.won ?? "–"}</p><p className="text-neutral-500">Won</p></div>
+                <div><p className="font-semibold text-amber-400">{h2h.drawn ?? "–"}</p><p className="text-neutral-500">Drawn</p></div>
+                <div><p className="font-semibold text-red-400">{h2h.lost ?? "–"}</p><p className="text-neutral-500">Lost</p></div>
+              </div>
+            )}
+            {oppReports.length === 0 ? (
+              <p className="text-sm text-neutral-400">No scouting reports uploaded for this opponent yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {oppReports.map((r) => (
+                  <div key={r.id}>
+                    <button
+                      onClick={async () => window.open(await getOppositionReportDownloadUrl(r.file_path), "_blank")}
+                      className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-2.5 py-2 text-left text-xs hover:bg-navy-600 dark:hover:bg-navy-800 transition-colors"
+                    >
+                      <FileText size={12} className="shrink-0 text-neutral-400" />
+                      <span className="flex-1 truncate">{r.file_name}</span>
+                      <Download size={12} className="shrink-0 text-neutral-400" />
+                    </button>
+                    {r.ai_summary && <p className="mt-1 px-1 text-xs text-neutral-400">{r.ai_summary}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Collapsible>
+        )}
+
+        <Collapsible title="This Week: Training & Meetings" icon={<Dumbbell size={16} />}>
+          {weekEvents.length === 0 ? (
+            <p className="text-sm text-neutral-400">Nothing on the calendar this week.</p>
+          ) : (
+            <ul className="space-y-2">
+              {weekEvents.map((e) => {
+                const row = (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-2.5 py-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{e.title}</p>
+                      <p className="text-neutral-400">{new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}{e.startTime ? ` · ${e.startTime}` : ""}{e.venue ? ` · ${e.venue}` : ""}</p>
+                    </div>
+                    <Badge variant={e.type === "training" ? "green" : "blue"} className="shrink-0">{e.type}</Badge>
+                  </div>
+                );
+                // Training opens that day's plan; meetings have nothing behind
+                // them, so they stay as plain rows rather than dead links.
+                return e.type === "training" ? (
+                  <li key={e.key}>
+                    <Link href={`/portal/training/${e.date}`} className="block transition-colors hover:brightness-125">{row}</Link>
+                  </li>
+                ) : (
+                  <li key={e.key}>{row}</li>
+                );
+              })}
+            </ul>
+          )}
+        </Collapsible>
+
+        {/* The same list the coaching staff sees in the Training Planner —
+            read-only here, and viewable in-app rather than only downloadable,
+            since most of these are PDFs or photos of a whiteboard. */}
+        <Collapsible title="Training Plans" icon={<FileText size={16} />}>
+          <SessionPlanLibrary compact />
+        </Collapsible>
+
+        <Collapsible title="Match Photos" icon={<Camera size={16} />}>
+          {/* Read-only for players — the club uploads them in Documents. */}
+          <MatchPhotos limit={30} />
+        </Collapsible>
+
+        <Collapsible title="Recent Clips" icon={<Film size={16} />}>
+          {clips.length === 0 ? (
+            <p className="text-sm text-neutral-400">No clips in the library yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {clips.map((c) => (
+                <button key={c.id} onClick={() => handlePlayClip(c)} className="group relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-navy-800">
+                  <Play size={20} className="text-neutral-400 group-hover:text-white transition-colors" />
+                  <p className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-2 py-1 text-left text-[10px]">{c.title}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </Collapsible>
+
+        <Collapsible
+          title="Book Treatment"
+          icon={<HeartPulse size={16} />}
+          badge={upcomingBookings.length > 0 ? <Badge variant="amber">{upcomingBookings.length}</Badge> : undefined}
+        >
+          {bookConfirmed && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-300">
+              <Check size={13} /> Slot requested — the medical team will confirm it.
+            </div>
+          )}
+          <button
+            onClick={() => setShowBook(true)}
+            className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-club-primary text-navy-950 px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus size={14} /> Request Slot
+          </button>
+          {upcomingBookings.length === 0 ? (
+            <p className="text-sm text-neutral-400">No upcoming treatment slots.</p>
+          ) : (
+            <ul className="space-y-2">
+              {upcomingBookings.map((b) => (
+                <li key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-2.5 py-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{b.treatment_type}</p>
+                    <p className="text-neutral-400">{formatDate(b.start_time)} · {formatTime(b.start_time)}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Badge variant={statusVariant[b.status]}>{statusLabel[b.status]}</Badge>
+                    <button onClick={() => handleCancelBooking(b)} className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"><Trash2 size={12} /></button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {pastBookings.length > 0 && (
+            <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">History</p>
+              {pastBookings.slice(0, 5).map((b) => (
+                <div key={b.id} className="flex items-center justify-between gap-2 text-xs">
+                  <p className="truncate text-neutral-300">{b.treatment_type} · {formatDate(b.start_time)}</p>
+                  <Badge variant={statusVariant[b.status]}>{statusLabel[b.status]}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </Collapsible>
+
+        {player && (
+          <Collapsible title="Message the Medical Team" icon={<MessageCircle size={16} />}>
+            <MessageThread playerId={player.id} viewerRole="player" viewerName={player.name} viewerEmail={player.email} />
+          </Collapsible>
         )}
       </div>
 
-      {loading ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
-      ) : goals.length === 0 ? (
-        <Card>
-          <p className="text-sm text-neutral-400">
-            No goals logged yet. Use "Add Goal / Assist" above, or tap "Mark location" when logging a goal from a match's page in Match
-            Centre.
-          </p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-5">
-            <div>
-              <div className="mb-4 flex flex-wrap gap-2">
-                {tabs.map((t) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTab(t.key)}
-                    className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                      tab === t.key ? "bg-club-primary text-navy-950" : "bg-navy-600 dark:bg-navy-800 text-neutral-500 hover:text-white"
-                    }`}
-                  >
-                    {t.label} ({t.count})
-                  </button>
-                ))}
-              </div>
-              <Card>
-                {points.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-neutral-400">No locations logged for this yet.</p>
-                ) : (
-                  <div className="mx-auto max-w-xs">
-                    <PitchMapDisplay points={points} />
-                  </div>
-                )}
-              </Card>
-            </div>
-
-            {missingLocation.length > 0 && (
-              <Card>
-                <CardHeader><CardTitle>Missing a Location</CardTitle></CardHeader>
-                <p className="mb-3 text-xs text-neutral-500">
-                  These are logged but don't have a pitch location yet, so they're left off the maps above.
-                  {canEdit ? " Tap one to add it." : ""}
-                </p>
-                <ul className="divide-y divide-white/10">
-                  {missingLocation.map((g) => (
-                    <li key={g.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          {g.scorer} {g.assist ? `(assist: ${g.assist})` : ""} {g.minute ? `— ${g.minute}'` : ""}
-                        </p>
-                        <p className="truncate text-xs text-neutral-400">
-                          {g.team === "us" ? "Us" : "Opponent"} · {matchLabel(g.match_id)}
-                        </p>
-                      </div>
-                      {canEdit && (
-                        <button
-                          onClick={() => openBackfill(g)}
-                          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
-                        >
-                          <MapPin size={12} /> Add location
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-          </div>
-
-          <div className="space-y-5">
-            <Card>
-              <CardHeader><CardTitle>Top Goalscorers</CardTitle></CardHeader>
-              {scorers.length === 0 ? (
-                <p className="text-sm text-neutral-400">None yet.</p>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {scorers.map((s) => (
-                    <li key={s.name} className="flex items-center justify-between">
-                      <span className="truncate">{s.name}</span>
-                      <span className="font-semibold text-club-primary">{s.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-            <Card>
-              <CardHeader><CardTitle>Top Assists</CardTitle></CardHeader>
-              {assists.length === 0 ? (
-                <p className="text-sm text-neutral-400">None yet.</p>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {assists.map((s) => (
-                    <li key={s.name} className="flex items-center justify-between">
-                      <span className="truncate">{s.name}</span>
-                      <span className="font-semibold text-club-primary">{s.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-        </div>
+      {viewing && (
+        <DocumentViewerModal
+          fileName={viewing.file_name}
+          fileType={viewing.file_type}
+          getViewUrl={() => getMatchDocumentUrl(viewing.file_path)}
+          getDownloadUrl={() => getMatchDocumentDownloadUrl(viewing.file_path, viewing.file_name)}
+          onClose={() => setViewing(null)}
+        />
       )}
 
-      {showAdd && (
+      {showFullCalendar && (
+        <PortalCalendarModal matches={allMatches} events={allEvents} onClose={() => setShowFullCalendar(false)} />
+      )}
+
+      {showPhotoFull && player?.photo_url && (
+        <PhotoLightbox photoUrl={player.photo_url} name={player.name} onClose={() => setShowPhotoFull(false)} />
+      )}
+
+      {showEditDetails && player && (
+        <EditDetailsModal
+          player={player}
+          onClose={() => setShowEditDetails(false)}
+          onSaved={(patch) => setPlayer((prev) => (prev ? { ...prev, ...patch } : prev))}
+        />
+      )}
+
+      {playingClip && <VideoPlayer clip={playingClip} onClose={() => setPlayingClip(null)} sourceClipId={playingClip.id} />}
+      {playingYouTube && (
+        <YouTubePlayer title={playingYouTube.title} videoId={playingYouTube.videoId} onClose={() => setPlayingYouTube(null)} />
+      )}
+
+      {showBook && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-card border border-white/10 bg-navy-700 dark:bg-navy-900 p-4 shadow-softDark">
             <div className="mb-4 flex items-center justify-between">
-              <p className="font-medium">Add Goal / Assist</p>
-              <button onClick={() => setShowAdd(false)} className="text-neutral-400 hover:text-white"><X size={18} /></button>
+              <p className="font-medium">Request Treatment Slot</p>
+              <button onClick={() => setShowBook(false)} className="text-neutral-400 hover:text-white"><X size={18} /></button>
             </div>
-            <form onSubmit={handleAddSubmit} className="space-y-3">
+            <form onSubmit={handleBook} className="space-y-3">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Fixture</label>
-                <select
-                  value={addForm.matchId}
-                  onChange={(e) => setAddForm((f) => ({ ...f, matchId: e.target.value }))}
-                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                >
-                  <option value="">Select a fixture…</option>
-                  {matches.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.is_home ? "vs" : "@"} {m.opponent} — {new Date(m.kickoff).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                    </option>
-                  ))}
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Treatment type</label>
+                <select value={treatmentType} onChange={(e) => setTreatmentType(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
+                  {TREATMENT_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-
-              <div className="flex gap-1 rounded-xl bg-navy-600 dark:bg-navy-800 p-1 text-sm w-fit">
-                {[{ v: "us" as const, label: "Us" }, { v: "opponent" as const, label: "Opponent" }].map((o) => (
-                  <button
-                    key={o.v}
-                    type="button"
-                    onClick={() => setAddForm((f) => ({ ...f, team: o.v }))}
-                    className={`rounded-lg px-3 py-1 transition-colors ${addForm.team === o.v ? "bg-club-primary text-navy-950" : "text-neutral-400"}`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-
               <div className="flex gap-3">
-                <div className="w-24">
-                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Minute</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={130}
-                    value={addForm.minute}
-                    onChange={(e) => setAddForm((f) => ({ ...f, minute: e.target.value }))}
-                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                  />
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Date</label>
+                  <input type="date" value={bookDate} min={todayIso()} onChange={(e) => setBookDate(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">{addForm.team === "us" ? "Scorer" : "Scorer (opponent)"}</label>
-                  <input
-                    value={addForm.scorer}
-                    onChange={(e) => setAddForm((f) => ({ ...f, scorer: e.target.value }))}
-                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                  />
+                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Start time</label>
+                  <input type="time" step={BOOKING_STEP_MINUTES * 60}
+                    value={bookTime}
+                    onChange={(e) => setBookTime(e.target.value)}
+                    onBlur={(e) => setBookTime(snapToBookingInterval(e.target.value))}
+                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
                 </div>
               </div>
-
-              {addForm.team === "us" && (
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-neutral-500">Assist (optional)</label>
-                  <input
-                    value={addForm.assist}
-                    onChange={(e) => setAddForm((f) => ({ ...f, assist: e.target.value }))}
-                    className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30"
-                  />
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Duration</label>
+                <select value={bookDuration} onChange={(e) => setBookDuration(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30">
+                  {["5", "10", "15", "20", "30", "45", "60", "90"].map((m) => <option key={m} value={m}>{m} minutes</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Notes (optional)</label>
+                <textarea value={bookNotes} onChange={(e) => setBookNotes(e.target.value)} rows={2}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-navy-600 dark:bg-navy-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-club-primary/30" />
+              </div>
+              {bookError && (
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" /><p>{bookError}</p>
                 </div>
               )}
-
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-neutral-500">Pitch location</label>
-                <PitchMapInput value={addLocation} onChange={setAddLocation} />
-              </div>
-
-              {addError && <p className="text-sm text-red-300">{addError}</p>}
-
-              <button
-                type="submit"
-                disabled={addSaving}
-                className="w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
-              >
-                {addSaving ? "Saving…" : "Save"}
+              <button type="submit" disabled={booking}
+                className="w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60">
+                {booking ? "Requesting…" : "Request Slot"}
               </button>
             </form>
-          </Card>
+          </div>
         </div>
       )}
-
-      {locatingGoal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="font-medium">
-                {locatingGoal.scorer} {locatingGoal.minute ? `— ${locatingGoal.minute}'` : ""}
-              </p>
-              <button onClick={() => setLocatingGoal(null)} className="text-neutral-400 hover:text-white"><X size={18} /></button>
-            </div>
-            <PitchMapInput value={backfillPoint} onChange={setBackfillPoint} />
-            <button
-              onClick={handleBackfillSave}
-              disabled={!backfillPoint || backfillSaving}
-              className="mt-4 w-full rounded-xl bg-club-primary text-navy-950 px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {backfillSaving ? "Saving…" : "Save Location"}
-            </button>
-          </Card>
-        </div>
-      )}
-    </AppShell>
+    </div>
   );
 }
