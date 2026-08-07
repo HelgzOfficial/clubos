@@ -53,16 +53,19 @@ export function PlayerGpsCard({ playerId }: { playerId: string }) {
       </p>
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         {bests.map(({ meta, best }) => (
-          <div key={meta.key} className="rounded-xl border border-white/10 p-2.5">
+          // Deliberately a different shade from the session grid below, so the
+          // season bests read as their own thing rather than as a header row
+          // for the table.
+          <div key={meta.key} className="on-dark rounded-xl border border-white/10 bg-navy-800 p-2.5">
             <p className="text-[10px] uppercase tracking-wide text-neutral-500">{meta.label}</p>
             <p className="text-sm font-semibold tabular-nums">{formatMetric(best, meta.key)}</p>
           </div>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-white/10">
+      <div className="on-dark overflow-x-auto rounded-xl border border-white/10 bg-navy-950">
         <table className="w-full text-xs">
-          <thead className="bg-navy-600/50 dark:bg-navy-800/50">
+          <thead className="bg-navy-800/70">
             <tr>
               <th className="px-2 py-2 text-left font-medium text-neutral-400">Session</th>
               {GPS_METRICS.map((m) => (
