@@ -5,6 +5,11 @@ const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
+    // lib/ matters too: Tailwind only builds the classes it can actually find
+    // written down somewhere. lib/tab-styles.ts holds the shared tab and
+    // navigation classes, and without this line they'd be stripped out of the
+    // stylesheet and every tab would render unstyled.
+    "./lib/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
