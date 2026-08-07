@@ -14,18 +14,26 @@ const config: Config = {
           primaryLight: "rgb(var(--club-secondary-rgb) / <alpha-value>)",
           accent: "rgb(var(--club-accent-rgb) / <alpha-value>)",
         },
+        // Every shade here is a CSS variable, not a fixed hex — so the whole
+        // app's background/panel/border colour scheme (not just the accent
+        // buttons) can be re-themed to the club's own colours at runtime from
+        // Settings > Appearance, with zero changes needed anywhere any of
+        // these classes (bg-navy-800, dark:bg-navy-950, border-navy-600/50,
+        // ...) are already used. See lib/theme-ramp.ts and
+        // components/club-color-provider.tsx. The values in app/globals.css
+        // are the original navy palette, used until that provider runs.
         navy: {
-          50: "#EEF1F8",
-          100: "#D7DEF0",
-          200: "#AEBEE0",
-          300: "#8299CB",
-          400: "#5975B0",
-          500: "#3C5590",
-          600: "#2A3F70",
-          700: "#1E2E56",
-          800: "#141F3D",
-          900: "#0B1428",
-          950: "#060B1A",
+          50: "rgb(var(--navy-50-rgb) / <alpha-value>)",
+          100: "rgb(var(--navy-100-rgb) / <alpha-value>)",
+          200: "rgb(var(--navy-200-rgb) / <alpha-value>)",
+          300: "rgb(var(--navy-300-rgb) / <alpha-value>)",
+          400: "rgb(var(--navy-400-rgb) / <alpha-value>)",
+          500: "rgb(var(--navy-500-rgb) / <alpha-value>)",
+          600: "rgb(var(--navy-600-rgb) / <alpha-value>)",
+          700: "rgb(var(--navy-700-rgb) / <alpha-value>)",
+          800: "rgb(var(--navy-800-rgb) / <alpha-value>)",
+          900: "rgb(var(--navy-900-rgb) / <alpha-value>)",
+          950: "rgb(var(--navy-950-rgb) / <alpha-value>)",
         },
       },
       borderRadius: {
