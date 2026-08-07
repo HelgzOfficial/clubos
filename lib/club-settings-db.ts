@@ -15,6 +15,7 @@ export async function fetchClubSettings(fallback: ClubSettings): Promise<ClubSet
     primaryColor: data.primary_color ?? fallback.primaryColor,
     secondaryColor: data.secondary_color ?? fallback.secondaryColor,
     accentColor: data.accent_color ?? fallback.accentColor,
+    surfaceColor: data.surface_color ?? fallback.surfaceColor,
   };
 }
 
@@ -29,6 +30,7 @@ export async function saveClubSettingsRemote(settings: ClubSettings): Promise<vo
       primary_color: settings.primaryColor,
       secondary_color: settings.secondaryColor,
       accent_color: settings.accentColor,
+      surface_color: settings.surfaceColor,
       updated_at: new Date().toISOString(),
     });
   if (error) throw error;
