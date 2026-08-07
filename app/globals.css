@@ -115,8 +115,12 @@ body {
 }
 
 /* A Primary-filled button sitting on a Primary-filled card would be invisible,
-   so it inverts: dark button, Primary lettering. */
-[data-card-tone="club"] .bg-club-primary {
+   so it inverts: dark button, Primary lettering. Restricted to buttons and
+   links on purpose — other Primary-filled things inside these cards (the
+   position labels on the pitch diagram, for instance) sit on their own
+   background, not on the card, and should stay the club colour. */
+[data-card-tone="club"] button.bg-club-primary,
+[data-card-tone="club"] a.bg-club-primary {
   background-color: rgb(var(--navy-950-rgb));
   color: rgb(var(--club-primary-rgb));
 }
@@ -135,6 +139,37 @@ body {
 [data-card-tone="club"] .bg-red-500\/5,
 [data-card-tone="club"] .bg-amber-500\/10 {
   background-color: rgb(var(--navy-950-rgb) / 0.88);
+}
+
+/* An island of dark inside a filled card — used where a block needs to stand
+   apart from the Primary fill rather than sit on it, like the season-best
+   tiles and the session grid on the GPS panel. Anything marked this way gets
+   the light text and hairline borders it was originally designed for, since
+   it's back on a dark surface. */
+[data-card-tone="club"] .on-dark {
+  color: rgb(var(--text-strong-rgb));
+}
+
+[data-card-tone="club"] .on-dark .text-white {
+  color: rgb(var(--text-strong-rgb));
+}
+
+[data-card-tone="club"] .on-dark .text-neutral-300 {
+  color: rgb(var(--text-300-rgb));
+}
+
+[data-card-tone="club"] .on-dark .text-neutral-400 {
+  color: rgb(var(--text-400-rgb));
+}
+
+[data-card-tone="club"] .on-dark .text-neutral-500 {
+  color: rgb(var(--text-500-rgb));
+}
+
+[data-card-tone="club"] .on-dark.border-white\/10,
+[data-card-tone="club"] .on-dark .border-white\/10,
+[data-card-tone="club"] .on-dark .divide-white\/10 > * + * {
+  border-color: rgb(255 255 255 / 0.1);
 }
 
 /* A card nested inside a filled one goes back to its own colours. */
