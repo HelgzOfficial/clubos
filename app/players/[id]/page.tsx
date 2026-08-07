@@ -128,7 +128,7 @@ export default function PlayerProfilePage() {
         <Link href="/players" className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white">
           <ArrowLeft size={14} /> Back to Players
         </Link>
-        <Card>
+        <Card tone="club">
           <p className="text-sm text-neutral-400">This player couldn&apos;t be found — they may have been removed.</p>
         </Card>
       </AppShell>
@@ -193,7 +193,7 @@ export default function PlayerProfilePage() {
           </div>
         </div>
       ) : (
-        <Card className="mb-6">
+        <Card tone="club" className="mb-6">
           <form onSubmit={handleSave} className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
@@ -293,7 +293,7 @@ export default function PlayerProfilePage() {
         <PositionCard player={player} onChanged={(p) => setPlayer(p)} />
 
         <div className="space-y-5 lg:col-span-2">
-          <Card>
+          <Card tone="club">
             <CardHeader><CardTitle>Player Info</CardTitle></CardHeader>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 text-sm">
               <div>
@@ -331,7 +331,7 @@ export default function PlayerProfilePage() {
           <PlayerGpsCard playerId={player.id} />
         </div>
 
-        <Card>
+        <Card tone="club">
           <CardHeader><CardTitle>Injury History</CardTitle></CardHeader>
           {player.injury_history.length === 0 ? (
             <p className="text-sm text-neutral-400">No recorded injuries this season.</p>
@@ -350,7 +350,7 @@ export default function PlayerProfilePage() {
           )}
         </Card>
 
-        <Card>
+        <Card tone="club">
           <CardHeader><CardTitle>Documents</CardTitle></CardHeader>
           {player.documents.length === 0 ? (
             <p className="text-sm text-neutral-400">No documents on file.</p>
@@ -372,7 +372,7 @@ export default function PlayerProfilePage() {
             the only thing standing between a player's medical history and the
             rest of the squad — see supabase-player-medical-profiles.sql. */}
         {canSeeMedical && (
-          <Card className="lg:col-span-2">
+          <Card tone="club" className="lg:col-span-2">
             <CardHeader><CardTitle>Emergency &amp; Medical</CardTitle></CardHeader>
             <PlayerMedicalProfile
               player={player}
@@ -383,7 +383,7 @@ export default function PlayerProfilePage() {
           </Card>
         )}
 
-        <Card>
+        <Card tone="club">
           <CardHeader><CardTitle>Clips</CardTitle></CardHeader>
           {player.clips.length === 0 ? (
             <p className="text-sm text-neutral-400">No clips tagged yet.</p>
@@ -444,7 +444,7 @@ function PositionCard({ player, onChanged }: { player: DbPlayer; onChanged: (p: 
   }
 
   return (
-    <Card>
+    <Card tone="club">
       <div className="mb-3 flex items-center justify-between">
         <CardTitle>Position{(editing ? draft : savedPositions).length > 1 ? "s" : ""}</CardTitle>
         {!editing && (
@@ -576,7 +576,7 @@ function SeasonStatsCard({ player, onChanged }: { player: DbPlayer; onChanged: (
   }
 
   return (
-    <Card>
+    <Card tone="club">
       <div className="mb-3 flex items-center justify-between">
         <CardTitle>Season Statistics</CardTitle>
         <div className="flex items-center gap-1.5">
