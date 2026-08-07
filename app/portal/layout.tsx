@@ -25,10 +25,13 @@ export const metadata: Metadata = {
   },
 };
 
-// Amber rather than the staff app's navy, so even the status bar tint says
-// "this is the players' app".
+// The status bar tint above the installed app. This value is only what shows
+// before the page's JavaScript runs — ClubColorProvider replaces it with the
+// club's own App Background colour on load, so the bar matches whatever the
+// club has set in Settings > Appearance rather than a colour fixed at build
+// time. Kept in step with the default in lib/sample-data.ts.
 export const viewport: Viewport = {
-  themeColor: "#f59e0b",
+  themeColor: "#0B1428",
 };
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
