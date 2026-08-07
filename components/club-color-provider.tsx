@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { loadClubSettings, saveClubSettings, hexToRgbTriplet } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
 import { club } from "@/lib/sample-data";
-import { generateShadeRamp, SHADE_KEYS } from "@/lib/theme-ramp";
+import { generateShadeRamp, generateTextRamp, SHADE_KEYS } from "@/lib/theme-ramp";
 
 // Applies the saved club colours as CSS variables on the document root, so
 // every `bg-club-primary` / `text-club-primary` / etc. utility class picks
@@ -22,6 +22,7 @@ export function applyClubColors(settings: {
   secondaryColor: string;
   accentColor: string;
   surfaceColor?: string;
+  textColor?: string;
 }) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
@@ -29,10 +30,24 @@ export function applyClubColors(settings: {
   root.style.setProperty("--club-secondary-rgb", hexToRgbTriplet(settings.secondaryColor));
   root.style.setProperty("--club-accent-rgb", hexToRgbTriplet(settings.accentColor));
 
+  const ramp = generateShadeRamp(settings.surfaceColor || "#0B1428");
   if (settings.surfaceColor) {
-    const ramp = generateShadeRamp(settings.surfaceColor);
     for (const key of SHADE_KEYS) {
       root.style.setProperty(`--navy-${key}-rgb`, ramp[key]);
+    }
+    // The phone's status bar tint on an installed home-screen app. Set here
+    // rather than in the page metadata because metadata is fixed at build
+    // time and can't know the club's colours — this keeps the bar above both
+    // the staff app and the player portal matching the app underneath it.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", settings.surfaceColor);
+  }
+
+  if (settings.textColor) {
+    const text = generateTextRamp(settings.textColor, ramp);
+    root.style.setProperty("--text-strong-rgb", text.strong);
+    for (const key of SHADE_KEYS) {
+      root.style.setProperty(`--text-${key}-rgb`, text[key]);
     }
   }
 }
