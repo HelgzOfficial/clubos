@@ -76,49 +76,49 @@ export function InstallPrompt() {
   if (installed || !show) return null;
 
   return (
-    <div className="relative mb-4 rounded-card border border-amber-500/30 bg-amber-500/10 p-4">
+    <div className="relative mb-4 rounded-card border border-club-primary/30 bg-club-primary/10 p-4">
       <button
         onClick={dismiss}
         aria-label="Dismiss"
-        className="absolute right-2 top-2 flex h-7 w-7 touch-manipulation items-center justify-center rounded-full text-amber-300/70 hover:bg-amber-500/10 hover:text-amber-200"
+        className="absolute right-2 top-2 flex h-7 w-7 touch-manipulation items-center justify-center rounded-full text-club-primary/70 hover:bg-club-primary/10 hover:text-club-primary"
       >
         <X size={14} />
       </button>
 
-      <p className="pr-8 text-sm font-medium text-amber-100">Add the portal to your home screen</p>
+      <p className="pr-8 text-sm font-medium text-white">Add the portal to your home screen</p>
 
       {isIOS ? (
         <>
-          <p className="mt-1 text-xs text-amber-200/80">
+          <p className="mt-1 text-xs text-neutral-300">
             It then opens full screen like a normal app, and you can turn on notifications for team news.
           </p>
-          <ol className="mt-3 space-y-1.5 text-xs text-amber-100/90">
+          <ol className="mt-3 space-y-1.5 text-xs text-neutral-200">
             <li className="flex items-center gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/25 text-[10px] font-semibold">1</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-club-primary/25 text-[10px] font-semibold">1</span>
               Tap <Share size={12} className="inline align-[-1px]" /> at the bottom of Safari
             </li>
             <li className="flex items-center gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/25 text-[10px] font-semibold">2</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-club-primary/25 text-[10px] font-semibold">2</span>
               Scroll down and tap <Plus size={12} className="inline align-[-1px]" /> Add to Home Screen
             </li>
             <li className="flex items-center gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/25 text-[10px] font-semibold">3</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-club-primary/25 text-[10px] font-semibold">3</span>
               Tap Add
             </li>
           </ol>
-          <p className="mt-2 text-[11px] text-amber-200/60">
+          <p className="mt-2 text-[11px] text-neutral-400">
             It has to be Safari — Chrome on iPhone can&apos;t add to the home screen.
           </p>
         </>
       ) : (
         <>
-          <p className="mt-1 text-xs text-amber-200/80">
+          <p className="mt-1 text-xs text-neutral-300">
             It then opens full screen like a normal app, and you can turn on notifications for team news.
           </p>
           <button
             onClick={install}
             disabled={!deferred}
-            className="mt-3 flex touch-manipulation items-center gap-2 rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-medium text-navy-950 disabled:opacity-60"
+            className="mt-3 flex touch-manipulation items-center gap-2 rounded-xl bg-club-primary px-3.5 py-2 text-sm font-medium text-navy-950 disabled:opacity-60"
           >
             <Download size={15} /> Install
           </button>
