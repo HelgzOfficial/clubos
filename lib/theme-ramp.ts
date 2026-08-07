@@ -88,6 +88,12 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
+function parseTriplet(triplet: string): [number, number, number] {
+  const parts = triplet.split(/\s+/).map((n) => Number(n));
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return [20, 31, 61];
+  return [parts[0], parts[1], parts[2]];
+}
+
 // "#RRGGBB" -> "{50: 'R G B', 100: 'R G B', ...}" ready to drop straight
 // into CSS custom properties (Tailwind's rgb(var(--x) / <alpha-value>) form).
 export function generateShadeRamp(baseHex: string): Record<ShadeKey, string> {
@@ -105,6 +111,46 @@ export function generateShadeRamp(baseHex: string): Record<ShadeKey, string> {
     const newLight = clamp(BASE_LIGHTNESS[key] + lightDelta * fade, 2, 97);
     const [r, g, b] = hslToRgb(h, newSat, newLight);
     out[key] = `${r} ${g} ${b}`;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Text colour
+// ---------------------------------------------------------------------------
+
+// How far each `text-neutral-*` shade sits between the club's chosen text
+// colour and the page background behind it. These ratios were measured from
+// the greys the app already used (text-neutral-400 for hints, -500 for the
+// quietest labels, and so on) so switching to a club's own text colour keeps
+// exactly the same visual hierarchy — headings loud, captions quiet — rather
+// than flattening everything to one shade.
+//
+// Deriving muted text by blending toward the background, instead of using
+// fixed greys, is also what stops pale text disappearing when a club picks a
+// light background, or dark text vanishing on a dark one: the muted shades
+// always move toward whatever is actually behind them.
+const TEXT_MIX: Record<ShadeKey, number> = {
+  "50": 0, "100": 0.04, "200": 0.09, "300": 0.17, "400": 0.4,
+  "500": 0.63, "600": 0.79, "700": 0.87, "800": 0.92, "900": 0.96, "950": 0.98,
+};
+
+export type TextRamp = { strong: string } & Record<ShadeKey, string>;
+
+// Builds the text palette from the club's text colour and the surface ramp it
+// will be read against. `strong` is the full-strength colour used for
+// headings and body copy (everything the app writes as `text-white`).
+export function generateTextRamp(textHex: string, surfaceRamp: Record<ShadeKey, string>): TextRamp {
+  const [th, ts, tl] = hexToHsl(textHex);
+  const [tr, tg, tb] = hslToRgb(th, ts, tl);
+  // Blend against the mid-dark panel shade, which is what most text in the
+  // app actually sits on (cards and page background alike).
+  const [br, bg, bb] = parseTriplet(surfaceRamp["800"]);
+
+  const out = { strong: `${tr} ${tg} ${tb}` } as TextRamp;
+  for (const key of SHADE_KEYS) {
+    const t = TEXT_MIX[key];
+    out[key] = `${Math.round(tr + (br - tr) * t)} ${Math.round(tg + (bg - tg) * t)} ${Math.round(tb + (bb - tb) * t)}`;
   }
   return out;
 }
