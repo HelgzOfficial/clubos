@@ -18,6 +18,7 @@ const COLOR_FIELDS: { key: keyof ClubSettings; label: string; hint: string }[] =
   { key: "primaryColor", label: "Primary", hint: "Buttons, highlights, active nav" },
   { key: "secondaryColor", label: "Secondary", hint: "Lighter accents" },
   { key: "accentColor", label: "Accent", hint: "Badges and callouts" },
+  { key: "surfaceColor", label: "App Background", hint: "Page background, cards, panels & borders — the whole app, not just buttons" },
 ];
 
 export default function SettingsPage() {
@@ -187,10 +188,12 @@ export default function SettingsPage() {
         <Card>
           <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
           <p className="mb-4 text-xs text-neutral-400">
-            Set the app's colour scheme to match your club colours — every button, badge and highlight across ClubOS uses these.
+            Set the app's whole colour scheme to match your club colours — Primary, Secondary and Accent cover every button,
+            badge and highlight; App Background re-colours the page background, cards and panels behind them, across every
+            module.
           </p>
 
-          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {COLOR_FIELDS.map(({ key, label, hint }) => (
               <div key={key}>
                 <label className="mb-1.5 block text-xs font-medium text-neutral-500">{label}</label>
@@ -206,6 +209,33 @@ export default function SettingsPage() {
                 <p className="mt-1 text-[11px] text-neutral-500">{hint}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mb-4 rounded-xl border border-white/10 bg-navy-800 p-4">
+            <p className="mb-3 text-[11px] font-medium text-neutral-500">Live preview — updates as you pick colours, before you save</p>
+            <div className="rounded-xl bg-navy-900 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-semibold">{branding.name || "Your Club"}</span>
+                <span className="rounded-full bg-club-primary px-2 py-0.5 text-[10px] font-medium text-navy-950">Badge</span>
+              </div>
+              <div className="mb-2 rounded-lg border border-white/10 bg-navy-800 p-2 text-xs text-neutral-300">
+                A card, like the ones used throughout the app
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg bg-club-primary px-3 py-1.5 text-xs font-medium text-navy-950"
+                >
+                  Primary button
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-white/10 bg-navy-600 px-3 py-1.5 text-xs font-medium text-neutral-200"
+                >
+                  Secondary button
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="rounded-xl border border-white/10 p-3">
@@ -229,8 +259,13 @@ export default function SettingsPage() {
                 {crestSwatches.map((hex) => (
                   <button
                     key={hex}
-                    title={`Use ${hex} as primary — shift-click for secondary, alt-click for accent`}
-                    onClick={(e) => updateColor(e.shiftKey ? "secondaryColor" : e.altKey ? "accentColor" : "primaryColor", hex)}
+                    title={`Use ${hex} as primary — shift-click for secondary, alt-click for accent, ctrl/cmd-click for app background`}
+                    onClick={(e) =>
+                      updateColor(
+                        e.shiftKey ? "secondaryColor" : e.altKey ? "accentColor" : e.ctrlKey || e.metaKey ? "surfaceColor" : "primaryColor",
+                        hex
+                      )
+                    }
                     className="h-8 w-8 rounded-lg border border-white/20"
                     style={{ backgroundColor: hex }}
                   />
@@ -238,7 +273,9 @@ export default function SettingsPage() {
               </div>
             )}
             {crestSwatches.length > 0 && (
-              <p className="mt-2 text-[11px] text-neutral-500">Click a swatch for Primary, Shift-click for Secondary, Alt-click for Accent.</p>
+              <p className="mt-2 text-[11px] text-neutral-500">
+                Click a swatch for Primary, Shift-click for Secondary, Alt-click for Accent, Ctrl/Cmd-click for App Background.
+              </p>
             )}
           </div>
 
