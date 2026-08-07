@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import Image from "next/image";
 import { BodyPart, bodyCoords } from "@/lib/sample-data";
 
@@ -22,7 +23,7 @@ export function BodyMap({
             key={v}
             onClick={() => setView(v)}
             className={`rounded-full px-3 py-1 capitalize transition-colors ${
-              view === v ? "bg-club-primary text-navy-950 shadow-sm" : "text-neutral-400"
+              tabState(view === v, "plain")
             }`}
           >
             {v}
