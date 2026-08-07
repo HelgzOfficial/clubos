@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { tabState } from "@/lib/tab-styles";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -231,7 +232,7 @@ export default function ManagerPage() {
             key={key}
             onClick={() => setTab(key)}
             className={`flex touch-manipulation items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-              tab === key ? "bg-club-primary text-navy-950" : "bg-navy-600 text-neutral-400 hover:text-white dark:bg-navy-800"
+              tabState(tab === key)
             }`}
           >
             <Icon size={14} /> {label}
