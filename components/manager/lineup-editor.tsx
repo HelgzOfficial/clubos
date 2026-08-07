@@ -22,7 +22,7 @@ import {
   type DbLineup, type LineupSlot,
 } from "@/lib/lineups-db";
 import {
-  Check, X, Loader2, Copy, Printer, Mail, ChevronUp, ChevronDown, Star, Send, UserPlus, RefreshCw, Lock, AlertTriangle,
+  Check, X, Loader2, Copy, Printer, Mail, ChevronUp, ChevronDown, Star, Send, UserPlus, RefreshCw, Lock, AlertTriangle, Unlock,
 } from "lucide-react";
 
 // The whole team-selection experience — pitch, drag and drop, formation
@@ -60,6 +60,15 @@ export function LineupEditor({
   const [copied, setCopied] = useState("");
   const [output, setOutput] = useState<"ifas" | "sheet" | "passport" | "social">("ifas");
   const [pending, setPending] = useState("");
+
+  // Lets the manager pick a player the club hasn't registered yet. Off by
+  // default and reset whenever the fixture changes, so it's a deliberate act
+  // for one team sheet rather than a setting somebody flips once and forgets.
+  //
+  // Only registration can be overridden. Suspensions, injuries and booked time
+  // off stay locked — those aren't paperwork lagging behind, and a manager
+  // waving them through would be picking someone who genuinely can't play.
+  const [allowUnregistered, setAllowUnregistered] = useState(false);
 
   const [showTrialist, setShowTrialist] = useState(false);
   const [trialistName, setTrialistName] = useState("");
@@ -103,6 +112,10 @@ export function LineupEditor({
 
   useEffect(() => { loadLineup(matchId); }, [matchId, loadLineup]);
 
+  // A new fixture starts from the rules, not from whatever was waved through
+  // on the last one.
+  useEffect(() => { setAllowUnregistered(false); }, [matchId]);
+
   useEffect(() => {
     if (!matchId) return;
     fetchAvailabilityForMatch(matchId).then(setAvailability).catch(() => setAvailability([]));
@@ -127,11 +140,15 @@ export function LineupEditor({
   // all arrive through effectiveAvailability; registration is separate,
   // because an unregistered player is ineligible regardless of how fit and
   // willing he is.
-  type Block = { blocked: boolean; reason: string };
+  type Block = { blocked: boolean; reason: string; overridden?: boolean };
   function eligibility(playerId: string): Block {
     const reg = registrations.find((r) => r.player_id === playerId);
     if (reg && reg.registered === false) {
-      return { blocked: true, reason: "Not registered" };
+      // Still flagged when overridden — selectable, but never silently. The
+      // whole risk here is submitting a team sheet without realising someone
+      // on it isn't registered.
+      if (!allowUnregistered) return { blocked: true, reason: "Not registered" };
+      return { blocked: false, reason: "Not registered", overridden: true };
     }
     if (!match) return { blocked: false, reason: "" };
 
@@ -156,7 +173,20 @@ export function LineupEditor({
       .filter((x) => x.blocked)
       .map((x) => ({ playerId: x.playerId, reason: x.reason }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineup, registrations, availability, injuries, suspensions, absences, match]);
+  }, [lineup, registrations, availability, injuries, suspensions, absences, match, allowUnregistered]);
+
+  // Selected players the club hasn't registered — shown whether or not the
+  // override is on, since a side picked while it was on stays picked after
+  // it's switched off.
+  const unregisteredSelected = useMemo(() => {
+    if (!lineup) return [] as string[];
+    const unregisteredIds = new Set(
+      registrations.filter((r) => r.registered === false).map((r) => r.player_id)
+    );
+    return [...lineup.starters, ...lineup.subs]
+      .filter((sl) => !isTrialistSlot(sl) && unregisteredIds.has(sl.playerId))
+      .map((sl) => sl.playerId);
+  }, [lineup, registrations]);
 
   const layout = useMemo(() => layoutFor(lineup?.formation ?? "4-4-2"), [lineup?.formation]);
 
@@ -446,6 +476,26 @@ export function LineupEditor({
             <span className="text-sm tabular-nums text-neutral-400">{lineup.starters.length}/11</span>
           </CardHeader>
 
+          {unregisteredSelected.length > 0 && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  {unregisteredSelected.length === 1 ? "An unregistered player is" : `${unregisteredSelected.length} unregistered players are`} in this squad.
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {unregisteredSelected.map((id) => (
+                    <li key={id}>{players.find((p) => p.id === id)?.name ?? "Unknown player"}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-amber-200/70">
+                  Check they&apos;re registered before the team sheet goes in — an unregistered player can cost the
+                  club the result.
+                </p>
+              </div>
+            </div>
+          )}
+
           {ineligibleSelected.length > 0 && (
             <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -621,6 +671,25 @@ export function LineupEditor({
           <CardHeader>
             <CardTitle>Squad</CardTitle>
             <button
+              onClick={() => {
+                setAllowUnregistered((v) => !v);
+                setError("");
+              }}
+              title={
+                allowUnregistered
+                  ? "Go back to blocking unregistered players"
+                  : "Let unregistered players be picked for this fixture"
+              }
+              className={`flex touch-manipulation items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${
+                allowUnregistered
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
+                  : "border-white/10 text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800"
+              }`}
+            >
+              {allowUnregistered ? <Unlock size={13} /> : <Lock size={13} />}
+              {allowUnregistered ? "Unregistered allowed" : "Allow unregistered"}
+            </button>
+            <button
               onClick={() => { setShowTrialist((v) => !v); setError(""); }}
               className="flex touch-manipulation items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-neutral-200 hover:bg-navy-600 dark:hover:bg-navy-800"
             >
@@ -669,10 +738,21 @@ export function LineupEditor({
             </div>
           )}
 
+          {allowUnregistered && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100">
+              <Unlock size={14} className="mt-0.5 shrink-0" />
+              <p>
+                Unregistered players can be picked for this fixture. They stay marked so nobody loses track, and this
+                resets when you change fixture. Suspensions, injuries and time off are still enforced.
+              </p>
+            </div>
+          )}
+
           <p className="mb-2 text-xs text-neutral-400">
             Combines each player&apos;s own reply with medical, suspensions, booked time off and registration. Anyone
-            suspended, injured, away or unregistered is locked and can&apos;t be picked. Doubtful players stay
-            selectable — a doubtful player often plays, and that&apos;s your call, not the app&apos;s.
+            suspended, injured or away is locked and can&apos;t be picked, as is anyone unregistered unless you allow
+            it above. Doubtful players stay selectable — a doubtful player often plays, and that&apos;s your call, not
+            the app&apos;s.
           </p>
 
           <ul className="divide-y divide-white/10">
@@ -715,16 +795,24 @@ export function LineupEditor({
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1.5 truncate text-sm font-medium">
                       {block.blocked && <Lock size={11} className="shrink-0 text-neutral-500" />}
+                      {block.overridden && <Unlock size={11} className="shrink-0 text-amber-300" />}
                       {p.name}
                     </p>
                     <p className="truncate text-[11px] text-neutral-500">
                       #{p.squad_number} · {p.position}
-                      {block.blocked ? ` · ${block.reason}` : eff && eff.detail ? ` · ${eff.detail}` : ""}
+                      {block.blocked || block.overridden ? ` · ${block.reason}` : eff && eff.detail ? ` · ${eff.detail}` : ""}
                     </p>
                   </div>
                   {block.blocked ? (
                     <span className="shrink-0 rounded-lg bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
                       Ineligible
+                    </span>
+                  ) : block.overridden ? (
+                    <span
+                      title="Not registered — allowed by override"
+                      className="shrink-0 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-200"
+                    >
+                      Unregistered
                     </span>
                   ) : (
                     eff && eff.status !== "unknown" && (
