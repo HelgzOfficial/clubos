@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { tabState } from "@/lib/tab-styles";
 import {
   Play, Pause, Pencil, Circle, ArrowUpRight, Eraser, Camera, X, Palette, Save, Loader2, Check,
 } from "lucide-react";
@@ -232,7 +233,7 @@ export function VideoPlayer({
               onClick={() => setTool((prev) => (prev === t.key ? "none" : t.key))}
               title={t.label}
               className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                tool === t.key ? "bg-club-primary text-navy-950" : "bg-navy-600 dark:bg-navy-800 text-neutral-300 hover:text-white"
+                tabState(tool === t.key)
               }`}
             >
               <t.icon size={15} />
