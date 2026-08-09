@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { competitionKind } from "./competition-kind";
+import { countsForSeasonStats } from "./season";
 import type { DbMatch } from "./matches-db";
 
 export type StatValues = Record<string, number>;
@@ -40,11 +40,12 @@ export type PlayerSeasonAggregate = {
   byMetric: Record<string, MetricAggregate>;
 };
 
-// A fixture only counts toward season figures if it's competitive — league or
-// cup. Friendlies and pre-season are excluded, matching the rule the rest of
-// the app already applies to appearances, goals and assists.
-export function isCompetitive(match: Pick<DbMatch, "competition">): boolean {
-  return competitionKind(match.competition) !== "friendly";
+// A fixture only counts toward season figures if it's competitive AND on or
+// after the season opener. Friendlies and pre-season were already excluded;
+// the date half is new and comes from lib/season.ts. Kept under the original
+// name so every existing call site still reads correctly.
+export function isCompetitive(match: Pick<DbMatch, "competition" | "kickoff">): boolean {
+  return countsForSeasonStats(match);
 }
 
 export async function fetchAllPlayerMatchStats(): Promise<DbPlayerMatchStats[]> {
@@ -305,4 +306,53 @@ export function averageOpponentValues(rows: DbOpponentPlayerStats[]): StatValues
   const out: StatValues = {};
   for (const [key, { sum, count }] of Object.entries(totals)) out[key] = sum / count;
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Removing a metric's recorded readings
+// ---------------------------------------------------------------------------
+
+// How many readings exist for one metric. Shown before deleting it, so the
+// choice is made knowing what's at stake rather than guessing.
+export function countMetricValues(rows: DbPlayerMatchStats[], key: string): number {
+  let n = 0;
+  for (const r of rows) {
+    const v = r.values?.[key];
+    if (typeof v === "number" && Number.isFinite(v)) n += 1;
+  }
+  return n;
+}
+
+// Strips one metric's readings out of every stat row.
+//
+// Values are stored in a jsonb column keyed by metric, so deleting the metric
+// definition alone leaves its numbers sitting in the database, invisible. That
+// matters for a reason that isn't obvious: create a metric with the same name
+// again months later and it derives the same key, and all the old readings
+// reappear as if they'd been entered against the new metric. This is what makes
+// "delete" able to mean delete.
+//
+// Rewrites only the rows that actually carry the key, and returns how many were
+// changed so the result can be reported rather than assumed.
+export async function purgeMetricValues(key: string): Promise<number> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { data, error } = await supabase.from("player_match_stats").select("id, values");
+  if (error) throw error;
+
+  const affected = (data ?? []).filter(
+    (r: { values: StatValues | null }) => r.values != null && Object.prototype.hasOwnProperty.call(r.values, key)
+  ) as { id: string; values: StatValues }[];
+
+  for (const row of affected) {
+    const next: StatValues = { ...row.values };
+    delete next[key];
+    const { error: upError } = await supabase
+      .from("player_match_stats")
+      .update({ values: next })
+      .eq("id", row.id);
+    if (upError) throw upError;
+  }
+
+  return affected.length;
 }
