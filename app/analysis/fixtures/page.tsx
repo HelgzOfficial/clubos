@@ -14,6 +14,7 @@ import { fetchAllPlayerMatchStats, type DbPlayerMatchStats } from "@/lib/player-
 import { fetchStatMetrics, formatMetricValue, type StatMetric } from "@/lib/stat-metrics-db";
 import { fetchMatchDetails, type DbLineupEntry, type DbGoal, type DbSubstitution } from "@/lib/match-details-db";
 import { fetchGpsImports, fetchGpsMetrics, GPS_METRICS, formatMetric, type DbGpsImport, type DbGpsMetric } from "@/lib/gps-db";
+import { fetchHiddenMetrics, visibleMetrics, NO_HIDDEN, type HiddenMetrics } from "@/lib/hidden-metrics-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
 import {
   ArrowLeft, ChevronDown, ChevronRight, ListChecks, Activity, Users, Target, ArrowLeftRight, ExternalLink,
@@ -43,6 +44,7 @@ export default function AnalysisFixturesPage() {
   const [matchStats, setMatchStats] = useState<DbMatchStats[]>([]);
   const [playerStats, setPlayerStats] = useState<DbPlayerMatchStats[]>([]);
   const [gpsImports, setGpsImports] = useState<DbGpsImport[]>([]);
+  const [hiddenCols, setHiddenCols] = useState<HiddenMetrics>(NO_HIDDEN);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -64,6 +66,8 @@ export default function AnalysisFixturesPage() {
       if (ms.status === "fulfilled") setMatchStats(ms.value);
       if (ps.status === "fulfilled") setPlayerStats(ps.value);
       if (gi.status === "fulfilled") setGpsImports(gi.value);
+      // Column choices, so a hidden GPS column stays hidden here too.
+      fetchHiddenMetrics().then(setHiddenCols).catch(() => {});
       setLoading(false);
     });
   }, []);
@@ -279,7 +283,7 @@ export default function AnalysisFixturesPage() {
                             <thead className="bg-navy-600/50 dark:bg-navy-800/50">
                               <tr>
                                 <th className="px-2 py-2 text-left font-medium text-neutral-400">Player</th>
-                                {GPS_METRICS.map((g) => (
+                                {visibleMetrics(GPS_METRICS, hiddenCols, "gps").map((g) => (
                                   <th key={g.key} className="whitespace-nowrap px-2 py-2 text-right font-medium text-neutral-400" title={g.label}>
                                     {g.short}
                                   </th>
@@ -292,7 +296,7 @@ export default function AnalysisFixturesPage() {
                                   <td className="whitespace-nowrap px-2 py-1.5">
                                     {row.player_id ? nameFor(row.player_id) : row.player_name}
                                   </td>
-                                  {GPS_METRICS.map((g) => (
+                                  {visibleMetrics(GPS_METRICS, hiddenCols, "gps").map((g) => (
                                     <td key={g.key} className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                                       {formatMetric(row[g.key], g.key)}
                                     </td>
