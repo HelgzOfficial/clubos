@@ -332,27 +332,41 @@ export function countMetricValues(rows: DbPlayerMatchStats[], key: string): numb
 // reappear as if they'd been entered against the new metric. This is what makes
 // "delete" able to mean delete.
 //
+// Both tables that store readings are swept, not just our own players': the
+// opposition scouting rows use the same metric keys, so clearing one and not
+// the other would leave the metric half-deleted and able to come back.
+//
 // Rewrites only the rows that actually carry the key, and returns how many were
 // changed so the result can be reported rather than assumed.
+const VALUE_TABLES = ["player_match_stats", "opponent_player_stats"] as const;
+
 export async function purgeMetricValues(key: string): Promise<number> {
   if (!supabase) throw new Error("Supabase is not configured.");
 
-  const { data, error } = await supabase.from("player_match_stats").select("id, values");
-  if (error) throw error;
+  let changed = 0;
 
-  const affected = (data ?? []).filter(
-    (r: { values: StatValues | null }) => r.values != null && Object.prototype.hasOwnProperty.call(r.values, key)
-  ) as { id: string; values: StatValues }[];
+  for (const table of VALUE_TABLES) {
+    const { data, error } = await supabase.from(table).select("id, values");
+    if (error) {
+      // A table this project hasn't created yet isn't a failure — it simply
+      // holds no readings to clear.
+      if (/relation|does not exist|schema cache/i.test(error.message)) continue;
+      throw error;
+    }
 
-  for (const row of affected) {
-    const next: StatValues = { ...row.values };
-    delete next[key];
-    const { error: upError } = await supabase
-      .from("player_match_stats")
-      .update({ values: next })
-      .eq("id", row.id);
-    if (upError) throw upError;
+    const affected = (data ?? []).filter(
+      (r: { values: StatValues | null }) => r.values != null && Object.prototype.hasOwnProperty.call(r.values, key)
+    ) as { id: string; values: StatValues }[];
+
+    for (const row of affected) {
+      const next: StatValues = { ...row.values };
+      delete next[key];
+      const { error: upError } = await supabase.from(table).update({ values: next }).eq("id", row.id);
+      if (upError) throw upError;
+    }
+
+    changed += affected.length;
   }
 
-  return affected.length;
+  return changed;
 }
