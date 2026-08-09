@@ -9,6 +9,8 @@ import {
   rowsToCsv, formatMetric,
   type GpsRow, type GpsMetricKey, type DbGpsImport,
 } from "@/lib/gps-db";
+import { fetchHiddenMetrics, visibleMetrics, NO_HIDDEN, type HiddenMetrics } from "@/lib/hidden-metrics-db";
+import { GpsColumns } from "@/components/analysis/gps-columns";
 import {
   Activity, Upload, Loader2, Check, X, AlertTriangle, Download, Trash2, ChevronDown, ChevronRight,
 } from "lucide-react";
@@ -48,6 +50,7 @@ export function GpsImport({ importedBy }: { importedBy: string | null }) {
   const [openImport, setOpenImport] = useState<string>("");
   const [openRows, setOpenRows] = useState<GpsRow[]>([]);
 
+  const [hidden, setHidden] = useState<HiddenMetrics>(NO_HIDDEN);
   const [reading, setReading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -64,6 +67,7 @@ export function GpsImport({ importedBy }: { importedBy: string | null }) {
 
   useEffect(() => {
     fetchPlayers().then(setPlayers).catch(() => {});
+    fetchHiddenMetrics().then(setHidden).catch(() => {});
     fetchMatches().then(setMatches).catch(() => {});
     fetchGpsImports()
       .then(setImports)
@@ -218,6 +222,10 @@ export function GpsImport({ importedBy }: { importedBy: string | null }) {
         <CardTitle>GPS Metrics</CardTitle>
         <Activity size={18} className="text-neutral-400" />
       </CardHeader>
+
+      <div className="mb-3">
+        <GpsColumns onChanged={setHidden} />
+      </div>
 
       <p className="mb-3 text-xs text-neutral-400">
         Upload a screenshot or PDF of a Pitchero GPS report. The table is read off it automatically, you check it, and
@@ -379,7 +387,7 @@ export function GpsImport({ importedBy }: { importedBy: string | null }) {
                         <thead className="bg-navy-600/50 dark:bg-navy-800/50">
                           <tr>
                             <th className="px-2 py-2 text-left font-medium text-neutral-400">Player</th>
-                            {GPS_METRICS.map((m) => (
+                            {visibleMetrics(GPS_METRICS, hidden, "gps").map((m) => (
                               <th key={m.key} className="px-2 py-2 text-right font-medium text-neutral-400" title={m.label}>{m.short}</th>
                             ))}
                           </tr>
@@ -390,7 +398,7 @@ export function GpsImport({ importedBy }: { importedBy: string | null }) {
                               <td className="whitespace-nowrap px-2 py-1.5">
                                 {players.find((p) => p.id === r.player_id)?.name ?? r.player_name}
                               </td>
-                              {GPS_METRICS.map((m) => (
+                              {visibleMetrics(GPS_METRICS, hidden, "gps").map((m) => (
                                 <td key={m.key} className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                                   {formatMetric(r[m.key], m.key)}
                                 </td>
