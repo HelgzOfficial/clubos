@@ -191,7 +191,10 @@ export default function TreatmentPage() {
               <li key={b.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                 <div>
                   <p className="font-medium">{b.treatment_type}</p>
-                  <p className="text-xs text-neutral-400">{formatDay(b.start_time)} · {formatTime(b.start_time)}–{formatTime(b.end_time)}</p>
+                  <p className="text-xs text-neutral-400">
+                    {formatDay(b.start_time)}
+                    {b.time_set ? ` · ${formatTime(b.start_time)}–${formatTime(b.end_time)}` : " · time not set yet"}
+                  </p>
                   {b.notes && <p className="mt-0.5 text-xs text-neutral-500">{b.notes}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -214,7 +217,9 @@ export default function TreatmentPage() {
               <li key={b.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                 <div>
                   <p className="font-medium">{b.treatment_type}</p>
-                  <p className="text-xs text-neutral-400">{formatDay(b.start_time)} · {formatTime(b.start_time)}</p>
+                  <p className="text-xs text-neutral-400">
+                    {formatDay(b.start_time)}{b.time_set ? ` · ${formatTime(b.start_time)}` : ""}
+                  </p>
                 </div>
                 <Badge variant={statusVariant[b.status] ?? "neutral"}>{statusLabel[b.status] ?? b.status}</Badge>
               </li>
