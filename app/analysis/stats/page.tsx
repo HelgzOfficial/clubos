@@ -82,6 +82,14 @@ export default function PlayerStatsPage() {
   useEffect(() => { loadAll(); }, []);
 
   const activeMetrics = useMemo(() => metrics.filter((m) => m.is_active), [metrics]);
+
+  // Every metric that still exists, switched on or off. Used to sweep out
+  // readings belonging to metrics that have been deleted.
+  //
+  // Built from the full list rather than the active one on purpose: turning a
+  // metric off must keep its history, so "off" and "deleted" have to stay
+  // distinguishable here. Only a metric that has genuinely gone loses its keys.
+  const knownMetricKeys = useMemo(() => new Set(metrics.map((m) => m.key)), [metrics]);
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
   // Every season figure on this page derives from this one aggregation, so a
@@ -138,6 +146,7 @@ export default function PlayerStatsPage() {
       ) : tab === "enter" ? (
         <EnterStatsTab
           players={players} matches={matches} metrics={activeMetrics} canEdit={canEdit}
+          knownMetricKeys={knownMetricKeys}
           onSaved={async (msg) => { flashSuccess(msg); setAllStats(await fetchAllPlayerMatchStats()); }}
           onError={setError}
         />
@@ -174,12 +183,13 @@ export default function PlayerStatsPage() {
 // Enter Stats — pick a fixture, fill in the squad grid
 // ---------------------------------------------------------------------------
 function EnterStatsTab({
-  players, matches, metrics, canEdit, onSaved, onError,
+  players, matches, metrics, canEdit, knownMetricKeys, onSaved, onError,
 }: {
   players: DbPlayer[];
   matches: DbMatch[];
   metrics: StatMetric[];
   canEdit: boolean;
+  knownMetricKeys: Set<string>;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
@@ -222,7 +232,13 @@ function EnterStatsTab({
         for (const row of rows) {
           ids.add(row.player_id);
           const cells: Record<string, string> = {};
-          for (const [k, v] of Object.entries(row.values ?? {})) cells[k] = String(v);
+          // Readings whose metric has been deleted are dropped here rather
+          // than carried into the grid. Keeping them would put them straight
+          // back on the next save, quietly resurrecting a metric the analyst
+          // had removed.
+          for (const [k, v] of Object.entries(row.values ?? {})) {
+            if (knownMetricKeys.has(k)) cells[k] = String(v);
+          }
           next[row.player_id] = cells;
         }
         setGrid(next);
@@ -232,7 +248,7 @@ function EnterStatsTab({
       .finally(() => { if (!cancelled) setLoadingMatch(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId]);
+  }, [matchId, knownMetricKeys]);
 
   const selectedMatch = matches.find((m) => m.id === matchId) ?? null;
   const isFriendly = selectedMatch ? !isCompetitive(selectedMatch) : false;
@@ -245,6 +261,9 @@ function EnterStatsTab({
     const cells = grid[playerId] ?? {};
     const out: StatValues = {};
     for (const [k, raw] of Object.entries(cells)) {
+      // A save writes the whole row, so filtering here means saving a fixture
+      // also tidies away any reading left behind by a deleted metric.
+      if (!knownMetricKeys.has(k)) continue;
       if (raw === "" || raw === null) continue;
       const n = Number(raw);
       if (Number.isFinite(n)) out[k] = n;
