@@ -52,6 +52,11 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
   const [inviteNote, setInviteNote] = useState("");
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // The time a clinician is setting for each date-only request, keyed by
+  // booking. Held per request rather than as one shared value so several can be
+  // worked through without the previous entry bleeding into the next.
+  const [slotTime, setSlotTime] = useState<Record<string, string>>({});
+  const [slotMins, setSlotMins] = useState<Record<string, string>>({});
 
   const [doctorOptions, setDoctorOptions] = useState<AppUserRecord[]>([]);
 
@@ -149,10 +154,30 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
       setError("Add a doctor or physio under Staff before confirming requests — the invite needs somewhere to go.");
       return;
     }
+
+    // A date-only request has no agreed time yet, and confirming without one
+    // would send the player an invite for the placeholder. Refuse rather than
+    // guess: the whole point of the change is that this decision is yours.
+    let slot: { startTime: string; endTime: string } | undefined;
+    if (!b.time_set) {
+      const time = snapToBookingInterval(slotTime[b.id] ?? "");
+      if (!/^\d{2}:\d{2}$/.test(time)) {
+        setError("Set a start time for this request before confirming it.");
+        return;
+      }
+      const day = b.start_time.slice(0, 10);
+      const start = new Date(`${day}T${time}:00`);
+      const mins = Number(slotMins[b.id] ?? "30") || 30;
+      slot = {
+        startTime: start.toISOString(),
+        endTime: new Date(start.getTime() + mins * 60 * 1000).toISOString(),
+      };
+    }
+
     setConfirmingId(b.id);
     setError("");
     try {
-      const confirmed = await confirmBooking(b.id, { name: doctor.name, email: doctor.email }, doctor.name);
+      const confirmed = await confirmBooking(b.id, { name: doctor.name, email: doctor.email }, doctor.name, slot);
       const player = players.find((p) => p.id === b.player_id);
       const result = await sendTreatmentInvite(confirmed, {
         name: player?.name ?? "Player",
@@ -230,14 +255,19 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
             {pending.length} treatment request{pending.length === 1 ? "" : "s"} awaiting confirmation
           </p>
           <p className="mb-2.5 text-xs text-neutral-400">
-            Nothing has been emailed yet. Confirming sends the calendar invite to the player and the clinician.
+            Players ask for a day; you set the time. Nothing has been emailed yet — confirming fixes the time and
+            sends the calendar invite to the player and the clinician together.
           </p>
           <ul className="divide-y divide-white/10">
             {pending.map((b) => (
               <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 text-sm">
                 <div className="w-24 shrink-0 text-xs text-neutral-400">
                   <div>{formatDay(b.start_time)}</div>
-                  <div className="font-medium text-neutral-200">{formatTime(b.start_time)}–{formatTime(b.end_time)}</div>
+                  {b.time_set ? (
+                    <div className="font-medium text-neutral-200">{formatTime(b.start_time)}–{formatTime(b.end_time)}</div>
+                  ) : (
+                    <div className="text-neutral-500">day requested</div>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{playerName(b.player_id)}</p>
@@ -245,6 +275,31 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
                     {b.treatment_type}{b.notes ? ` · ${b.notes}` : ""}
                   </p>
                 </div>
+                {canEdit && !b.time_set && (
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <input
+                      type="time"
+                      step={BOOKING_STEP_MINUTES * 60}
+                      value={slotTime[b.id] ?? ""}
+                      onChange={(e) => setSlotTime((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                      onBlur={(e) =>
+                        setSlotTime((prev) => ({ ...prev, [b.id]: snapToBookingInterval(e.target.value) }))
+                      }
+                      title="Start time you're giving them"
+                      className="w-[6.5rem] rounded-lg border border-white/10 bg-navy-600 px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+                    />
+                    <select
+                      value={slotMins[b.id] ?? "30"}
+                      onChange={(e) => setSlotMins((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                      title="How long you need"
+                      className="rounded-lg border border-white/10 bg-navy-600 px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+                    >
+                      {["5", "10", "15", "20", "30", "45", "60", "90"].map((m) => (
+                        <option key={m} value={m}>{m} min</option>
+                      ))}
+                    </select>
+                  </span>
+                )}
                 {canEdit && (
                   <span className="flex shrink-0 items-center gap-1.5">
                     <button
@@ -316,7 +371,9 @@ export function TreatmentBookings({ players, injuries, canEdit }: { players: DbP
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-24 shrink-0 text-xs text-neutral-400">
                   {showAll && <div>{formatDay(b.start_time)}</div>}
-                  <div className="font-medium text-neutral-200">{formatTime(b.start_time)}–{formatTime(b.end_time)}</div>
+                  <div className="font-medium text-neutral-200">
+                    {b.time_set ? `${formatTime(b.start_time)}–${formatTime(b.end_time)}` : "time not set"}
+                  </div>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{playerName(b.player_id)}</p>
