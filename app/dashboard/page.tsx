@@ -23,6 +23,9 @@ import {
   fetchLeagueTable, updateLeagueRow, addLeagueRow, deleteLeagueRow,
   type DbLeagueRow, type LeagueRowInput,
 } from "@/lib/league-table-db";
+import { LeagueTableImport } from "@/components/dashboard/league-table-import";
+import { loadClubSettings } from "@/lib/club-settings";
+import { club as clubDefaults } from "@/lib/sample-data";
 import { fetchClips, uploadClip, deleteClip, getClipUrl, type DbClip } from "@/lib/clips-db";
 import {
   fetchDashboardSettings, saveDashboardSettings, DEFAULT_WIDGET_ORDER, WIDGET_LABELS,
@@ -1187,6 +1190,15 @@ function LeagueEditorModal({ league, onClose, onChange }: { league: DbLeagueRow[
           <p className="font-medium">Edit League Table</p>
           <button onClick={onClose} className="text-neutral-400 hover:text-white"><X size={18} /></button>
         </div>
+
+        <div className="mb-4">
+          <LeagueTableImport
+            clubName={loadClubSettings(clubDefaults).name}
+            onSaved={async () => { await onChange(); onClose(); }}
+          />
+        </div>
+
+        <p className="mb-2 text-xs font-medium text-neutral-500">Or edit by hand</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-xs">
             <thead>
