@@ -6,7 +6,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fetchMatch, deleteMatchCompletely, type DbMatch } from "@/lib/matches-db";
+import { fetchMatch, fetchMatches, deleteMatchCompletely, type DbMatch } from "@/lib/matches-db";
 import {
   fetchMatchDetails, addLineupEntry, deleteLineupEntry,
   addGoal, deleteGoal, addSubstitution, deleteSubstitution,
@@ -27,6 +27,11 @@ import { StatDashboard } from "@/components/matches/stat-dashboard";
 import { club } from "@/lib/sample-data";
 import { fetchClubSettings } from "@/lib/club-settings-db";
 import { competitionKind, competitionVariant } from "@/lib/competition-kind";
+import {
+  fetchCards, createCard, deleteCard, fetchSuspensions,
+  type DbPlayerCard, type CardType,
+} from "@/lib/manager-db";
+import { fetchThresholds, syncAutomaticSuspensions } from "@/lib/card-thresholds-db";
 import { syncPlayerStatsFromMatches } from "@/lib/player-stats-sync";
 import { DirectionsLinks } from "@/components/directions-links";
 import { LineupEditor } from "@/components/manager/lineup-editor";
@@ -194,6 +199,7 @@ export default function MatchDetailPage() {
         <LineupCard title="Substitutes" matchId={match.id} entries={bench} isStarting={false} onAdded={load} />
         <GoalsCard matchId={match.id} goals={goals} onAdded={load} />
         <SubsCard matchId={match.id} subs={subs} onAdded={load} />
+        <CardsCard match={match} />
       </div>
     </AppShell>
   );
@@ -966,5 +972,225 @@ function DeleteFixtureButton({ onDelete, deleting }: { onDelete: () => void; del
       {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
       {deleting ? "Deleting…" : "Delete fixture"}
     </button>
+  );
+}
+
+// ---- Cards ----
+//
+// Logging a card here writes to the same player_cards table the Manager
+// module's discipline tab uses, with this fixture attached. That single fact is
+// what makes everything downstream work without any extra plumbing: the card
+// counter, the Player Stats tab and the automatic suspension thresholds all
+// read that table, so a yellow entered against a fixture in Match Centre shows
+// up in all three immediately.
+//
+// The threshold check runs the moment a card is saved rather than on some later
+// screen. A ban that only appears once somebody happens to open the Manager
+// module is a ban that gets missed, and a suspended player getting picked is
+// the exact mistake this whole feature exists to prevent.
+function CardsCard({ match }: { match: DbMatch }) {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite("manager") || canWrite("matches");
+
+  const [players, setPlayers] = useState<DbPlayer[]>([]);
+  const [cards, setCards] = useState<DbPlayerCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [banner, setBanner] = useState("");
+
+  const [playerId, setPlayerId] = useState("");
+  const [card, setCard] = useState<CardType>("yellow");
+  const [secondYellow, setSecondYellow] = useState(false);
+  const [minute, setMinute] = useState("");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    try {
+      const [all, squad] = await Promise.all([fetchCards(), fetchPlayers()]);
+      setCards(all.filter((c) => c.match_id === match.id));
+      setPlayers(squad);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (/relation|does not exist|schema cache/i.test(msg)) {
+        setError("Discipline isn't set up yet — run supabase-manager-module.sql in Supabase.");
+      } else {
+        setError(msg || "Couldn't load cards.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [match.id]);
+
+  const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "Unknown player";
+
+  async function handleAdd(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!playerId) return;
+    setSaving(true);
+    setError("");
+    setBanner("");
+    try {
+      await createCard({
+        playerId,
+        matchId: match.id,
+        card,
+        secondYellow: card === "red" && secondYellow,
+        minute,
+        reason,
+      });
+
+      setPlayerId("");
+      setMinute("");
+      setReason("");
+      setCard("yellow");
+      setSecondYellow(false);
+      await load();
+
+      // Re-check the club's thresholds straight away, so a ban is raised at the
+      // moment the card is entered rather than whenever someone next happens to
+      // look at the Manager module.
+      try {
+        const [rules, allCards, allMatches, suspensions, squad] = await Promise.all([
+          fetchThresholds(), fetchCards(), fetchMatches(), fetchSuspensions(), fetchPlayers(),
+        ]);
+        const raised = await syncAutomaticSuspensions(
+          squad.map((p) => p.id), rules, allCards, allMatches, suspensions
+        );
+        if (raised.length > 0) {
+          const names = raised.map((r) => squad.find((p) => p.id === r.playerId)?.name ?? "A player");
+          setBanner(
+            `${Array.from(new Set(names)).join(", ")} now suspended — a card threshold was reached. Check Manager → Card Thresholds.`
+          );
+        }
+      } catch {
+        // A missing thresholds table shouldn't stop the card being recorded.
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save that card.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    await deleteCard(id);
+    await load();
+  }
+
+  const isFriendly = competitionKind(match.competition) === "friendly";
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Cards ({cards.length})</CardTitle></CardHeader>
+
+      {isFriendly && (
+        <p className="mb-3 rounded-xl border border-white/10 p-2.5 text-xs text-neutral-400">
+          This is a friendly, so cards logged here are recorded but won&apos;t count toward season totals or
+          suspension thresholds — the same rule the rest of the app uses.
+        </p>
+      )}
+
+      {error && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {banner && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <p>{banner}</p>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="mb-3 text-sm text-neutral-400">Loading…</p>
+      ) : cards.length === 0 ? (
+        <p className="mb-3 text-sm text-neutral-400">No cards logged for this fixture.</p>
+      ) : (
+        <ul className="mb-3 divide-y divide-white/10">
+          {cards.map((c) => (
+            <li key={c.id} className="flex items-center gap-2.5 py-2 text-sm">
+              <span className="w-10 text-xs text-neutral-400">{c.minute !== null ? `${c.minute}'` : "-"}</span>
+              <span
+                className={`inline-block h-4 w-3 shrink-0 rounded-[2px] ${c.card === "yellow" ? "bg-amber-400" : "bg-red-500"}`}
+                title={c.card === "yellow" ? "Yellow card" : c.second_yellow ? "Red (two yellows)" : "Straight red"}
+              />
+              <span className="flex-1 truncate">
+                {nameOf(c.player_id)}
+                {c.reason ? <span className="text-neutral-400"> — {c.reason}</span> : ""}
+              </span>
+              {c.card === "red" && (
+                <Badge variant="red">{c.second_yellow ? "2nd yellow" : "Red"}</Badge>
+              )}
+              {canEdit && (
+                <button
+                  onClick={() => handleDelete(c.id)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {canEdit && (
+        <form onSubmit={handleAdd} className="flex flex-wrap gap-2">
+          <input
+            value={minute}
+            onChange={(e) => setMinute(e.target.value)}
+            placeholder="Min"
+            type="number"
+            className="w-16 rounded-lg border border-white/10 bg-navy-600 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+          />
+          <select
+            value={playerId}
+            onChange={(e) => setPlayerId(e.target.value)}
+            required
+            className="min-w-[9rem] flex-1 rounded-lg border border-white/10 bg-navy-600 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+          >
+            <option value="">Select player…</option>
+            {players.map((p) => (
+              <option key={p.id} value={p.id}>#{p.squad_number} {p.name}</option>
+            ))}
+          </select>
+          <select
+            value={card === "red" && secondYellow ? "second" : card}
+            onChange={(e) => {
+              const v = e.target.value;
+              setCard(v === "yellow" ? "yellow" : "red");
+              setSecondYellow(v === "second");
+            }}
+            className="rounded-lg border border-white/10 bg-navy-600 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+          >
+            <option value="yellow">Yellow</option>
+            <option value="red">Straight red</option>
+            <option value="second">Red (two yellows)</option>
+          </select>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (optional)"
+            className="min-w-[8rem] flex-1 rounded-lg border border-white/10 bg-navy-600 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-club-primary/30 dark:bg-navy-800"
+          />
+          <button
+            type="submit"
+            disabled={saving || !playerId}
+            className="flex items-center gap-1 rounded-lg bg-club-primary px-3 py-1.5 text-sm font-medium text-navy-950 transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            <Plus size={13} /> {saving ? "Saving…" : "Add"}
+          </button>
+          <p className="w-full text-[11px] text-neutral-500">
+            Goes straight into the card counter, Player Stats and the suspension thresholds in the Manager module.
+          </p>
+        </form>
+      )}
+    </Card>
   );
 }
