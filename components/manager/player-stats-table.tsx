@@ -7,14 +7,15 @@ import { PlayerAvatar } from "@/components/players/player-avatar";
 import type { DbPlayer } from "@/lib/players-db";
 import type { DbMatch } from "@/lib/matches-db";
 import { disciplineByPlayer, type DbPlayerCard } from "@/lib/manager-db";
-import { SEASON_START_LABEL } from "@/lib/season";
+import { playedMatches } from "@/lib/matches-db";
+import { SEASON_START_LABEL, seasonMatches } from "@/lib/season";
 import { BarChart3, Download, ArrowUpDown } from "lucide-react";
 
 type SortKey = "name" | "appearances" | "goals" | "assists" | "yellow" | "red" | "points" | "contributions";
 
 const COLUMNS: { key: SortKey; label: string; short: string; numeric: boolean }[] = [
   { key: "name", label: "Player", short: "Player", numeric: false },
-  { key: "appearances", label: "Games played", short: "Games", numeric: true },
+  { key: "appearances", label: "Appearances", short: "Apps", numeric: true },
   { key: "goals", label: "Goals", short: "Goals", numeric: true },
   { key: "assists", label: "Assists", short: "Assists", numeric: true },
   { key: "contributions", label: "Goals + assists", short: "G+A", numeric: true },
@@ -41,13 +42,36 @@ export function PlayerStatsTable({
   const [sort, setSort] = useState<SortKey>("appearances");
   const [desc, setDesc] = useState(true);
 
+  // The club's own figure: competitive fixtures from the season opener that
+  // have actually been played. This is a property of the season, not of the
+  // squad — summing every player's appearances answers a different question
+  // entirely (eleven players in one game is eleven appearances, not eleven
+  // matches), which is what the old "Games" total was accidentally showing.
+  const clubMatchesPlayed = useMemo(
+    () => playedMatches(seasonMatches(matches)).length,
+    [matches]
+  );
+
   const rows = useMemo(() => {
     const discipline = disciplineByPlayer(cards, matches);
     return players.map((p) => {
       const d = discipline.get(p.id) ?? { yellow: 0, red: 0, points: 0 };
+      const stored = p.appearances ?? 0;
       return {
         player: p,
-        appearances: p.appearances ?? 0,
+        // A player cannot have featured in more games than the club has
+        // played, so the figure is capped.
+        //
+        // Normally this never bites: appearances are counted from team sheets
+        // on fixtures marked completed, which is a subset of the fixtures that
+        // have kicked off. It bites when the two disagree — a fixture marked
+        // completed but dated in the future, or appearances typed in by hand on
+        // a profile. Capping keeps the promise that appearances never exceed
+        // matches played, and the row is marked so the cause can be found
+        // rather than the difference quietly disappearing.
+        appearances: Math.min(stored, clubMatchesPlayed),
+        appearancesStored: stored,
+        overCounted: stored > clubMatchesPlayed,
         goals: p.goals ?? 0,
         assists: p.assists ?? 0,
         contributions: (p.goals ?? 0) + (p.assists ?? 0),
@@ -56,7 +80,7 @@ export function PlayerStatsTable({
         points: d.points,
       };
     });
-  }, [players, cards, matches]);
+  }, [players, cards, matches, clubMatchesPlayed]);
 
   const sorted = useMemo(() => {
     const out = [...rows];
@@ -74,13 +98,12 @@ export function PlayerStatsTable({
     () =>
       rows.reduce(
         (t, r) => ({
-          appearances: t.appearances + r.appearances,
           goals: t.goals + r.goals,
           assists: t.assists + r.assists,
           yellow: t.yellow + r.yellow,
           red: t.red + r.red,
         }),
-        { appearances: 0, goals: 0, assists: 0, yellow: 0, red: 0 }
+        { goals: 0, assists: 0, yellow: 0, red: 0 }
       ),
     [rows]
   );
@@ -94,12 +117,13 @@ export function PlayerStatsTable({
   }
 
   function download() {
-    const header = COLUMNS.map((c) => c.label);
+    const header = [...COLUMNS.map((c) => c.label), "Club matches played"];
     const lines = [header.join(",")];
     for (const r of sorted) {
       lines.push([
         `"${r.player.name.replace(/"/g, '""')}"`,
         r.appearances, r.goals, r.assists, r.contributions, r.yellow, r.red, r.points,
+        clubMatchesPlayed,
       ].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -119,7 +143,7 @@ export function PlayerStatsTable({
       </CardHeader>
 
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <Tile label="Games" value={totals.appearances} />
+        <Tile label="Matches Played" value={clubMatchesPlayed} tone="text-club-primary" />
         <Tile label="Goals" value={totals.goals} tone="text-emerald-300" />
         <Tile label="Assists" value={totals.assists} tone="text-blue-300" />
         <Tile label="Yellows" value={totals.yellow} tone="text-amber-300" />
@@ -127,8 +151,10 @@ export function PlayerStatsTable({
       </div>
 
       <p className="mb-2 text-xs text-neutral-400">
-        Competitive fixtures from {SEASON_START_LABEL} onwards. Friendlies are excluded, matching the rest of the app.
-        Tap a column to sort.
+        <span className="text-neutral-300">Matches Played</span> is the club&apos;s own total — competitive fixtures
+        from {SEASON_START_LABEL} onwards that have been played. <span className="text-neutral-300">Apps</span> is how
+        many of those each player featured in, so it can never be higher than Matches Played. Friendlies are excluded,
+        matching the rest of the app. Tap a column to sort.
       </p>
 
       <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -162,7 +188,18 @@ export function PlayerStatsTable({
                     <span className="shrink-0 text-neutral-600">#{r.player.squad_number}</span>
                   </Link>
                 </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">{r.appearances}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">
+                  {r.appearances}
+                  <span className="text-neutral-600">/{clubMatchesPlayed}</span>
+                  {r.overCounted && (
+                    <span
+                      className="ml-1 text-amber-300"
+                      title={`Their record says ${r.appearancesStored} appearances, which is more than the ${clubMatchesPlayed} games the club has played. Shown capped at ${clubMatchesPlayed}. Usually means a fixture is marked completed but dated in the future, or appearances were typed in by hand on the profile.`}
+                    >
+                      !
+                    </span>
+                  )}
+                </td>
                 <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{r.goals || "—"}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{r.assists || "—"}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums text-neutral-400">{r.contributions || "—"}</td>
