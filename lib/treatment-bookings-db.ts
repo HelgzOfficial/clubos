@@ -21,6 +21,9 @@ export type DbTreatmentBooking = {
   confirmed_at: string | null;
   confirmed_by: string | null;
   decline_reason: string | null;
+  // False while a request is nothing but a date. start_time/end_time carry a
+  // placeholder until a clinician sets the real time on confirming.
+  time_set: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -37,6 +40,9 @@ export type TreatmentBookingInput = {
   // Player requests come in as "requested"; staff-made bookings go straight to
   // "scheduled" because the person who would confirm is the one booking.
   status?: BookingStatus;
+  // Leave unset for a real booking. Pass false when a player has asked for a
+  // date and the time is still the clinician's to decide.
+  timeSet?: boolean;
 };
 
 // Treatment slots run on a 5-minute grid. Applied both as the native input
@@ -91,6 +97,7 @@ export async function createBooking(input: TreatmentBookingInput): Promise<DbTre
       doctor_name: input.doctorName || null,
       doctor_email: input.doctorEmail || null,
       status: input.status ?? "scheduled",
+      time_set: input.timeSet ?? true,
       requested_at: input.status === "requested" ? new Date().toISOString() : null,
     })
     .select()
@@ -131,10 +138,14 @@ export async function sendTreatmentInvite(
 // Confirming is what turns a request into a real appointment: it records who
 // agreed it, attaches the confirming clinician so the invite has somewhere to
 // go, and only then does the caller send the emails.
+// Confirming is also where the time gets decided. `slot` carries the start and
+// end the clinician has chosen; pass it whenever the request arrived as a date
+// only, and the placeholder times are replaced with the real ones.
 export async function confirmBooking(
   id: string,
   doctor: { name: string; email: string },
-  confirmedBy: string
+  confirmedBy: string,
+  slot?: { startTime: string; endTime: string }
 ): Promise<DbTreatmentBooking> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const now = new Date().toISOString();
@@ -147,6 +158,9 @@ export async function confirmBooking(
       confirmed_at: now,
       confirmed_by: confirmedBy || null,
       decline_reason: null,
+      // Only touched when a time is supplied, so re-confirming a booking that
+      // already had one can't quietly move it.
+      ...(slot ? { start_time: slot.startTime, end_time: slot.endTime, time_set: true } : {}),
       updated_at: now,
     })
     .eq("id", id)
