@@ -6,6 +6,7 @@ import {
   fetchGpsForPlayer, GPS_METRICS, formatMetric,
   type DbGpsImport, type DbGpsMetric,
 } from "@/lib/gps-db";
+import { fetchHiddenMetrics, visibleMetrics, NO_HIDDEN, type HiddenMetrics } from "@/lib/hidden-metrics-db";
 import { Activity } from "lucide-react";
 
 type Entry = { metric: DbGpsMetric; session: DbGpsImport };
@@ -18,6 +19,9 @@ export function PlayerGpsCard({ playerId }: { playerId: string }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  const [hidden, setHidden] = useState<HiddenMetrics>(NO_HIDDEN);
+
+  useEffect(() => { fetchHiddenMetrics().then(setHidden).catch(() => {}); }, []);
 
   useEffect(() => {
     fetchGpsForPlayer(playerId)
@@ -34,7 +38,11 @@ export function PlayerGpsCard({ playerId }: { playerId: string }) {
   // an empty card is just noise on a profile.
   if (missing || entries.length === 0) return null;
 
-  const bests = GPS_METRICS.map((m) => {
+  // Columns the club has switched off don't appear here either — a table that
+  // still showed them would make the setting look broken.
+  const columns = visibleMetrics(GPS_METRICS, hidden, "gps");
+
+  const bests = columns.map((m) => {
     const values = entries
       .map((e) => e.metric[m.key])
       .filter((v): v is number => typeof v === "number");
@@ -68,7 +76,7 @@ export function PlayerGpsCard({ playerId }: { playerId: string }) {
           <thead className="bg-navy-800/70">
             <tr>
               <th className="px-2 py-2 text-left font-medium text-neutral-400">Session</th>
-              {GPS_METRICS.map((m) => (
+              {columns.map((m) => (
                 <th key={m.key} className="px-2 py-2 text-right font-medium text-neutral-400" title={m.label}>
                   {m.short}
                 </th>
@@ -84,7 +92,7 @@ export function PlayerGpsCard({ playerId }: { playerId: string }) {
                     {new Date(session.session_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                   </span>
                 </td>
-                {GPS_METRICS.map((m) => (
+                {columns.map((m) => (
                   <td key={m.key} className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                     {formatMetric(metric[m.key], m.key)}
                   </td>
