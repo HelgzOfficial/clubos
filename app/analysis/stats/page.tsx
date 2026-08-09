@@ -18,16 +18,17 @@ import { competitionKind } from "@/lib/competition-kind";
 import {
   fetchStatMetrics, createStatMetric, updateStatMetric, deactivateStatMetric,
   METRIC_CATEGORIES, CATEGORY_LABELS, slugifyMetricKey, formatMetricValue, type StatMetric,
+  deleteStatMetric,
 } from "@/lib/stat-metrics-db";
 import {
   fetchAllPlayerMatchStats, fetchStatsForMatch, savePlayerMatchStats,
   fetchOpponentPlayerStats, saveOpponentPlayerStats, averageOpponentValues,
-  aggregateSeason, rankByMetric, rankOverall, isCompetitive,
+  aggregateSeason, rankByMetric, rankOverall, countMetricValues, purgeMetricValues, isCompetitive,
   type DbPlayerMatchStats, type DbOpponentPlayerStats, type StatValues, type PlayerSeasonAggregate,
 } from "@/lib/player-match-stats-db";
 import {
   ArrowLeft, Save, Plus, X, Sliders, Trophy, GitCompare, ClipboardList, ScanLine, ShieldAlert, CalendarDays,
-  Check, Loader2, AlertCircle, EyeOff, ChevronDown,
+  Check, Loader2, AlertCircle, EyeOff, ChevronDown, Trash2, AlertTriangle,
 } from "lucide-react";
 
 type Tab = "enter" | "games" | "import" | "risk" | "metrics" | "rankings" | "compare";
@@ -160,7 +161,7 @@ export default function PlayerStatsPage() {
         />
       ) : (
         <MetricsTab
-          metrics={metrics} canEdit={canEdit}
+          metrics={metrics} canEdit={canEdit} allStats={allStats}
           onChanged={async (msg) => { flashSuccess(msg); setMetrics(await fetchStatMetrics(true)); }}
           onError={setError}
         />
@@ -936,13 +937,43 @@ function OpponentStatsModal({
 // Metrics — the analyst decides what gets recorded
 // ---------------------------------------------------------------------------
 function MetricsTab({
-  metrics, canEdit, onChanged, onError,
+  metrics, canEdit, allStats, onChanged, onError,
 }: {
   metrics: StatMetric[];
   canEdit: boolean;
+  allStats: DbPlayerMatchStats[];
   onChanged: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
+  // The metric queued for deletion, held here so the confirmation can show
+  // exactly what deleting it costs before anything happens.
+  const [pendingDelete, setPendingDelete] = useState<StatMetric | null>(null);
+  const [alsoPurge, setAlsoPurge] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      // Readings first: if the definition went first and this then failed, the
+      // numbers would be stranded with nothing left in the app pointing at them.
+      let purged = 0;
+      if (alsoPurge) purged = await purgeMetricValues(pendingDelete.key);
+      await deleteStatMetric(pendingDelete.id);
+      setPendingDelete(null);
+      setAlsoPurge(false);
+      onChanged(
+        purged > 0
+          ? `Metric deleted, along with ${purged} recorded ${purged === 1 ? "reading" : "readings"}.`
+          : "Metric deleted."
+      );
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Couldn't delete that metric.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const [showAdd, setShowAdd] = useState(false);
   const [label, setLabel] = useState("");
   const [unit, setUnit] = useState("");
@@ -990,8 +1021,8 @@ function MetricsTab({
     <div>
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-400">
-          These are the stats that appear on the entry grid. Turning one off hides it from new entries but keeps the
-          numbers already recorded against it.
+          These are the stats that appear on the entry grid and every table in this section. Turning one off hides it
+          everywhere but keeps what&apos;s already recorded, so it can be brought back. Deleting removes it for good.
         </p>
         {canEdit && (
           <button
@@ -1057,6 +1088,13 @@ function MetricsTab({
                           Turn on
                         </button>
                       )}
+                      <button
+                        onClick={() => { setPendingDelete(m); setAlsoPurge(false); }}
+                        title="Delete this metric"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-500/10"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   )}
                 </li>
@@ -1065,6 +1103,90 @@ function MetricsTab({
           </Card>
         ))}
       </div>
+
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <Card className="max-h-[90dvh] w-full max-w-md overflow-y-auto">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-medium">Delete &ldquo;{pendingDelete.label}&rdquo;?</p>
+              <button onClick={() => setPendingDelete(null)} className="text-neutral-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="mb-3 text-sm text-neutral-300">
+              It will disappear from the entry grid, the rankings, the comparison view and the games and averages
+              tables.
+            </p>
+
+            {(() => {
+              const readings = countMetricValues(allStats, pendingDelete.key);
+              return readings === 0 ? (
+                <p className="mb-4 text-sm text-neutral-400">
+                  Nothing has been recorded against it yet, so there&apos;s nothing to lose.
+                </p>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                    <p>
+                      There {readings === 1 ? "is" : "are"} {readings} recorded{" "}
+                      {readings === 1 ? "reading" : "readings"} for this metric.
+                    </p>
+                  </div>
+                  <label className="mb-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-white/10 p-3">
+                    <input
+                      type="checkbox"
+                      checked={alsoPurge}
+                      onChange={(e) => setAlsoPurge(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-club-primary"
+                    />
+                    <span className="text-xs text-neutral-300">
+                      Erase those {readings} {readings === 1 ? "reading" : "readings"} too.
+                      <span className="mt-1 block text-neutral-500">
+                        Leave this unticked and the numbers stay in the database, just hidden — which also means
+                        creating a metric with this name again later would bring them all back. Tick it if you want the
+                        metric genuinely gone. This cannot be undone.
+                      </span>
+                    </span>
+                  </label>
+                </>
+              );
+            })()}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 rounded-xl bg-red-500/90 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
+              >
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {deleting ? "Deleting…" : "Delete metric"}
+              </button>
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
+              >
+                Cancel
+              </button>
+              {pendingDelete.is_active && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await deactivateStatMetric(pendingDelete.id);
+                      setPendingDelete(null);
+                      onChanged("Metric turned off — nothing was deleted.");
+                    } catch (e) { onError(e instanceof Error ? e.message : "Couldn't turn that off."); }
+                  }}
+                  className="ml-auto rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-400 hover:bg-navy-600 hover:text-white dark:hover:bg-navy-800"
+                >
+                  Just hide it instead
+                </button>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
