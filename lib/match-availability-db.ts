@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import type { DbInjury } from "./injuries-db";
 import type { DbPlayerAbsence } from "./player-absences-db";
 import type { DbMatch } from "./matches-db";
+import { competitionKind } from "./competition-kind";
 
 export type AvailabilityStatus = "available" | "doubtful" | "unavailable";
 
@@ -131,7 +132,35 @@ type SuspensionLike = {
   matches_banned: number | null;
   matches_served: number;
   reason: string | null;
+  competition?: string | null;
 };
+
+// How many games of a match ban have been served by the time of a given
+// fixture, counted from the games actually played rather than from a counter
+// somebody has to remember to click. Mirrors matchesServedFor in manager-db;
+// kept here too so this file has no dependency on the manager module.
+function servedBy(
+  s: SuspensionLike,
+  matches: Pick<DbMatch, "kickoff" | "competition" | "status">[],
+  beforeIso: string
+): number {
+  const scope = (s.competition ?? "").toLowerCase();
+  const played = matches.filter((m) => {
+    if (m.status === "cancelled" || m.status === "postponed") return false;
+    // Only games already played by the time of the fixture being judged, so
+    // asking "is he available in three weeks" counts the games in between.
+    if (m.kickoff >= beforeIso) return false;
+    if (m.kickoff.slice(0, 10) < s.start_date) return false;
+    if (scope) {
+      const kind = competitionKind(m.competition);
+      if (scope.includes("league") && kind !== "league") return false;
+      if (scope.includes("cup") && kind !== "cup") return false;
+      if (scope.includes("friendly") && kind !== "friendly") return false;
+    }
+    return true;
+  });
+  return Math.max(s.matches_served, played.length);
+}
 
 function coversDate(start: string, end: string | null, date: string): boolean {
   if (start > date) return false;
@@ -147,6 +176,9 @@ export function effectiveAvailability(
     injuries?: DbInjury[];
     suspensions?: SuspensionLike[];
     absences?: DbPlayerAbsence[];
+    // Pass the fixture list to have match bans expire on their own as games are
+    // played. Omit it and the recorded count is used, as before.
+    matches?: Pick<DbMatch, "kickoff" | "competition" | "status">[];
   }
 ): EffectiveAvailability {
   const matchDate = match.kickoff.slice(0, 10);
@@ -155,12 +187,14 @@ export function effectiveAvailability(
 
   // Suspension: banned by date range covering the fixture, or a match ban with
   // games still to serve.
-  const suspension = (sources.suspensions ?? []).find(
-    (s) =>
-      s.player_id === playerId &&
-      (coversDate(s.start_date, s.end_date, matchDate) ||
-        (s.matches_banned !== null && s.matches_served < s.matches_banned && s.start_date <= matchDate))
-  );
+  const allMatches = sources.matches;
+  const suspension = (sources.suspensions ?? []).find((s) => {
+    if (s.player_id !== playerId) return false;
+    if (coversDate(s.start_date, s.end_date, matchDate)) return true;
+    if (s.matches_banned === null || s.start_date > matchDate) return false;
+    const served = allMatches ? servedBy(s, allMatches, match.kickoff) : s.matches_served;
+    return served < s.matches_banned;
+  });
   if (suspension) {
     return {
       status: "unavailable",
