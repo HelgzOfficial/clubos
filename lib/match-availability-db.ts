@@ -225,3 +225,25 @@ export const SOURCE_LABEL: Record<AvailabilitySource, string> = {
   player: "Player replied",
   none: "No reply",
 };
+
+// Removes a recorded answer entirely, putting the player back to "no reply".
+//
+// Distinct from setting them unavailable, and the difference matters: "hasn't
+// answered" is a person to chase, "unavailable" is a decision already taken.
+// Collapsing the two would leave a manager unable to undo a mistaken tap.
+export async function clearAvailability(matchId: string, playerId: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error, count } = await supabase
+    .from("match_availability")
+    .delete({ count: "exact" })
+    .eq("match_id", matchId)
+    .eq("player_id", playerId);
+  if (error) throw error;
+  // Zero rows means the database refused rather than there being nothing to
+  // remove — the caller already knows a row exists before offering this.
+  if (!count) {
+    throw new Error(
+      "The database wouldn't clear that answer. Check the delete permission on match_availability in Supabase."
+    );
+  }
+}
