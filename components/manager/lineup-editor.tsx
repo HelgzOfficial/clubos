@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { notifyByPush } from "@/lib/push-client";
 import { tabState } from "@/lib/tab-styles";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -396,9 +397,45 @@ export function LineupEditor({
       setLineup(next);
       if (publish) {
         const written = await syncLineupToMatchCentre(next, players);
+
+        // Tell the selected players, on whatever device they've turned
+        // notifications on for. Trialists are skipped because they have no
+        // player record to notify, and everyone else in the squad is left
+        // alone — being told a team has been named when you aren't in it is
+        // news best delivered by a manager, not a phone.
+        const selectedIds = [...(next.starters ?? []), ...(next.subs ?? [])]
+          .filter((slot) => !isTrialistSlot(slot))
+          .map((slot) => slot.playerId)
+          .filter(Boolean);
+
+        const notified = new Set(selectedIds);
+        const opponent = match ? match.opponent : "the next fixture";
+        const when = match
+          ? new Date(match.kickoff).toLocaleString("en-GB", {
+              weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+            })
+          : "";
+        const isStarter = new Set(
+          (next.starters ?? []).filter((slot) => !isTrialistSlot(slot)).map((slot) => slot.playerId)
+        );
+
+        // Deliberately not awaited: a push service being slow must never hold
+        // up, or undo, a squad that has already been published successfully.
+        for (const id of notified) {
+          void notifyByPush({
+            playerId: id,
+            title: "You're in the squad",
+            body: `${isStarter.has(id) ? "Starting" : "On the bench"} ${match?.is_home ? "vs" : "away to"} ${opponent}${when ? ` — ${when}` : ""}.`,
+            url: "/portal",
+            tag: `selection-${next.match_id}`,
+          });
+        }
+
         setSyncNote(
           `Published. ${written} ${written === 1 ? "name is" : "names are"} now on this fixture — Match Centre, the ` +
-            "players' companion and the analysis pages all read the same list."
+            "players' companion and the analysis pages all read the same list. " +
+            `${notified.size} selected ${notified.size === 1 ? "player has" : "players have"} been notified on any device ` +
+            "where they've turned notifications on."
         );
       }
     } catch (e) {
