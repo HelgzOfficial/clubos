@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Loader2, HelpCircle, X as XIcon, Star } from "lucide-react";
-import type { DbMatch } from "@/lib/matches-db";
+import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import {
   fetchAvailabilityForPlayer, setAvailability, effectiveAvailability,
   type DbMatchAvailability, type AvailabilityStatus,
@@ -32,6 +32,9 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
   const [injuries, setInjuries] = useState<DbInjury[]>([]);
   const [absences, setAbsences] = useState<DbPlayerAbsence[]>([]);
   const [suspensions, setSuspensions] = useState<DbSuspension[]>([]);
+  // Needed so a match ban counts itself down here too — otherwise a player
+  // whose ban is served would still be told they're suspended.
+  const [allMatches, setAllMatches] = useState<DbMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -41,11 +44,12 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [replies, inj, abs, sus] = await Promise.all([
+      const [replies, inj, abs, sus, all] = await Promise.all([
         fetchAvailabilityForPlayer(playerId),
         fetchActiveInjuries().catch(() => [] as DbInjury[]),
         fetchPlayerAbsences().catch(() => [] as DbPlayerAbsence[]),
         fetchSuspensions().catch(() => [] as DbSuspension[]),
+        fetchMatches().catch(() => [] as DbMatch[]),
       ]);
       const mine = replies.find((r) => r.match_id === match.id);
       setRow(mine);
@@ -53,6 +57,7 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
       setInjuries(inj);
       setAbsences(abs);
       setSuspensions(sus);
+      setAllMatches(all);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       setError(
@@ -71,7 +76,9 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
   const now = new Date();
   const played = now > kickoff;
 
-  const effective = effectiveAvailability(playerId, match, { reply: row, injuries, absences, suspensions });
+  const effective = effectiveAvailability(playerId, match, {
+    reply: row, injuries, absences, suspensions, matches: allMatches,
+  });
   const clubSays = effective.source !== "player" && effective.source !== "none";
 
   async function answer(status: AvailabilityStatus, withNote?: string) {
