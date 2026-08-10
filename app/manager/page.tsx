@@ -21,7 +21,7 @@ import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
 import { fetchPlayerAbsences, type DbPlayerAbsence } from "@/lib/player-absences-db";
 import { fetchLeagueTable, type DbLeagueRow } from "@/lib/league-table-db";
 import {
-  fetchSuspensions, createSuspension, deleteSuspension, updateSuspensionServed, isSuspensionActive,
+  fetchSuspensions, createSuspension, deleteSuspension, updateSuspensionServed, isSuspensionActive, matchesServedFor,
   fetchCards, createCard, deleteCard, disciplineByPlayer,
   fetchContracts, saveContract, daysUntilExpiry, CONTRACT_TYPES,
   fetchRegistrations, saveRegistration,
@@ -77,12 +77,13 @@ function statusFor(
   player: DbPlayer,
   injuries: DbInjury[],
   suspensions: DbSuspension[],
-  absences: DbPlayerAbsence[]
+  absences: DbPlayerAbsence[],
+  matches: DbMatch[] = []
 ): Status {
-  const suspension = suspensions.find((s) => s.player_id === player.id && isSuspensionActive(s));
+  const suspension = suspensions.find((s) => s.player_id === player.id && isSuspensionActive(s, undefined, matches));
   if (suspension) {
     const detail = suspension.matches_banned
-      ? `${suspension.matches_served}/${suspension.matches_banned} matches served`
+      ? `${matchesServedFor(suspension, matches)}/${suspension.matches_banned} matches served`
       : `until ${shortDate(suspension.end_date)}`;
     return { key: "suspended", label: "Suspended", detail };
   }
@@ -175,9 +176,9 @@ export default function ManagerPage() {
 
   const statuses = useMemo(() => {
     const map = new Map<string, Status>();
-    for (const p of players) map.set(p.id, statusFor(p, injuries, suspensions, absences));
+    for (const p of players) map.set(p.id, statusFor(p, injuries, suspensions, absences, matches));
     return map;
-  }, [players, injuries, suspensions, absences]);
+  }, [players, injuries, suspensions, absences, matches]);
 
   const discipline = useMemo(() => disciplineByPlayer(cards, matches), [cards, matches]);
   const nextMatch = useMemo(() => upcomingMatches(matches)[0] ?? null, [matches]);
@@ -625,7 +626,7 @@ function AvailabilityTab({
     }
   }
 
-  const active = suspensions.filter((s) => isSuspensionActive(s));
+  const active = suspensions.filter((s) => isSuspensionActive(s, undefined, matches));
 
   // Every player's position for the chosen fixture, combining their own reply
   // with medical, suspensions and booked time off — the club's records win.
@@ -634,7 +635,7 @@ function AvailabilityTab({
         player: p,
         effective: effectiveAvailability(p.id, selectedFixture, {
           reply: availability.find((a) => a.match_id === selectedFixture.id && a.player_id === p.id),
-          injuries, suspensions, absences,
+          injuries, suspensions, absences, matches,
         }),
       }))
     : [];
