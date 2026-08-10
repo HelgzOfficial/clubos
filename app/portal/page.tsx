@@ -8,6 +8,7 @@ import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { club as clubFallback } from "@/lib/sample-data";
 import { loadClubSettings, saveClubSettings } from "@/lib/club-settings";
 import { fetchClubSettings } from "@/lib/club-settings-db";
+import { usePermissions } from "@/lib/permissions";
 import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { findPlayerByEmail, type DbPlayer } from "@/lib/players-db";
 import {
@@ -50,6 +51,7 @@ import { MatchPhotos } from "@/components/documents/match-photos";
 import { PortalEmergencyContact } from "@/components/portal/emergency-contact";
 import { MyAbsences } from "@/components/portal/my-absences";
 import { PublishedLineup } from "@/components/portal/match-availability";
+import { fetchAvailabilityForPlayer } from "@/lib/match-availability-db";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -78,6 +80,11 @@ const availabilityVariant: Record<string, "green" | "amber" | "red"> = {
 
 export default function PortalPage() {
   const router = useRouter();
+  // Staff who end up on the players' screen need a way back to their own app.
+  // Without this the only button on the page is "Sign out", which throws away a
+  // working session to solve a problem that was only ever a wrong turn.
+  const { role } = usePermissions();
+  const isStaff = Boolean(role) && role !== "player";
   const [loading, setLoading] = useState(true);
   const [branding, setBranding] = useState(clubFallback);
   const [player, setPlayer] = useState<DbPlayer | null>(null);
@@ -91,6 +98,11 @@ export default function PortalPage() {
   const [error, setError] = useState("");
 
   const [matches, setMatches] = useState<DbMatch[]>([]);
+  // Fixtures this player still owes an answer for. Shown as a prompt on the
+  // dashboard as well as pushed as a notification, because most people never
+  // grant notification permission — a reminder that only exists as a push is a
+  // reminder half the squad will never see.
+  const [awaitingReply, setAwaitingReply] = useState<DbMatch[]>([]);
   const [recentResults, setRecentResults] = useState<DbMatch[]>([]);
   const [scheduleTab, setScheduleTab] = useState<"upcoming" | "results">("upcoming");
   const [docsByMatch, setDocsByMatch] = useState<Record<string, DbMatchDocument[]>>({});
@@ -215,6 +227,28 @@ export default function PortalPage() {
   }, []);
 
   const nextMatch = matches[0] ?? null;
+
+  useEffect(() => {
+    if (!player) return;
+    let cancelled = false;
+    fetchAvailabilityForPlayer(player.id)
+      .then((replies) => {
+        if (cancelled) return;
+        const answered = new Set(replies.map((r) => r.match_id));
+        const now = Date.now();
+        setAwaitingReply(
+          matches.filter(
+            (m) =>
+              new Date(m.kickoff).getTime() > now &&
+              m.status !== "cancelled" &&
+              m.status !== "postponed" &&
+              !answered.has(m.id)
+          )
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [player, matches]);
 
   const formGuide = useMemo(() => {
     // recentResults is newest-first and may include played games that have no
@@ -401,12 +435,22 @@ export default function PortalPage() {
               {linkDetail && <p className="mt-2 break-words text-[11px] text-neutral-600">{linkDetail}</p>}
             </>
           ) : (
+            isStaff ? (
+            <>
+              <p className="font-medium">This is the players&apos; screen</p>
+              <p className="mt-1.5 text-sm text-neutral-400">
+                You&apos;re signed in as staff, and staff accounts don&apos;t have a player profile — so there&apos;s
+                nothing for this page to show. Everything you need is in the main app.
+              </p>
+            </>
+            ) : (
             <>
               <p className="font-medium">We couldn&apos;t find a player profile with that email</p>
               <p className="mt-1.5 text-sm text-neutral-400">
                 Ask your club to put this exact address on your player profile, then sign in again.
               </p>
             </>
+            )
           )}
 
           {/* The address actually signed in with. Nine times out of ten the
@@ -419,7 +463,19 @@ export default function PortalPage() {
             </p>
           )}
 
-          <button onClick={handleSignOut} className="mt-4 text-sm text-neutral-400 underline underline-offset-2 hover:text-white">
+          {isStaff && (
+            <Link
+              href="/dashboard"
+              className="mt-4 block rounded-xl bg-club-primary px-4 py-2.5 text-sm font-medium text-navy-950 hover:opacity-90"
+            >
+              Back to the staff app
+            </Link>
+          )}
+
+          <button
+            onClick={handleSignOut}
+            className={`text-sm text-neutral-400 underline underline-offset-2 hover:text-white ${isStaff ? "mt-3" : "mt-4"}`}
+          >
             Sign out
           </button>
         </div>
@@ -514,6 +570,41 @@ export default function PortalPage() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {awaitingReply.length > 0 && (
+          <div className="rounded-card border border-club-primary/40 bg-club-primary/10 p-4">
+            <p className="text-sm font-semibold">
+              {awaitingReply.length === 1
+                ? "The manager needs your availability"
+                : `${awaitingReply.length} fixtures need your availability`}
+            </p>
+            <p className="mt-1 text-xs text-neutral-300">
+              Tap a fixture to say whether you can play. You can change your answer any time before kick-off.
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {awaitingReply.slice(0, 3).map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/portal/matches/${m.id}`}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/5"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {m.is_home ? "vs" : "away to"} {m.opponent}
+                  </span>
+                  <span className="shrink-0 text-xs text-neutral-400">
+                    {new Date(m.kickoff).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                  </span>
+                  <ChevronRight size={14} className="shrink-0 text-neutral-500" />
+                </Link>
+              ))}
+            </div>
+            {awaitingReply.length > 3 && (
+              <p className="mt-2 text-[11px] text-neutral-400">
+                And {awaitingReply.length - 3} more further down.
+              </p>
             )}
           </div>
         )}
