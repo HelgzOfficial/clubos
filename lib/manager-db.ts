@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { competitionKind } from "./competition-kind";
 import { countsForSeasonStats } from "./season";
 import type { DbMatch } from "./matches-db";
 
@@ -77,7 +78,62 @@ export async function deleteSuspension(id: string): Promise<void> {
 // A suspension is live if today falls inside its dates, or — when it's counted
 // in matches rather than dates — if there are matches still to serve. Clubs
 // record bans both ways, so both have to be handled.
-export function isSuspensionActive(s: DbSuspension, today = new Date().toISOString().slice(0, 10)): boolean {
+// How many fixtures a match ban has actually been served by, counted from the
+// games the club has played since it started.
+//
+// This exists because `matches_served` on the row only ever moved when somebody
+// pressed "Served one" by hand. Miss a week and a player stays banned forever —
+// the ban has been served on the pitch but not in the database, and nothing in
+// the app was watching. Counting the fixtures directly makes a ban expire on
+// its own, which is what everyone assumes is already happening.
+//
+// The recorded figure is still honoured as a floor. A game served elsewhere, or
+// one never entered into ClubOS, is a legitimate reason for the manual number
+// to be ahead of the fixture list, and it should never be argued down.
+export function matchesServedFor(
+  s: Pick<DbSuspension, "start_date" | "competition" | "matches_served">,
+  matches: Pick<DbMatch, "kickoff" | "competition" | "status">[],
+  now = Date.now()
+): number {
+  const scope = (s.competition ?? "").toLowerCase();
+  const played = matches.filter((m) => {
+    if (m.status === "cancelled" || m.status === "postponed") return false;
+    if (new Date(m.kickoff).getTime() >= now) return false;
+    if (m.kickoff.slice(0, 10) < s.start_date) return false;
+    // A ban limited to one competition is only served by games in it. Without
+    // this a league ban would be wiped out by a midweek cup tie.
+    if (scope) {
+      const kind = competitionKind(m.competition);
+      if (scope.includes("league") && kind !== "league") return false;
+      if (scope.includes("cup") && kind !== "cup") return false;
+      if (scope.includes("friendly") && kind !== "friendly") return false;
+    }
+    return true;
+  });
+  return Math.max(s.matches_served, played.length);
+}
+
+// Pass `matches` to have match bans expire automatically as fixtures are
+// played. Without it the function falls back to the recorded count alone, which
+// is how every existing caller behaved.
+export function isSuspensionActive(
+  s: DbSuspension,
+  today = new Date().toISOString().slice(0, 10),
+  matches?: Pick<DbMatch, "kickoff" | "competition" | "status">[]
+): boolean {
+  if (matches && s.matches_banned !== null) {
+    // Counted as at the same date this call is judging, not at the wall clock.
+    // Without this the two arguments could disagree — asking "was he banned on
+    // the 20th" would count games played up to today instead.
+    const served = matchesServedFor(s, matches, new Date(`${today}T23:59:59Z`).getTime());
+    // Ban served. A date range on top of it still has to run out — some bans
+    // are "three games and not before the 20th".
+    if (served >= s.matches_banned) return s.end_date !== null && s.end_date >= today;
+  }
+  return isSuspensionActiveByRecord(s, today);
+}
+
+function isSuspensionActiveByRecord(s: DbSuspension, today = new Date().toISOString().slice(0, 10)): boolean {
   if (s.matches_banned !== null) {
     if (s.matches_served < s.matches_banned) return true;
     if (!s.end_date) return false;
