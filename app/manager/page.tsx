@@ -33,7 +33,7 @@ import {
 } from "@/lib/match-availability-db";
 import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
-  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film, ClipboardList, BarChart3, Gavel,
+  Plus, Trash2, Check, X, Loader2, AlertTriangle, Square, ListChecks, Film, ClipboardList, BarChart3, Gavel, Bell,
 } from "lucide-react";
 
 type Tab = "overview" | "availability" | "selections" | "stats" | "discipline" | "thresholds" | "contracts" | "registrations" | "previous" | "highlights" | "opposition";
@@ -503,6 +503,39 @@ function AvailabilityTab({
     playerId: "", reason: "", startDate: today(), endDate: "", matchesBanned: "", competition: "", notes: "",
   });
 
+  // Chasing the missing replies by hand, for when a side needs naming today and
+  // waiting for tonight's scheduled reminder isn't much use.
+  const [reminding, setReminding] = useState(false);
+  const [remindNote, setRemindNote] = useState("");
+
+  async function handleRemind() {
+    setReminding(true);
+    setRemindNote("");
+    try {
+      const res = await fetch("/api/availability-reminders", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setRemindNote(data?.error ?? "Couldn't send the reminders.");
+        return;
+      }
+      if (data.reminded === 0) {
+        setRemindNote(data.note ?? "Everyone has already answered.");
+      } else {
+        // Reported separately on purpose: a player with notifications switched
+        // off isn't a failure to fix, but it does mean chasing them another way.
+        setRemindNote(
+          `Reminded ${data.reminded} ${data.reminded === 1 ? "player" : "players"} across ${data.sent} ` +
+          `${data.sent === 1 ? "device" : "devices"}.` +
+          (data.withoutDevice ? ` ${data.withoutDevice} have no device with notifications turned on.` : "")
+        );
+      }
+    } catch {
+      setRemindNote("Couldn't reach the reminder service.");
+    } finally {
+      setReminding(false);
+    }
+  }
+
   async function handleAdd() {
     if (!form.playerId || !form.startDate) {
       setError("Pick a player and a start date.");
@@ -565,6 +598,14 @@ function AvailabilityTab({
             <span className="rounded-lg bg-amber-500/15 px-2 py-1 font-medium text-amber-300">{fixtureCounts.doubtful} doubtful</span>
             <span className="rounded-lg bg-red-500/15 px-2 py-1 font-medium text-red-300">{fixtureCounts.unavailable} out</span>
             <span className="rounded-lg bg-white/10 px-2 py-1 font-medium text-neutral-400">{fixtureCounts.unknown} no reply</span>
+            <button
+              onClick={handleRemind}
+              disabled={reminding}
+              className="ml-auto flex touch-manipulation items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 font-medium text-neutral-300 hover:bg-navy-600 disabled:opacity-60 dark:hover:bg-navy-800"
+            >
+              <Bell size={12} /> {reminding ? "Sending…" : "Remind players"}
+            </button>
+            {remindNote && <span className="w-full text-[11px] text-neutral-400">{remindNote}</span>}
           </div>
 
           <ul className="divide-y divide-white/10">
