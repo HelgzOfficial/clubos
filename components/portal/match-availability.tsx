@@ -21,16 +21,11 @@ const OPTIONS: { status: AvailabilityStatus; label: string; icon: typeof Check; 
 
 // Confirming availability for one fixture, shown on that match's page.
 //
-// The deadline is real: replies close 48 hours before kick-off, because a
-// manager naming a side on Thursday can't have answers arriving on Saturday
-// morning. After it passes the answer is shown but locked, and anyone who
-// didn't reply is told to speak to the manager rather than left with a dead
-// button.
-export const AVAILABILITY_DEADLINE_HOURS = 48;
-
-export function deadlineFor(kickoff: string): Date {
-  return new Date(new Date(kickoff).getTime() - AVAILABILITY_DEADLINE_HOURS * 3600_000);
-}
+// There is no cut-off. A player can answer, and change their answer, right up
+// to kick-off — circumstances change, and a late "actually I can play" is worth
+// far more to a manager than a locked button and a player who gave up. The one
+// limit that remains is the fixture itself: once it has kicked off there is
+// nothing left to declare.
 
 export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string; match: DbMatch }) {
   const [row, setRow] = useState<DbMatchAvailability | undefined>(undefined);
@@ -73,9 +68,7 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
   useEffect(() => { load(); }, [load]);
 
   const kickoff = new Date(match.kickoff);
-  const deadline = deadlineFor(match.kickoff);
   const now = new Date();
-  const closed = now > deadline;
   const played = now > kickoff;
 
   const effective = effectiveAvailability(playerId, match, { reply: row, injuries, absences, suspensions });
@@ -113,9 +106,7 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
         </div>
       ) : (
         <p className="mb-3 text-xs text-neutral-400">
-          {closed
-            ? "Replies for this match are closed."
-            : `Please answer by ${deadline.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} — 48 hours before kick-off.`}
+          Let the manager know if you&apos;re available. You can change your answer any time before kick-off.
         </p>
       )}
 
@@ -126,7 +117,7 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
           <button
             key={status}
             onClick={() => answer(status)}
-            disabled={busy || closed || clubSays}
+            disabled={busy || clubSays}
             className={`flex flex-1 touch-manipulation items-center justify-center gap-1.5 rounded-xl px-2 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
               row?.status === status ? on : "border border-white/10 text-neutral-300 hover:bg-navy-600 dark:hover:bg-navy-800"
             }`}
@@ -137,13 +128,7 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
         ))}
       </div>
 
-      {closed && !row && !clubSays && (
-        <p className="mt-2 text-xs text-amber-300">
-          You didn&apos;t reply before the deadline. Speak to the manager directly if you&apos;re available.
-        </p>
-      )}
-
-      {!closed && !clubSays && (
+      {!clubSays && (
         editingNote ? (
           <div className="mt-2 flex gap-2">
             <input
@@ -174,8 +159,8 @@ export function MatchAvailabilityConfirm({ playerId, match }: { playerId: string
 
 // Kept so a companion page that still imports the old list-of-fixtures
 // component compiles and works. It simply stacks the per-match confirm blocks,
-// which is what the list used to be — the deadline and club-override rules
-// come along for free rather than being duplicated.
+// which is what the list used to be — the club-override rules come along for
+// free rather than being duplicated.
 export function MatchAvailability({ playerId, matches }: { playerId: string; matches: DbMatch[] }) {
   const fixtures = matches
     .filter((m) => new Date(m.kickoff).getTime() >= Date.now() && m.status !== "cancelled")
