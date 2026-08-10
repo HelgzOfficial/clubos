@@ -30,6 +30,10 @@ import {
 import {
   fetchAvailabilityForMatches, effectiveAvailability, SOURCE_LABEL, AVAILABILITY_LABEL, AVAILABILITY_TONE,
   type DbMatchAvailability,
+  // Aliased: this page already has a state setter called setAvailability, and
+  // two different things by one name in one file is how the wrong one gets
+  // called at 11pm.
+  setAvailability as saveAvailability, clearAvailability, type AvailabilityStatus,
 } from "@/lib/match-availability-db";
 import {
   ShieldAlert, Users, FileSignature, ClipboardCheck, Swords, Shield,
@@ -508,6 +512,72 @@ function AvailabilityTab({
   const [reminding, setReminding] = useState(false);
   const [remindNote, setRemindNote] = useState("");
 
+  // Recording an answer on a player's behalf — the phone call, the word in the
+  // changing room, the text that never made it into the app.
+  const [settingId, setSettingId] = useState("");
+  const [availError, setAvailError] = useState("");
+
+  async function setFor(playerId: string, status: AvailabilityStatus) {
+    if (!selectedFixture) return;
+    setSettingId(playerId);
+    setAvailError("");
+    try {
+      // recordedBy is what keeps an honest audit: a manager's entry and a
+      // player's own reply look identical in the data otherwise, and a squad
+      // built on "he said he was fine" needs to know which it was.
+      await saveAvailability({
+        matchId: selectedFixture.id, playerId, status, recordedBy: "Recorded by staff",
+      });
+      onChanged();
+    } catch (e) {
+      setAvailError(e instanceof Error ? e.message : "Couldn't save that.");
+    } finally {
+      setSettingId("");
+    }
+  }
+
+  async function clearFor(playerId: string) {
+    if (!selectedFixture) return;
+    setSettingId(playerId);
+    setAvailError("");
+    try {
+      await clearAvailability(selectedFixture.id, playerId);
+      onChanged();
+    } catch (e) {
+      setAvailError(e instanceof Error ? e.message : "Couldn't clear that.");
+    } finally {
+      setSettingId("");
+    }
+  }
+
+  // For when a manager has spoken to the group and only wants to record the
+  // exceptions. Only touches players with nothing recorded — it can't overwrite
+  // an answer someone has already given.
+  async function markRemainingAvailable() {
+    if (!selectedFixture) return;
+    const outstanding = perFixture.filter((r) => r.effective.status === "unknown");
+    if (outstanding.length === 0) return;
+    if (!window.confirm(
+      `Mark ${outstanding.length} ${outstanding.length === 1 ? "player" : "players"} with no reply as available? ` +
+      "Anyone who has already answered is left alone."
+    )) return;
+    setSettingId("bulk");
+    setAvailError("");
+    try {
+      for (const r of outstanding) {
+        await saveAvailability({
+          matchId: selectedFixture.id, playerId: r.player.id, status: "available",
+          recordedBy: "Recorded by staff",
+        });
+      }
+      onChanged();
+    } catch (e) {
+      setAvailError(e instanceof Error ? e.message : "Couldn't save those.");
+    } finally {
+      setSettingId("");
+    }
+  }
+
   async function handleRemind() {
     setReminding(true);
     setRemindNote("");
@@ -608,29 +678,92 @@ function AvailabilityTab({
             {remindNote && <span className="w-full text-[11px] text-neutral-400">{remindNote}</span>}
           </div>
 
+          {availError && (
+            <p className="mb-2 text-xs text-red-300">{availError}</p>
+          )}
+
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <button
+              onClick={markRemainingAvailable}
+              disabled={settingId !== "" || fixtureCounts.unknown === 0}
+              className="flex touch-manipulation items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-neutral-300 hover:bg-navy-600 disabled:opacity-40 dark:hover:bg-navy-800"
+            >
+              <Check size={12} />
+              {settingId === "bulk" ? "Saving…" : `Mark the ${fixtureCounts.unknown} with no reply as available`}
+            </button>
+          </div>
+
           <ul className="divide-y divide-white/10">
-            {perFixture.map(({ player, effective }) => (
-              <li key={player.id} className="flex items-center gap-3 py-2.5">
-                <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{player.name}</p>
-                  <p className="truncate text-[11px] text-neutral-500">
-                    {SOURCE_LABEL[effective.source]}
-                    {effective.detail ? ` · ${effective.detail}` : ""}
-                    {effective.overridesReply ? " · overrides their reply" : ""}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium ${
-                  effective.status === "unknown" ? "bg-white/10 text-neutral-400" : AVAILABILITY_TONE[effective.status]
-                }`}>
-                  {effective.status === "unknown" ? "No reply" : AVAILABILITY_LABEL[effective.status]}
-                </span>
-              </li>
-            ))}
+            {perFixture.map(({ player, effective }) => {
+              const reply = availability.find(
+                (a) => a.match_id === selectedFixture.id && a.player_id === player.id
+              );
+              const busy = settingId === player.id || settingId === "bulk";
+              // A club record (injury, ban, booked time off) still wins, so
+              // saying so here stops a manager tapping "available" three times
+              // wondering why nothing changes.
+              const clubOverrides = effective.source !== "player" && effective.source !== "none";
+              return (
+                <li key={player.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                  <PlayerAvatar playerId={player.id} initials={player.initials} photoUrl={player.photo_url} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{player.name}</p>
+                    <p className="truncate text-[11px] text-neutral-500">
+                      {SOURCE_LABEL[effective.source]}
+                      {effective.detail ? ` · ${effective.detail}` : ""}
+                      {effective.overridesReply ? " · overrides their reply" : ""}
+                      {reply?.recorded_by ? " · entered by staff" : ""}
+                    </p>
+                  </div>
+
+                  <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium ${
+                    effective.status === "unknown" ? "bg-white/10 text-neutral-400" : AVAILABILITY_TONE[effective.status]
+                  }`}>
+                    {effective.status === "unknown" ? "No reply" : AVAILABILITY_LABEL[effective.status]}
+                  </span>
+
+                  <span className="flex shrink-0 items-center gap-1">
+                    {([
+                      { status: "available" as const, label: "Avail", on: "bg-emerald-500 text-navy-950" },
+                      { status: "doubtful" as const, label: "Doubt", on: "bg-amber-400 text-navy-950" },
+                      { status: "unavailable" as const, label: "Out", on: "bg-red-500 text-white" },
+                    ]).map((o) => (
+                      <button
+                        key={o.status}
+                        onClick={() => setFor(player.id, o.status)}
+                        disabled={busy || clubOverrides}
+                        title={
+                          clubOverrides
+                            ? `${effective.detail} — clear that record first if this has changed`
+                            : `Record ${player.name} as ${AVAILABILITY_LABEL[o.status].toLowerCase()}`
+                        }
+                        className={`touch-manipulation rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+                          reply?.status === o.status
+                            ? o.on
+                            : "border border-white/10 text-neutral-400 hover:bg-navy-600 dark:hover:bg-navy-800"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => clearFor(player.id)}
+                      disabled={busy || !reply}
+                      title="Clear this answer — back to no reply"
+                      className="flex h-6 w-6 touch-manipulation items-center justify-center rounded-full text-neutral-500 hover:bg-navy-600 hover:text-white disabled:opacity-30 dark:hover:bg-navy-800"
+                    >
+                      {busy ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
           <p className="mt-3 text-xs text-neutral-500">
-            Injuries, suspensions and booked time off are applied automatically and take precedence over a player&apos;s
-            own answer — so a reply given a fortnight ago can&apos;t hide a hamstring picked up on Tuesday.
+            You can record an answer for any player here — a phone call, a word in the changing room. It saves against
+            the fixture exactly as their own reply would, marked as entered by staff so the two stay tellable apart.
+            Injuries, suspensions and booked time off are still applied automatically and take precedence over both, so
+            a reply given a fortnight ago can&apos;t hide a hamstring picked up on Tuesday.
           </p>
         </Card>
       )}
