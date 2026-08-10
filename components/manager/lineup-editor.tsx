@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlayerAvatar } from "@/components/players/player-avatar";
 import { FormationPitch, type PitchOccupant } from "@/components/manager/formation-pitch";
 import { fetchPlayers, type DbPlayer } from "@/lib/players-db";
-import type { DbMatch } from "@/lib/matches-db";
+import { fetchMatches, type DbMatch } from "@/lib/matches-db";
 import { fetchActiveInjuries, type DbInjury } from "@/lib/injuries-db";
 import { fetchPlayerAbsences, type DbPlayerAbsence } from "@/lib/player-absences-db";
 import { fetchSuspensions, fetchRegistrations, type DbSuspension, type DbRegistration } from "@/lib/manager-db";
@@ -52,6 +52,9 @@ export function LineupEditor({
   const [absences, setAbsences] = useState<DbPlayerAbsence[]>([]);
   const [suspensions, setSuspensions] = useState<DbSuspension[]>([]);
   const [registrations, setRegistrations] = useState<DbRegistration[]>([]);
+  // The whole fixture list, so a match ban can count itself down against games
+  // actually played rather than waiting for someone to tick it off by hand.
+  const [allMatches, setAllMatches] = useState<DbMatch[]>([]);
   const [availability, setAvailability] = useState<DbMatchAvailability[]>([]);
 
   const [lineup, setLineup] = useState<DbLineup | null>(null);
@@ -80,8 +83,10 @@ export function LineupEditor({
   useEffect(() => {
     Promise.allSettled([
       fetchPlayers(), fetchActiveInjuries(), fetchPlayerAbsences(), fetchSuspensions(), fetchRegistrations(),
-    ]).then(([p, inj, abs, sus, reg]) => {
+      fetchMatches(),
+    ]).then(([p, inj, abs, sus, reg, all]) => {
       if (p.status === "fulfilled") setPlayers(p.value);
+      if (all.status === "fulfilled") setAllMatches(all.value);
       if (inj.status === "fulfilled") setInjuries(inj.value);
       if (abs.status === "fulfilled") setAbsences(abs.value);
       if (sus.status === "fulfilled") setSuspensions(sus.value);
@@ -157,6 +162,7 @@ export function LineupEditor({
     const eff = effectiveAvailability(playerId, match, {
       reply: availability.find((a) => a.player_id === playerId),
       injuries, suspensions, absences,
+      matches: allMatches,
     });
     if (eff.status === "unavailable") {
       return { blocked: true, reason: eff.detail || SOURCE_LABEL[eff.source] || "Unavailable" };
@@ -799,6 +805,7 @@ export function LineupEditor({
                 ? effectiveAvailability(p.id, match, {
                     reply: availability.find((a) => a.player_id === p.id),
                     injuries, suspensions, absences,
+                    matches: allMatches,
                   })
                 : null;
               const block = eligibility(p.id);
